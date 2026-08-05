@@ -9,6 +9,7 @@
  */
 import { Timestamp, collection, getDocs, type DocumentData } from 'firebase/firestore';
 import { db } from './firebase.js';
+import { urlApi } from './api.js';
 
 const TIMEOUT_MS = 15_000;
 
@@ -29,7 +30,7 @@ export async function enviarAoErp(dados: EnvioEstoque): Promise<ResultadoEnvio> 
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
   try {
-    const resposta = await fetch('/api/erp/estoque', {
+    const resposta = await fetch(urlApi('/erp/estoque'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(dados),
