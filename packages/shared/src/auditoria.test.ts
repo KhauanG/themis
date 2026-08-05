@@ -7,9 +7,16 @@ function produto(over: Partial<Produto> = {}): Produto {
 }
 
 describe('statusDe', () => {
+  // "Não contado" é a AUSÊNCIA do campo: limpar contagem remove `productStatus` com
+  // deleteField(), e as Security Rules só aceitam 'ATUALIZADO' ou 'CONFERIDO'.
   it('NÃO CONTADO quando o item não foi contado no ciclo', () => {
-    expect(statusDe(produto({ productStatus: 'PENDENTE' }))).toBe('NÃO CONTADO');
     expect(statusDe(produto({ productStatus: null }))).toBe('NÃO CONTADO');
+    expect(statusDe({ id: 'p1', nome: 'Cerveja', quantidade: 0 })).toBe('NÃO CONTADO');
+  });
+
+  it('quantidade sozinha não torna o item contado', () => {
+    // Limpar contagem deixa `quantidade: 0` e remove o status.
+    expect(statusDe({ id: 'p1', quantidade: 0, estoqueSistema: 0 })).toBe('NÃO CONTADO');
   });
 
   it('CORRETO quando físico bate com sistema', () => {
@@ -50,7 +57,7 @@ describe('statusDe', () => {
 
 describe('diferencaDe', () => {
   it('devolve traço para item não contado', () => {
-    expect(diferencaDe(produto({ productStatus: 'PENDENTE' }))).toBe('-');
+    expect(diferencaDe(produto({ productStatus: null }))).toBe('-');
   });
 
   it('devolve a diferença com sinal', () => {
@@ -65,7 +72,7 @@ describe('calcularEstatisticas', () => {
     const produtos: Produto[] = [
       produto({ id: 'a', quantidade: 10, estoqueSistema: 10 }),
       produto({ id: 'b', quantidade: 3, estoqueSistema: 10 }),
-      produto({ id: 'c', productStatus: 'PENDENTE' }),
+      produto({ id: 'c', productStatus: null }),
       produto({ id: 'd', productStatus: 'CONFERIDO', quantidade: 8, estoqueSistema: 8 }),
       produto({ id: 'e', productStatus: 'CONFERIDO', quantidade: 8, estoqueSistema: 8, corrigidoIncorreto: true }),
     ];
@@ -87,7 +94,7 @@ describe('calcularEstatisticas', () => {
   });
 
   it('não divide por zero quando nada foi contado', () => {
-    const est = calcularEstatisticas([produto({ productStatus: 'PENDENTE' })]);
+    const est = calcularEstatisticas([produto({ productStatus: null })]);
     expect(est.percentualIncorretos).toBe(0.0);
     expect(est.corrigidos.percentualIncorretos).toBe(0.0);
   });
@@ -96,7 +103,7 @@ describe('calcularEstatisticas', () => {
     const produtos: Produto[] = [
       produto({ id: 'a', quantidade: 1, estoqueSistema: 1 }),
       produto({ id: 'b', productStatus: 'CONFERIDO' }),
-      produto({ id: 'c', productStatus: 'PENDENTE' }),
+      produto({ id: 'c', productStatus: null }),
     ];
     const est = calcularEstatisticas(produtos);
     expect(est.contados + est.naoContados).toBe(est.total);

@@ -9,11 +9,16 @@
  * Não "limpe" esses campos aqui. Normalize com os helpers de `produto.ts`.
  */
 
-/** Estado de contagem de um produto, gravado no documento. */
+/**
+ * Estado de contagem de um produto, gravado no documento.
+ *
+ * Não existe valor para "não contado": o campo é **removido** do documento ao limpar a
+ * contagem. As Security Rules só aceitam estes dois valores (`data.productStatus in
+ * ['ATUALIZADO', 'CONFERIDO']`), então gravar um terceiro faria a escrita ser negada.
+ */
 export type ProductStatus =
   | 'ATUALIZADO' // contado pelo funcionário
-  | 'CONFERIDO' // corrigido pelo admin/master após auditoria
-  | 'PENDENTE'; // ainda não contado neste ciclo
+  | 'CONFERIDO'; // corrigido pelo admin/master após auditoria
 
 /** Status calculado (nunca persistido no produto; vai no snapshot da auditoria). */
 export type StatusAuditoria = 'CORRETO' | 'ERRADO' | 'CRITICO' | 'NÃO CONTADO';
@@ -53,7 +58,27 @@ export interface Produto {
 
   /** Data de validade mais curta, formato `YYYY-MM-DD`. Sem quantidade associada. */
   dataValidade?: string | null;
+
+  /** Marcado na importação: produto veio sem código de barras da planilha. */
+  temCodigoBarras?: boolean;
+
+  /** O ERP não reconheceu o produto no envio. */
+  apiNotFound?: boolean;
+
+  /** Controle de concorrência: quem gravou por último e quando. */
+  lastModified?: Date | null;
+  modifiedBy?: string;
 }
+
+/** Abas de filtro da tela de contagem. */
+export type FiltroContagem =
+  | 'all'
+  | 'no-barcode'
+  | 'updated'
+  | 'conferido-correto'
+  | 'conferido-incorreto'
+  | 'api-not-found'
+  | 'negative';
 
 /** `inventories/{inventoryId}` — metadados do estoque. */
 export interface Inventory {

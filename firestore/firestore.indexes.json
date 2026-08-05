@@ -1,0 +1,30 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "historico_geral",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "inventoryId", "order": "ASCENDING" },
+        { "fieldPath": "timestamp", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "historico_geral",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "inventoryId", "order": "ASCENDING" },
+        { "fieldPath": "action", "order": "ASCENDING" },
+        { "fieldPath": "timestamp", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "auditorias",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "inventoryId", "order": "ASCENDING" },
+        { "fieldPath": "data", "order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

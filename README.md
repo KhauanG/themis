@@ -60,30 +60,41 @@ O SDK já tem cache próprio em IndexedDB. Dois caches sobre o mesmo dado servem
 informação velha achando que está fresca. Configurado como `NetworkOnly` no
 `vite.config.ts`.
 
+**Nunca gravar `null` nem `'PENDENTE'` em produto.**
+As Security Rules exigem `quantidade is number`, `codigoBarras is string`, `dataValidade
+is string` e `productStatus in ['ATUALIZADO','CONFERIDO']`. "Não contado" é a **ausência**
+do campo: limpar contagem remove `productStatus`/`dataValidade`/`corrigidoIncorreto` com
+`deleteField()` e deixa `quantidade: 0`. Como o sentinela `deleteField()` não sobrevive ao
+JSON da fila offline, o chamador usa a constante `REMOVER` de `produtos-repo.ts` e a
+conversão acontece na hora de gravar.
+
 ## Estado do porte
 
-Feito:
+Portado e verificado (typecheck + lint + 45 testes + build):
 - [x] Monorepo, TypeScript, lint, testes, CI
-- [x] Tipos do domínio (`packages/shared`)
-- [x] Cálculo de auditoria + estatísticas + snapshot, com testes
+- [x] Domínio compartilhado: tipos, status de auditoria, estatísticas, filtros, papéis
 - [x] Firebase com cache persistente multi-aba
 - [x] Escrita com teto de tempo (porte do 4.19.8)
+- [x] Fila offline com detecção de conflito e deduplicação
+- [x] Autenticação e papéis (`isMaster` / `isAdmin` / `isAuditor` / comum)
+- [x] Seleção de estoque e ciclo de contagem
+- [x] Tela de contagem: lista, filtros, busca, card com quantidade e validade
+- [x] Leitor de código de barras (`BarcodeDetector` nativo)
+- [x] Cadastro e importação de planilha
+- [x] Painel de auditoria: ao vivo e auditorias salvas, estatísticas, filtro por status
+- [x] Exportação PDF (contagem e validade) e planilha
+- [x] Histórico geral
+- [x] Finalizar e salvar contagem
+- [x] Integração ERP pelo proxy da API
 - [x] API: proxy ERP, webhook autenticado, health
 - [x] Deploy por push (GitHub Actions → Hostinger)
 
-A portar (uma branch por item):
-- [ ] Autenticação e papéis (`isMaster` / `isAdmin` / `isAuditor` / comum)
-- [ ] Seleção de estoque e ciclo de contagem
-- [ ] Tela de contagem: lista, filtros, card com quantidade e validade
-- [ ] Leitor de código de barras (`BarcodeDetector` nativo)
-- [ ] Fila offline de alterações + resolução de conflito
-- [ ] Cadastro, importação e exportação de produtos (planilha)
-- [ ] Painel de auditoria: estatísticas, filtros, correção
-- [ ] Exportação PDF (contagem e validade)
-- [ ] Histórico geral
-- [ ] Finalizar e salvar contagem
-- [ ] Integração ERP pelo proxy
+Falta (não bloqueia o primeiro deploy):
+- [ ] Teste manual em celular Android real (câmera exige HTTPS)
+- [ ] Tela de gestão de usuários e papéis (hoje só pelo Console do Firebase)
+- [ ] Fluxo de correção do admin (marcar `CONFERIDO` / `corrigidoIncorreto`)
 - [ ] Migração dos usuários do APK para o PWA
+- [ ] Varredura de produtos legados com tipo de campo inválido para as regras
 
 ## Deploy
 

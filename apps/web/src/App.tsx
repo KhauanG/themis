@@ -1,62 +1,73 @@
-/**
- * Shell inicial do Themis 2.0.
- *
- * Existe para provar que a base sobe de ponta a ponta: Firebase conecta, cache
- * persistente liga, service worker registra. As telas (contagem, produtos,
- * auditoria, validade, histórico) entram em `src/features/` conforme o plano
- * de porte — ver README.
- */
-import { useEffect, useState } from 'react';
-import { onAuthStateChanged, type User } from 'firebase/auth';
-import { auth } from './lib/firebase.js';
+import { Navigate, Route, BrowserRouter as Router, Routes } from 'react-router-dom';
+import { AuthProvider, useAuth } from './contexts/AuthContext.js';
+import { EstoqueProvider } from './contexts/EstoqueContext.js';
+import { ToastProvider } from './contexts/ToastContext.js';
+import { Toasts } from './components/Toasts.js';
+import { Carregando } from './components/Carregando.js';
+import { Layout } from './components/Layout.js';
+import { Login } from './features/auth/Login.js';
+import { TelaContagem } from './features/contagem/TelaContagem.js';
+import { PainelAuditoria } from './features/auditoria/PainelAuditoria.js';
+import { TelaProdutos } from './features/produtos/TelaProdutos.js';
+import { TelaHistorico } from './features/historico/TelaHistorico.js';
 
-type EstadoAuth = { carregando: true } | { carregando: false; usuario: User | null };
+/** Bloqueia a rota quando a permissão não existe. A regra do Firestore é a defesa real. */
+function Protegida({ permitido, children }: { permitido: boolean; children: React.ReactNode }) {
+  if (!permitido) return <Navigate to="/" replace />;
+  return <>{children}</>;
+}
 
-export function App() {
-  const [estado, setEstado] = useState<EstadoAuth>({ carregando: true });
+function Rotas() {
+  const { usuario, carregando, permissoes } = useAuth();
 
-  useEffect(() => {
-    return onAuthStateChanged(auth, (usuario) => setEstado({ carregando: false, usuario }));
-  }, []);
+  if (carregando) return <Carregando texto="Entrando..." tela />;
+  if (!usuario) return <Login />;
 
   return (
-    <main className="shell">
-      <h1>Themis 2.0</h1>
-      <p className="shell__sub">Contagem de estoque — Grupo Ice Beer</p>
-
-      <section className="shell__status">
-        <Linha rotulo="Firebase" valor="conectado" ok />
-        <Linha
-          rotulo="Sessão"
-          valor={
-            estado.carregando
-              ? 'verificando…'
-              : estado.usuario
-                ? (estado.usuario.email ?? 'autenticado')
-                : 'não autenticado'
-          }
-          ok={!estado.carregando && estado.usuario !== null}
-        />
-        <Linha
-          rotulo="Service worker"
-          valor={'serviceWorker' in navigator ? 'suportado' : 'indisponível'}
-          ok={'serviceWorker' in navigator}
-        />
-        <Linha
-          rotulo="Leitor de código"
-          valor={'BarcodeDetector' in window ? 'nativo' : 'indisponível neste navegador'}
-          ok={'BarcodeDetector' in window}
-        />
-      </section>
-    </main>
+    <EstoqueProvider>
+      <Router>
+        <Routes>
+          <Route element={<Layout />}>
+            <Route index element={<TelaContagem />} />
+            <Route
+              path="auditoria"
+              element={
+                <Protegida permitido={permissoes.verAuditoria}>
+                  <PainelAuditoria />
+                </Protegida>
+              }
+            />
+            <Route
+              path="produtos"
+              element={
+                <Protegida permitido={permissoes.gerenciarProdutos}>
+                  <TelaProdutos />
+                </Protegida>
+              }
+            />
+            <Route
+              path="historico"
+              element={
+                <Protegida permitido={permissoes.verHistorico}>
+                  <TelaHistorico />
+                </Protegida>
+              }
+            />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Route>
+        </Routes>
+      </Router>
+    </EstoqueProvider>
   );
 }
 
-function Linha({ rotulo, valor, ok }: { rotulo: string; valor: string; ok: boolean }) {
+export function App() {
   return (
-    <div className="linha">
-      <span className="linha__rotulo">{rotulo}</span>
-      <span className={ok ? 'linha__valor linha__valor--ok' : 'linha__valor'}>{valor}</span>
-    </div>
+    <ToastProvider>
+      <AuthProvider>
+        <Rotas />
+        <Toasts />
+      </AuthProvider>
+    </ToastProvider>
   );
 }

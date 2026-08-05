@@ -1,0 +1,251 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function userDoc(uid) {
+      return /databases/$(database)/documents/users/$(uid);
+    }
+
+    function hasUserDoc() {
+      return signedIn() && exists(userDoc(request.auth.uid));
+    }
+
+    function isMaster() {
+      return hasUserDoc() &&
+        get(userDoc(request.auth.uid)).data.isMaster == true;
+    }
+
+    function isAdmin() {
+      return hasUserDoc() &&
+        get(userDoc(request.auth.uid)).data.isAdmin == true;
+    }
+
+    function isAuditor() {
+      return hasUserDoc() &&
+        get(userDoc(request.auth.uid)).data.isAuditor == true;
+    }
+
+    function isAdminOrMaster() {
+      return isAdmin() || isMaster();
+    }
+
+    function isAuditorOrMaster() {
+      return isAuditor() || isMaster();
+    }
+
+    function validOptionalUserFields(data) {
+      return (!('firstName' in data) || (data.firstName is string && data.firstName.size() > 0 && data.firstName.size() <= 50)) &&
+        (!('lastName' in data) || (data.lastName is string && data.lastName.size() > 0 && data.lastName.size() <= 50)) &&
+        (!('displayName' in data) || data.displayName is string) &&
+        (!('email' in data) || data.email is string) &&
+        (!('lastEstoque' in data) || data.lastEstoque is string) &&
+        (!('allowedInventories' in data) || data.allowedInventories is list) &&
+        (!('updatedAt' in data) || data.updatedAt is timestamp) &&
+        (!('createdAt' in data) || data.createdAt is timestamp) &&
+        (!('isAdmin' in data) || data.isAdmin is bool) &&
+        (!('isAuditor' in data) || data.isAuditor is bool) &&
+        (!('isMaster' in data) || data.isMaster is bool);
+    }
+
+    function rolesAreNotElevatedOnCreate(data) {
+      return (!('isAdmin' in data) || data.isAdmin == false) &&
+        (!('isAuditor' in data) || data.isAuditor == false) &&
+        (!('isMaster' in data) || data.isMaster == false);
+    }
+
+    function ownRoleFieldsUnchanged(data) {
+      return (!('isAdmin' in data) || data.isAdmin == resource.data.isAdmin) &&
+        (!('isAuditor' in data) || data.isAuditor == resource.data.isAuditor) &&
+        (!('isMaster' in data) || data.isMaster == resource.data.isMaster) &&
+        (!('allowedInventories' in data) || data.allowedInventories == resource.data.allowedInventories);
+    }
+
+    function validInventoryData(data) {
+      return data.keys().hasAll(['name']) &&
+        data.name is string &&
+        data.name.size() > 0 &&
+        data.name.size() <= 100 &&
+        (!('description' in data) || data.description is string) &&
+        (!('createdAt' in data) || data.createdAt is timestamp) &&
+        (!('updatedAt' in data) || data.updatedAt is timestamp) &&
+        (!('contagemCycle' in data) || data.contagemCycle is number) &&
+        (!('lastFinalizedCycle' in data) || data.lastFinalizedCycle is number) &&
+        (!('lastFinalizedAt' in data) || data.lastFinalizedAt is timestamp);
+    }
+
+    // Usuário comum só pode marcar productStatus 'ATUALIZADO' e não pode tocar nos
+    // campos de correção (CONFERIDO / corrigido* são exclusivos do fluxo admin/master).
+    function podeAlterarStatusProduto() {
+      let mudancas = request.resource.data.diff(resource.data).affectedKeys();
+      return isAdminOrMaster() || (
+        !mudancas.hasAny(['corrigidoIncorreto', 'corrigidoCritico']) &&
+        (!mudancas.hasAny(['productStatus']) || (
+          request.resource.data.get('productStatus', '') == 'ATUALIZADO' &&
+          resource.data.get('productStatus', '') != 'CONFERIDO'
+        ))
+      );
+    }
+
+    function validProductData(data) {
+      return data.keys().hasAll(['nome', 'quantidade', 'codigoBarras']) &&
+        data.nome is string &&
+        data.nome.size() > 0 &&
+        data.nome.size() <= 300 &&
+        data.quantidade is number &&
+        data.codigoBarras is string &&
+        (!('estoqueSistema' in data) || data.estoqueSistema is number) &&
+        (!('EstoqueAtual' in data) || data.EstoqueAtual is number) &&
+        (!('EstoqueMinimo' in data) || data.EstoqueMinimo is number) &&
+        (!('estoqueMinimo' in data) || data.estoqueMinimo is number) &&
+        (!('PrecoVenda' in data) || data.PrecoVenda is number) &&
+        (!('precoVenda' in data) || data.precoVenda is number) &&
+        (!('apiNotFound' in data) || data.apiNotFound is bool) &&
+        (!('temCodigoBarras' in data) || data.temCodigoBarras is bool) &&
+        (!('inventoryId' in data) || data.inventoryId is string) &&
+        (!('IdProduto' in data) || data.IdProduto is string || data.IdProduto is number) &&
+        (!('idProduto' in data) || data.idProduto is string || data.idProduto is number) &&
+        (!('idProdut' in data) || data.idProdut is string || data.idProdut is number) &&
+        (!('lastModified' in data) || data.lastModified is timestamp) &&
+        (!('createdAt' in data) || data.createdAt is timestamp) &&
+        (!('lastImportDate' in data) || data.lastImportDate is timestamp) &&
+        (!('lastSyncFromERP' in data) || data.lastSyncFromERP is timestamp) &&
+        (!('modifiedBy' in data) || data.modifiedBy is string) &&
+        (!('createdBy' in data) || data.createdBy is string) &&
+        (!('productStatus' in data) || data.productStatus in ['ATUALIZADO', 'CONFERIDO']) &&
+        (!('corrigidoIncorreto' in data) || data.corrigidoIncorreto is bool) &&
+        (!('corrigidoCritico' in data) || data.corrigidoCritico is bool) &&
+        (!('dataValidade' in data) || data.dataValidade is string);
+    }
+
+    match /estoques/{estoqueId} {
+      allow read: if signedIn();
+      allow create, update: if isAdminOrMaster() && validInventoryData(request.resource.data);
+      allow delete: if isMaster();
+
+      match /produtos/{produtoId} {
+        allow read: if signedIn();
+        allow create: if isAdminOrMaster() && validProductData(request.resource.data);
+        allow update: if signedIn() && validProductData(request.resource.data) && podeAlterarStatusProduto();
+        allow delete: if isMaster();
+      }
+
+      match /updatedItems/{itemId} {
+        allow read: if signedIn();
+        allow create, update: if signedIn() &&
+          request.resource.data.keys().hasAll(['productId', 'updatedAt']) &&
+          request.resource.data.productId is string &&
+          request.resource.data.productId.size() > 0 &&
+          request.resource.data.updatedAt is timestamp;
+        allow delete: if isAdminOrMaster();
+      }
+    }
+
+    match /inventories/{inventoryId} {
+      allow read: if signedIn();
+      allow create: if isAdminOrMaster() && validInventoryData(request.resource.data);
+      // Update normal (nome/descrição/etc) segue admin/master; finalização de ciclo por
+      // qualquer usuário logado é permitida SOMENTE nos campos do ciclo (finalizar contagem).
+      allow update: if (isAdminOrMaster() && validInventoryData(request.resource.data))
+        || (signedIn()
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['contagemCycle', 'lastFinalizedCycle', 'lastFinalizedAt', 'updatedAt'])
+            && request.resource.data.contagemCycle is number
+            && request.resource.data.contagemCycle >= 1);
+      allow delete: if isMaster();
+    }
+
+    match /produtos/{produtoId} {
+      allow read: if signedIn();
+      allow write: if false;
+    }
+
+    match /updatedItems/{itemId} {
+      allow read: if signedIn();
+      allow write: if false;
+    }
+
+    match /hashConfigs/{configId} {
+      allow read: if signedIn();
+      allow create, update: if isMaster() &&
+        (('hashes' in request.resource.data && request.resource.data.hashes is map) ||
+         ('inventoryHashes' in request.resource.data && request.resource.data.inventoryHashes is map));
+      allow delete: if isMaster();
+    }
+
+    match /appSettings/{settingId} {
+      allow read: if signedIn();
+      allow create, update: if isAdminOrMaster() &&
+        (!('modoContagem' in request.resource.data) || request.resource.data.modoContagem is bool) &&
+        (!('readonlyInventories' in request.resource.data) || request.resource.data.readonlyInventories is list) &&
+        (!('lastUpdated' in request.resource.data) || request.resource.data.lastUpdated is timestamp);
+      allow delete: if isMaster();
+    }
+
+    match /backups/{backupId} {
+      allow read, create, update, delete: if isMaster();
+    }
+
+    match /auditorias/{auditoriaId} {
+      allow read: if signedIn();
+      allow create: if signedIn() &&
+        request.resource.data.keys().hasAll(['nome', 'inventoryId', 'data', 'produtos', 'estatisticas', 'contagemCycle']) &&
+        request.resource.data.nome is string &&
+        request.resource.data.nome.size() > 0 &&
+        request.resource.data.nome.size() <= 100 &&
+        request.resource.data.inventoryId is string &&
+        request.resource.data.data is timestamp &&
+        request.resource.data.produtos is list &&
+        request.resource.data.estatisticas is map &&
+        request.resource.data.contagemCycle is number &&
+        request.resource.data.contagemCycle >= 1;
+      allow update, delete: if isMaster();
+    }
+
+    match /users/{userId} {
+      // Auditores leem apenas o próprio perfil (auditoria.js só consulta o próprio uid)
+      allow read: if signedIn() && (request.auth.uid == userId || isAdminOrMaster());
+      allow create: if signedIn() &&
+        request.auth.uid == userId &&
+        request.resource.data.keys().hasAll(['firstName', 'lastName']) &&
+        validOptionalUserFields(request.resource.data) &&
+        rolesAreNotElevatedOnCreate(request.resource.data);
+      allow update: if signedIn() &&
+        request.auth.uid == userId &&
+        validOptionalUserFields(request.resource.data) &&
+        ownRoleFieldsUnchanged(request.resource.data);
+      allow update: if signedIn() &&
+        isAdmin() &&
+        !isMaster() &&
+        validOptionalUserFields(request.resource.data) &&
+        (!('isAdmin' in request.resource.data) || request.resource.data.isAdmin == resource.data.isAdmin) &&
+        (!('isAuditor' in request.resource.data) || request.resource.data.isAuditor == resource.data.isAuditor) &&
+        (!('isMaster' in request.resource.data) || request.resource.data.isMaster == resource.data.isMaster) &&
+        (!('allowedInventories' in request.resource.data) || request.resource.data.allowedInventories == resource.data.allowedInventories);
+      allow update: if signedIn() && isMaster() && validOptionalUserFields(request.resource.data);
+      allow delete: if false;
+    }
+
+    match /userSettings/{settingsId} {
+      allow read, delete: if signedIn();
+      allow create, update: if signedIn() &&
+        (!('lastUpdated' in request.resource.data) || request.resource.data.lastUpdated is timestamp);
+    }
+
+    match /historico_geral/{logId} {
+      allow read: if signedIn() && isMaster();
+      allow create: if signedIn() &&
+        request.resource.data.keys().hasAll(['action', 'userId', 'userEmail', 'userName', 'timestamp']) &&
+        request.resource.data.action is string &&
+        request.resource.data.userId == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
