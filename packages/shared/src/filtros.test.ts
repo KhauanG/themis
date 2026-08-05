@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { filtrarProdutos, mensagemVazio } from './filtros.js';
+import { FILTROS, contarPorFiltro, filtrarProdutos, mensagemVazio, progressoContagem } from './filtros.js';
 import type { Produto } from './types.js';
 
 function p(over: Partial<Produto> & { id: string }): Produto {
@@ -17,8 +17,7 @@ const produtos: Produto[] = [
 
 describe('filtrarProdutos', () => {
   it('ordena por nome em português por padrão', () => {
-    const r = filtrarProdutos(produtos, 'all');
-    expect(r.map((x) => x.id)).toEqual(['a', 'b', 'c', 'd', 'e', 'f']);
+    expect(filtrarProdutos(produtos, 'all').map((x) => x.id)).toEqual(['a', 'b', 'c', 'd', 'e', 'f']);
   });
 
   it('não muta o array recebido', () => {
@@ -44,10 +43,21 @@ describe('filtrarProdutos', () => {
     expect(filtrarProdutos(produtos, 'api-not-found').map((x) => x.id)).toEqual(['f']);
   });
 
-  // Regra herdada do 1.x: item já corrigido pelo admin sai da lista de trabalho.
-  it('aba Atualizados esconde itens CONFERIDO', () => {
-    const atualizados = new Set(['a', 'd', 'e']);
-    expect(filtrarProdutos(produtos, 'updated', { atualizados }).map((x) => x.id)).toEqual(['a']);
+  // A aba sai de productStatus, não de rastreamento local: com 5 celulares contando,
+  // todos veem a mesma lista.
+  it('Contados mostra ATUALIZADO e esconde CONFERIDO', () => {
+    expect(filtrarProdutos(produtos, 'updated').map((x) => x.id)).toEqual(['a', 'c']);
+  });
+
+  it('A contar mostra só quem não tem status', () => {
+    expect(filtrarProdutos(produtos, 'pendentes').map((x) => x.id)).toEqual(['b', 'f']);
+  });
+
+  it('Contados e A contar não se sobrepõem e cobrem os não corrigidos', () => {
+    const contados = filtrarProdutos(produtos, 'updated');
+    const pendentes = filtrarProdutos(produtos, 'pendentes');
+    const conferidos = produtos.filter((x) => x.productStatus === 'CONFERIDO');
+    expect(contados.length + pendentes.length + conferidos.length).toBe(produtos.length);
   });
 
   it('busca por nome e por código de barras, sem diferenciar caixa', () => {
@@ -57,14 +67,47 @@ describe('filtrarProdutos', () => {
     expect(filtrarProdutos(lista, 'all', { busca: 'heineken' })).toHaveLength(0);
   });
 
-  it('ordena por data quando pedido', () => {
-    const datas = new Map([
-      ['a', 100],
-      ['c', 300],
+  it('ordena pelos mais recentes usando lastModified do servidor', () => {
+    const lista = [
+      p({ id: 'velho', nome: 'A', productStatus: 'ATUALIZADO', lastModified: new Date(1000) }),
+      p({ id: 'novo', nome: 'Z', productStatus: 'ATUALIZADO', lastModified: new Date(9000) }),
+      p({ id: 'semData', nome: 'M', productStatus: 'ATUALIZADO' }),
+    ];
+    expect(filtrarProdutos(lista, 'updated', { maisRecentesPrimeiro: true }).map((x) => x.id)).toEqual([
+      'novo',
+      'velho',
+      'semData',
     ]);
-    const atualizados = new Set(['a', 'c']);
-    const r = filtrarProdutos(produtos, 'updated', { atualizados, ordenarPorData: datas });
-    expect(r.map((x) => x.id)).toEqual(['c', 'a']);
+  });
+});
+
+// A contagem rápida existe para não ordenar 8 vezes a lista inteira a cada snapshot.
+// Se ela divergir do filtro de verdade, os números das abas mentem.
+describe('contarPorFiltro', () => {
+  it('bate com filtrarProdutos em todas as abas', () => {
+    const rapido = contarPorFiltro(produtos);
+    for (const f of FILTROS) {
+      expect(rapido[f.id], `aba ${f.id}`).toBe(filtrarProdutos(produtos, f.id).length);
+    }
+  });
+
+  it('funciona com lista vazia', () => {
+    const rapido = contarPorFiltro([]);
+    for (const f of FILTROS) expect(rapido[f.id]).toBe(0);
+  });
+});
+
+describe('progressoContagem', () => {
+  it('conta quem tem qualquer status como contado', () => {
+    const pr = progressoContagem(produtos);
+    expect(pr.total).toBe(6);
+    expect(pr.contados).toBe(4); // 2 ATUALIZADO + 2 CONFERIDO
+    expect(pr.pendentes).toBe(2);
+    expect(pr.percentual).toBe(67);
+  });
+
+  it('não divide por zero com estoque vazio', () => {
+    expect(progressoContagem([])).toEqual({ total: 0, contados: 0, pendentes: 0, percentual: 0 });
   });
 });
 

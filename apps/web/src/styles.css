@@ -219,9 +219,21 @@ select {
   border-radius: var(--raio);
 }
 
-.campo__entrada:focus-visible {
+.campo__entrada:focus-visible,
+.botao:focus-visible,
+.aba:focus-visible,
+.card__topo:focus-visible,
+.nav:focus-visible {
   outline: 2px solid var(--primaria);
-  outline-offset: 1px;
+  outline-offset: 2px;
+}
+
+/* Quantidade contada é o campo mais usado do app: grande e fácil de acertar. */
+.campo__entrada--numero {
+  font-size: 1.35rem;
+  font-weight: 700;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
 }
 
 .botao {
@@ -300,6 +312,49 @@ select {
 
 /* ---------- Contagem ---------- */
 
+.progresso {
+  margin-bottom: 0.75rem;
+}
+
+.progresso__texto {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  margin-bottom: 0.35rem;
+  font-size: 0.85rem;
+  color: var(--suave);
+}
+
+.progresso__texto strong {
+  font-size: 1.1rem;
+  color: var(--texto);
+}
+
+.progresso__pct {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.progresso__trilha {
+  height: 0.4rem;
+  background: var(--bg-3);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.progresso__barra {
+  height: 100%;
+  background: var(--ok);
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .progresso__barra {
+    transition: none;
+  }
+}
+
 .contagem__busca {
   display: flex;
   gap: 0.5rem;
@@ -308,6 +363,65 @@ select {
 
 .contagem__busca .campo__entrada {
   flex: 1;
+  min-width: 0;
+}
+
+.botao--icone {
+  flex: 0 0 auto;
+  padding: 0 0.85rem;
+  letter-spacing: -0.1em;
+}
+
+.aba__contador {
+  margin-left: 0.4rem;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 12%);
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.aba--ativa .aba__contador {
+  background: rgb(0 0 0 / 22%);
+}
+
+/* ---------- Esqueleto de carga ---------- */
+
+.esqueleto {
+  background: var(--bg-2);
+  border: 1px solid var(--borda);
+  border-radius: var(--raio);
+  padding: 0.85rem 0.7rem;
+}
+
+.esqueleto__linha {
+  height: 0.8rem;
+  border-radius: 0.25rem;
+  background: linear-gradient(90deg, var(--bg-3) 25%, #3f4c60 50%, var(--bg-3) 75%);
+  background-size: 200% 100%;
+  animation: brilho 1.4s ease-in-out infinite;
+}
+
+.esqueleto__linha--titulo {
+  width: 65%;
+}
+
+.esqueleto__linha--meta {
+  width: 35%;
+  height: 0.6rem;
+  margin-top: 0.5rem;
+}
+
+@keyframes brilho {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .esqueleto__linha {
+    animation: none;
+  }
 }
 
 .abas {
@@ -408,10 +522,44 @@ select {
 }
 
 .card__meta {
-  display: block;
-  margin-top: 0.15rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.2rem;
   font-size: 0.75rem;
   color: var(--suave);
+}
+
+.card__codigo {
+  font-variant-numeric: tabular-nums;
+}
+
+.etiqueta {
+  padding: 0.05rem 0.4rem;
+  border-radius: 0.25rem;
+  background: rgb(148 163 184 / 18%);
+  font-size: 0.68rem;
+  font-weight: 600;
+}
+
+.etiqueta--alerta {
+  background: rgb(245 158 11 / 22%);
+  color: #fbbf24;
+}
+
+.etiqueta--vencido {
+  background: rgb(220 38 38 / 25%);
+  color: #f87171;
+}
+
+.card--aberto {
+  border-color: var(--primaria);
+}
+
+.card__qtd--vazio {
+  color: var(--suave);
+  font-weight: 400;
 }
 
 .card__numeros {
@@ -610,6 +758,65 @@ select {
   font-size: 0.85rem;
 }
 
+.aviso--compacto {
+  margin: 0 0 0.7rem;
+  padding: 0.45rem 0.6rem;
+  font-size: 0.8rem;
+}
+
+.aviso__texto {
+  margin: 0 0 0.5rem;
+}
+
+.aviso__texto:only-child {
+  margin-bottom: 0;
+}
+
+/* ---------- Falha de renderização ---------- */
+
+.falha {
+  max-width: 30rem;
+  margin: 0 auto;
+  padding: 3rem 1.25rem;
+  text-align: center;
+}
+
+.falha__titulo {
+  font-size: 1.25rem;
+}
+
+.falha__detalhe {
+  margin-top: 2rem;
+  text-align: left;
+  color: var(--suave);
+  font-size: 0.8rem;
+}
+
+.falha__detalhe pre {
+  overflow-x: auto;
+  padding: 0.6rem;
+  background: var(--bg-2);
+  border-radius: var(--raio);
+}
+
+/* ---------- Utilitários ---------- */
+
+.suave {
+  color: var(--suave);
+}
+
+/* Visível para leitor de tela, oculto na tela. */
+.visualmente-oculto {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 /* ---------- Toasts ---------- */
 
 .toasts {
@@ -746,6 +953,72 @@ select {
 
 .cartao--alerta strong {
   color: var(--alerta);
+}
+
+.cartao--ok strong {
+  color: var(--ok);
+}
+
+.linha--conferida {
+  opacity: 0.65;
+}
+
+.acoes-linha {
+  display: flex;
+  gap: 0.3rem;
+}
+
+.botao--mini {
+  min-height: 1.9rem;
+  padding: 0 0.55rem;
+  font-size: 0.75rem;
+  background: var(--bg-3);
+  border-color: var(--borda);
+}
+
+.botao--ok {
+  background: rgb(34 197 94 / 22%);
+  color: #4ade80;
+}
+
+.botao--erro {
+  background: rgb(220 38 38 / 22%);
+  color: #f87171;
+}
+
+/* ---------- Usuários ---------- */
+
+.usuario {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: var(--bg-2);
+  border: 1px solid var(--borda);
+  border-radius: var(--raio);
+  padding: 0.7rem;
+}
+
+.usuario__info {
+  flex: 1;
+  min-width: 0;
+}
+
+.usuario__nome {
+  display: block;
+  font-weight: 600;
+}
+
+.usuario__email {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--suave);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.usuario__papel .campo__entrada {
+  width: auto;
+  min-width: 8.5rem;
 }
 
 .auditoria__acoes {

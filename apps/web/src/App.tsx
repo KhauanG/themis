@@ -10,6 +10,8 @@ import { TelaContagem } from './features/contagem/TelaContagem.js';
 import { PainelAuditoria } from './features/auditoria/PainelAuditoria.js';
 import { TelaProdutos } from './features/produtos/TelaProdutos.js';
 import { TelaHistorico } from './features/historico/TelaHistorico.js';
+import { TelaUsuarios } from './features/usuarios/TelaUsuarios.js';
+import { LimiteDeErro } from './components/LimiteDeErro.js';
 
 /** Bloqueia a rota quando a permissão não existe. A regra do Firestore é a defesa real. */
 function Protegida({ permitido, children }: { permitido: boolean; children: React.ReactNode }) {
@@ -53,6 +55,14 @@ function Rotas() {
                 </Protegida>
               }
             />
+            <Route
+              path="usuarios"
+              element={
+                <Protegida permitido={permissoes.gerenciarUsuarios}>
+                  <TelaUsuarios />
+                </Protegida>
+              }
+            />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>
@@ -63,11 +73,13 @@ function Rotas() {
 
 export function App() {
   return (
-    <ToastProvider>
-      <AuthProvider>
-        <Rotas />
-        <Toasts />
-      </AuthProvider>
-    </ToastProvider>
+    <LimiteDeErro>
+      <ToastProvider>
+        <AuthProvider>
+          <Rotas />
+          <Toasts />
+        </AuthProvider>
+      </ToastProvider>
+    </LimiteDeErro>
   );
 }

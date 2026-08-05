@@ -5,7 +5,7 @@
  * (861 KB em toda abertura do app, versão do npm sem as correções publicadas só no CDN).
  * Entra por import dinâmico: só quem importa ou exporta paga o custo.
  */
-import { fisicoDe, nomeDe, sistemaDe, statusDe, validadeDe, type Produto } from '@themis/shared';
+import { ordenarPorNome, type LinhaRelatorio } from '@themis/shared';
 import { entregarArquivo, nomeDeArquivo } from './arquivo.js';
 
 /** Aceita as várias grafias que já apareceram nas planilhas do ERP. */
@@ -96,7 +96,7 @@ export async function lerPlanilha(arquivo: File): Promise<ResultadoImportacao> {
 }
 
 export async function exportarPlanilha(
-  produtos: readonly Produto[],
+  linhas: readonly LinhaRelatorio[],
   nomeEstoque: string,
 ): Promise<void> {
   const ExcelJS = await import('exceljs');
@@ -107,7 +107,6 @@ export async function exportarPlanilha(
   const aba = pasta.addWorksheet('Contagem');
   aba.columns = [
     { header: 'Produto', key: 'nome', width: 42 },
-    { header: 'Código de barras', key: 'codigo', width: 18 },
     { header: 'Estoque sistema', key: 'sistema', width: 16 },
     { header: 'Contado', key: 'contado', width: 12 },
     { header: 'Diferença', key: 'diferenca', width: 12 },
@@ -116,17 +115,15 @@ export async function exportarPlanilha(
   ];
   aba.getRow(1).font = { bold: true };
 
-  for (const p of [...produtos].sort((a, b) => nomeDe(a).localeCompare(nomeDe(b), 'pt-BR'))) {
-    const contado = p.quantidade != null;
+  for (const l of ordenarPorNome(linhas)) {
     aba.addRow({
-      nome: nomeDe(p),
-      codigo: p.codigoBarras ?? p.CodigoBarras ?? '',
-      sistema: sistemaDe(p),
+      nome: l.nome,
+      sistema: l.sistema,
       // Célula vazia em vez de 0: 0 é contagem legítima e confundiria com "não contado".
-      contado: contado ? fisicoDe(p) : '',
-      diferenca: contado ? fisicoDe(p) - sistemaDe(p) : '',
-      status: statusDe(p),
-      validade: validadeDe(p) ?? '',
+      contado: l.contado ?? '',
+      diferenca: l.diferenca === '-' ? '' : l.diferenca,
+      status: l.status,
+      validade: l.validade ?? '',
     });
   }
 

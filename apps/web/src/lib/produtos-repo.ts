@@ -13,6 +13,7 @@ import {
   getDocs,
   onSnapshot,
   setDoc,
+  updateDoc,
   writeBatch,
   type DocumentData,
   type QueryDocumentSnapshot,
@@ -251,6 +252,75 @@ export async function criarProduto(
     { label: 'cadastrar produto' },
   );
   return ref.id;
+}
+
+/**
+ * Cria produtos em lote.
+ *
+ * Uma escrita por produto, com teto de 8s cada, deixava a importação de 2000 itens
+ * inviável na prática. Em lotes de 500 (o limite do Firestore) são 4 requisições.
+ * `aoProgredir` alimenta a barra da tela — sem retorno visual, uma importação longa
+ * parece travamento.
+ */
+export async function criarProdutosEmLote(
+  inventoryId: string,
+  produtos: readonly Omit<Produto, 'id'>[],
+  aoProgredir?: (feitos: number, total: number) => void,
+): Promise<number> {
+  const agora = new Date();
+  const autor = deviceId();
+  let criados = 0;
+
+  for (let i = 0; i < produtos.length; i += LIMITE_BATCH) {
+    const fatia = produtos.slice(i, i + LIMITE_BATCH);
+    const lote = writeBatch(db);
+
+    for (const p of fatia) {
+      lote.set(doc(colecaoProdutos(inventoryId)), { ...p, lastModified: agora, modifiedBy: autor });
+    }
+
+    await withWriteTimeout(lote.commit(), { ms: 20_000, label: 'importar produtos' });
+    criados += fatia.length;
+    aoProgredir?.(criados, produtos.length);
+  }
+
+  return criados;
+}
+
+/**
+ * Marca o item como conferido pelo admin após a auditoria.
+ *
+ * `corrigidoIncorreto` diz se a divergência se confirmou depois da conferência física.
+ * As Security Rules só deixam admin/master tocar neste campo (`podeAlterarStatusProduto`),
+ * e itens `CONFERIDO` saem da lista de trabalho do funcionário.
+ */
+export async function marcarConferido(
+  inventoryId: string,
+  produtoId: string,
+  divergenciaConfirmada: boolean,
+): Promise<void> {
+  await withWriteTimeout(
+    updateDoc(doc(colecaoProdutos(inventoryId), produtoId), {
+      productStatus: 'CONFERIDO',
+      corrigidoIncorreto: divergenciaConfirmada,
+      lastModified: new Date(),
+      modifiedBy: deviceId(),
+    }),
+    { label: 'marcar conferido' },
+  );
+}
+
+/** Desfaz a conferência: volta o item para a lista de trabalho. */
+export async function desfazerConferido(inventoryId: string, produtoId: string): Promise<void> {
+  await withWriteTimeout(
+    updateDoc(doc(colecaoProdutos(inventoryId), produtoId), {
+      productStatus: 'ATUALIZADO',
+      corrigidoIncorreto: deleteField(),
+      lastModified: new Date(),
+      modifiedBy: deviceId(),
+    }),
+    { label: 'desfazer conferência' },
+  );
 }
 
 export async function excluirProduto(inventoryId: string, produtoId: string): Promise<void> {

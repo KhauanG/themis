@@ -60,6 +60,12 @@ O SDK já tem cache próprio em IndexedDB. Dois caches sobre o mesmo dado servem
 informação velha achando que está fresca. Configurado como `NetworkOnly` no
 `vite.config.ts`.
 
+**"Contado nesta rodada" sai de `productStatus`, não de rastreamento local.**
+O 1.x mantinha uma subcoleção `updatedItems` e um `Set` em memória só para a aba
+"Contados". Era redundante — `productStatus === 'ATUALIZADO'` já é essa informação, vem do
+servidor e é igual em todos os aparelhos. Guardar isso no aparelho fazia cada um dos 5
+celulares ver só o que ele mesmo contou.
+
 **Nunca gravar `null` nem `'PENDENTE'` em produto.**
 As Security Rules exigem `quantidade is number`, `codigoBarras is string`, `dataValidade
 is string` e `productStatus in ['ATUALIZADO','CONFERIDO']`. "Não contado" é a **ausência**
@@ -68,9 +74,15 @@ do campo: limpar contagem remove `productStatus`/`dataValidade`/`corrigidoIncorr
 JSON da fila offline, o chamador usa a constante `REMOVER` de `produtos-repo.ts` e a
 conversão acontece na hora de gravar.
 
+**Tela e exportação saem da mesma `LinhaRelatorio[]`.**
+Contagem ao vivo e auditoria salva são normalizadas por `linhasDeProdutos` /
+`linhasDeSnapshot` antes de chegar em tabela, PDF ou planilha. Quando cada saída lia sua
+própria origem, selecionar uma auditoria antiga e exportar gerava o arquivo com a contagem
+atual. Há teste de paridade entre os dois caminhos.
+
 ## Estado do porte
 
-Portado e verificado (typecheck + lint + 45 testes + build):
+Portado e verificado (typecheck + lint + 56 testes + build):
 - [x] Monorepo, TypeScript, lint, testes, CI
 - [x] Domínio compartilhado: tipos, status de auditoria, estatísticas, filtros, papéis
 - [x] Firebase com cache persistente multi-aba
@@ -89,12 +101,15 @@ Portado e verificado (typecheck + lint + 45 testes + build):
 - [x] API: proxy ERP, webhook autenticado, health
 - [x] Deploy por push (GitHub Actions → Hostinger)
 
-Falta (não bloqueia o primeiro deploy):
+- [x] Fluxo de conferência do admin (`CONFERIDO` / `corrigidoIncorreto`, com desfazer)
+- [x] Gestão de papéis dos usuários (master)
+- [x] Limite de erro, foco preso no modal, esqueletos de carga, barra de progresso
+
+Falta:
 - [ ] Teste manual em celular Android real (câmera exige HTTPS)
-- [ ] Tela de gestão de usuários e papéis (hoje só pelo Console do Firebase)
-- [ ] Fluxo de correção do admin (marcar `CONFERIDO` / `corrigidoIncorreto`)
 - [ ] Migração dos usuários do APK para o PWA
 - [ ] Varredura de produtos legados com tipo de campo inválido para as regras
+- [ ] Criar e excluir usuário pelo app (hoje só pelo Console do Firebase)
 
 ## Deploy
 

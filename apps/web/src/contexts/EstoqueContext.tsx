@@ -8,7 +8,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import type { Inventory, Produto } from '@themis/shared';
+import { progressoContagem, type Inventory, type Produto, type ProgressoContagem } from '@themis/shared';
 import { carregarEstoques, ouvirEstoques } from '../lib/estoques-repo.js';
 import {
   REMOVER,
@@ -32,32 +32,22 @@ interface EstoqueAPI {
   produtos: Produto[];
   carregandoProdutos: boolean;
   ciclo: number;
+  progresso: ProgressoContagem;
   online: boolean;
   pendentes: number;
-  /** IDs alterados no ciclo corrente — alimenta a aba "Atualizados". */
-  atualizados: Set<string>;
-  datasAlteracao: Map<string, number>;
   salvarContagem: (produto: Produto, quantidade: number, validade: string) => Promise<boolean>;
   sincronizar: () => Promise<void>;
+  /** Contexto pronto para `registrar()`. `null` enquanto não há usuário ou estoque. */
+  contextoLog: {
+    userId: string;
+    userEmail: string;
+    userName: string;
+    inventoryId: string;
+    inventoryName: string;
+  } | null;
 }
 
 const Ctx = createContext<EstoqueAPI | null>(null);
-
-interface MarcacoesCiclo {
-  ciclo: number;
-  ids: Record<string, number>;
-}
-
-function chaveAtualizados(inventoryId: string): string {
-  return `${CHAVES.itensAtualizados}:${inventoryId}`;
-}
-
-/** Marcações de "item contado nesta rodada" morrem quando o ciclo vira. */
-function lerMarcacoes(inventoryId: string, ciclo: number): Record<string, number> {
-  const guardado = ler<MarcacoesCiclo | null>(chaveAtualizados(inventoryId), null);
-  if (!guardado || guardado.ciclo !== ciclo) return {};
-  return guardado.ids ?? {};
-}
 
 export function EstoqueProvider({ children }: { children: ReactNode }) {
   const { usuario, perfil, nome } = useAuth();
@@ -69,7 +59,6 @@ export function EstoqueProvider({ children }: { children: ReactNode }) {
   const [carregandoProdutos, setCarregandoProdutos] = useState(false);
   const [online, setOnline] = useState(navigator.onLine);
   const [pendentes, setPendentes] = useState(() => carregarFila().length);
-  const [marcacoes, setMarcacoes] = useState<Record<string, number>>({});
 
   const sincronizando = useRef(false);
 
@@ -79,11 +68,13 @@ export function EstoqueProvider({ children }: { children: ReactNode }) {
   );
   const ciclo = estoqueAtual?.contagemCycle ?? 1;
 
+  // Derivado dos produtos, não de rastreamento local: é a mesma verdade em todo aparelho.
+  const progresso = useMemo(() => progressoContagem(produtos), [produtos]);
+
   useEffect(() => {
     void solicitarArmazenamentoPersistente();
   }, []);
 
-  // Lista de estoques
   useEffect(() => {
     if (!usuario) {
       setEstoques([]);
@@ -116,14 +107,13 @@ export function EstoqueProvider({ children }: { children: ReactNode }) {
     setEstoqueId(existe ? salvo : (estoques[0]?.id ?? null));
   }, [estoques, estoqueId, perfil]);
 
-  // Produtos do estoque corrente, em tempo real.
   useEffect(() => {
     if (!estoqueId || !usuario) {
       setProdutos([]);
       return;
     }
     setCarregandoProdutos(true);
-    const parar = ouvirProdutos(
+    return ouvirProdutos(
       estoqueId,
       (lista) => {
         setProdutos(lista);
@@ -134,13 +124,7 @@ export function EstoqueProvider({ children }: { children: ReactNode }) {
         mostrar('Não foi possível acompanhar as alterações do estoque.', 'error');
       },
     );
-    return parar;
   }, [estoqueId, usuario, mostrar]);
-
-  useEffect(() => {
-    if (!estoqueId) return;
-    setMarcacoes(lerMarcacoes(estoqueId, ciclo));
-  }, [estoqueId, ciclo]);
 
   const sincronizar = useCallback(async () => {
     // Reentrância aqui reenviaria a mesma pendência duas vezes.
@@ -186,6 +170,20 @@ export function EstoqueProvider({ children }: { children: ReactNode }) {
     [usuario],
   );
 
+  const contextoLog = useMemo(
+    () =>
+      usuario && estoqueAtual
+        ? {
+            userId: usuario.uid,
+            userEmail: usuario.email ?? '',
+            userName: nome,
+            inventoryId: estoqueAtual.id,
+            inventoryName: estoqueAtual.nome ?? estoqueAtual.id,
+          }
+        : null,
+    [usuario, estoqueAtual, nome],
+  );
+
   const salvarContagem = useCallback(
     async (produto: Produto, quantidade: number, validade: string): Promise<boolean> => {
       if (!estoqueId) return false;
@@ -203,37 +201,21 @@ export function EstoqueProvider({ children }: { children: ReactNode }) {
 
       try {
         const { sincronizado } = await atualizarProduto(estoqueId, produto.id, dados, base);
-
-        // Marca localmente mesmo sem ack: o dado está salvo no cache e a aba
-        // "Atualizados" precisa refletir o trabalho do funcionário na hora.
-        const novas = { ...marcacoes, [produto.id]: Date.now() };
-        setMarcacoes(novas);
-        gravar(chaveAtualizados(estoqueId), { ciclo, ids: novas } satisfies MarcacoesCiclo);
         setPendentes(carregarFila().length);
 
         if (sincronizado) mostrar('Contagem salva.', 'success');
         else mostrar('Sem conexão. Salvo no aparelho e enviado ao reconectar.', 'info');
 
         // Log nunca segura o retorno: o usuário já pode contar o próximo item.
-        if (usuario) {
-          void registrar(
-            'MODIFICAR_PRODUTO',
-            {
-              userId: usuario.uid,
-              userEmail: usuario.email ?? '',
-              userName: nome,
-              inventoryId: estoqueId,
-              inventoryName: estoqueAtual?.nome ?? estoqueId,
-            },
-            {
-              produto: produto.nome ?? produto.NomeProduto ?? produto.id,
-              de: produto.quantidade ?? null,
-              para: quantidade,
-              validadeDe: produto.dataValidade ?? null,
-              validadePara: validade || null,
-              ciclo,
-            },
-          );
+        if (contextoLog) {
+          void registrar('MODIFICAR_PRODUTO', contextoLog, {
+            produto: produto.nome ?? produto.NomeProduto ?? produto.id,
+            de: produto.quantidade ?? null,
+            para: quantidade,
+            validadeDe: produto.dataValidade ?? null,
+            validadePara: validade || null,
+            ciclo,
+          });
         }
 
         return true;
@@ -250,7 +232,7 @@ export function EstoqueProvider({ children }: { children: ReactNode }) {
         return false;
       }
     },
-    [estoqueId, estoqueAtual, ciclo, marcacoes, mostrar, usuario, nome],
+    [estoqueId, ciclo, mostrar, contextoLog],
   );
 
   const valor = useMemo<EstoqueAPI>(
@@ -261,12 +243,12 @@ export function EstoqueProvider({ children }: { children: ReactNode }) {
       produtos,
       carregandoProdutos,
       ciclo,
+      progresso,
       online,
       pendentes,
-      atualizados: new Set(Object.keys(marcacoes)),
-      datasAlteracao: new Map(Object.entries(marcacoes)),
       salvarContagem,
       sincronizar,
+      contextoLog,
     }),
     [
       estoques,
@@ -275,11 +257,12 @@ export function EstoqueProvider({ children }: { children: ReactNode }) {
       produtos,
       carregandoProdutos,
       ciclo,
+      progresso,
       online,
       pendentes,
-      marcacoes,
       salvarContagem,
       sincronizar,
+      contextoLog,
     ],
   );
 

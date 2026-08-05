@@ -1,133 +1,114 @@
-import { useEffect, useState } from 'react';
+import { memo } from 'react';
 import {
   codigoBarrasDe,
   fisicoDe,
-  isItemContado,
   nomeDe,
   sistemaDe,
   statusContagemDe,
   validadeDe,
   type Produto,
 } from '@themis/shared';
+import { FormContagem } from './FormContagem.js';
 
 interface Props {
   produto: Produto;
   expandido: boolean;
-  onAlternar: () => void;
-  onSalvar: (quantidade: number, validade: string) => Promise<boolean>;
+  /** Recebe o id para que a lista possa passar um callback estável e o `memo` valer. */
+  onAlternar: (produtoId: string) => void;
+  onSalvar: (produto: Produto, quantidade: number, validade: string) => Promise<boolean>;
 }
 
-/** `YYYY-MM-DD` para `DD/MM/AAAA` sem passar por `new Date`, que desloca o fuso. */
-function formatarValidade(iso: string | null): string {
-  if (!iso) return '';
-  const [ano, mes, dia] = iso.split('-');
-  return `${dia}/${mes}/${ano}`;
+/** `YYYY-MM-DD` para `DD/MM`, sem passar por `new Date`, que desloca o fuso. */
+function validadeCurta(iso: string): string {
+  const [, mes, dia] = iso.split('-');
+  return `${dia}/${mes}`;
 }
 
-function classeDiferenca(diferenca: number): string {
-  if (diferenca === 0) return 'card__dif card__dif--ok';
-  return Math.abs(diferenca) >= 10 ? 'card__dif card__dif--critico' : 'card__dif card__dif--erro';
+const DIAS_ALERTA_VALIDADE = 30;
+
+function diasAte(iso: string): number {
+  const hoje = new Date().toISOString().slice(0, 10);
+  // Comparação em ISO evita fuso: a diferença é calculada em UTC dos dois lados.
+  return Math.round((Date.parse(iso) - Date.parse(hoje)) / 86_400_000);
 }
 
-export function CardProduto({ produto, expandido, onAlternar, onSalvar }: Props) {
-  const contado = isItemContado(produto);
-  const conferido = statusContagemDe(produto) === 'CONFERIDO';
-
-  const [quantidade, setQuantidade] = useState('');
-  const [validade, setValidade] = useState('');
-  const [salvando, setSalvando] = useState(false);
-
-  // Recarrega os campos ao abrir e sempre que o produto mudar por baixo (outro aparelho
-  // contou o mesmo item). Sem isso o formulário mostraria um valor já vencido.
-  useEffect(() => {
-    if (!expandido) return;
-    setQuantidade(produto.quantidade != null ? String(produto.quantidade) : '');
-    setValidade(validadeDe(produto) ?? '');
-  }, [expandido, produto]);
+function CardProdutoBase({ produto, expandido, onAlternar, onSalvar }: Props) {
+  const status = statusContagemDe(produto);
+  const contado = status !== null;
+  const conferido = status === 'CONFERIDO';
 
   const fisico = fisicoDe(produto);
   const sistema = sistemaDe(produto);
   const diferenca = fisico - sistema;
+  const critico = Math.abs(diferenca) >= 10;
 
-  async function aoSalvar() {
-    if (salvando) return;
-
-    const valor = Number(quantidade.replace(',', '.'));
-    if (quantidade.trim() === '' || !Number.isFinite(valor)) return;
-
-    setSalvando(true);
-    try {
-      const ok = await onSalvar(valor, validade);
-      if (ok) onAlternar();
-    } finally {
-      setSalvando(false);
-    }
-  }
-
-  const validadeSalva = validadeDe(produto);
+  const validade = validadeDe(produto);
+  const dias = validade ? diasAte(validade) : null;
 
   return (
-    <li className={`card${contado ? ' card--contado' : ''}${conferido ? ' card--conferido' : ''}`}>
-      <button className="card__topo" type="button" onClick={onAlternar} aria-expanded={expandido}>
+    <li
+      className={[
+        'card',
+        contado ? 'card--contado' : '',
+        conferido ? 'card--conferido' : '',
+        expandido ? 'card--aberto' : '',
+      ]
+        .filter(Boolean)
+        .join(' ')}
+    >
+      <button
+        className="card__topo"
+        type="button"
+        onClick={() => onAlternar(produto.id)}
+        aria-expanded={expandido}
+      >
         <div className="card__info">
           <span className="card__nome">{nomeDe(produto)}</span>
           <span className="card__meta">
-            {codigoBarrasDe(produto) ?? 'sem código de barras'}
-            {validadeSalva && ` · val. ${formatarValidade(validadeSalva)}`}
+            <span className="card__codigo">{codigoBarrasDe(produto) || 'sem código'}</span>
+            {validade && dias !== null && (
+              <span
+                className={
+                  dias < 0
+                    ? 'etiqueta etiqueta--vencido'
+                    : dias <= DIAS_ALERTA_VALIDADE
+                      ? 'etiqueta etiqueta--alerta'
+                      : 'etiqueta'
+                }
+              >
+                {dias < 0 ? 'vencido' : `val. ${validadeCurta(validade)}`}
+              </span>
+            )}
           </span>
         </div>
+
         <div className="card__numeros">
-          <span className="card__qtd">{produto.quantidade != null ? produto.quantidade : '—'}</span>
+          <span className={contado ? 'card__qtd' : 'card__qtd card__qtd--vazio'}>
+            {contado ? fisico : '—'}
+          </span>
           <span className="card__sistema">sist. {sistema}</span>
-          {contado && <span className={classeDiferenca(diferenca)}>{diferenca > 0 ? `+${diferenca}` : diferenca}</span>}
+          {contado && diferenca !== 0 && (
+            <span className={critico ? 'card__dif card__dif--critico' : 'card__dif card__dif--erro'}>
+              {diferenca > 0 ? `+${diferenca}` : diferenca}
+            </span>
+          )}
+          {contado && diferenca === 0 && <span className="card__dif card__dif--ok">ok</span>}
         </div>
       </button>
 
       {expandido && (
-        <div className="card__cascata">
-          <div className="card__campos">
-            <label className="campo">
-              <span className="campo__rotulo">Quantidade contada</span>
-              <input
-                className="campo__entrada"
-                type="number"
-                inputMode="decimal"
-                step="any"
-                value={quantidade}
-                onChange={(e) => setQuantidade(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') void aoSalvar();
-                }}
-                autoFocus
-              />
-            </label>
-
-            <label className="campo">
-              <span className="campo__rotulo">Validade mais curta</span>
-              <input
-                className="campo__entrada"
-                type="date"
-                value={validade}
-                onChange={(e) => setValidade(e.target.value)}
-              />
-            </label>
-          </div>
-
-          <div className="card__acoes">
-            <button className="botao botao--neutro" type="button" onClick={onAlternar}>
-              Cancelar
-            </button>
-            <button
-              className="botao botao--primario"
-              type="button"
-              onClick={() => void aoSalvar()}
-              disabled={salvando || quantidade.trim() === ''}
-            >
-              {salvando ? 'Salvando...' : 'Salvar'}
-            </button>
-          </div>
-        </div>
+        <FormContagem
+          produto={produto}
+          onCancelar={() => onAlternar(produto.id)}
+          onSalvar={(quantidade, validade) => onSalvar(produto, quantidade, validade)}
+        />
       )}
     </li>
   );
 }
+
+/**
+ * `memo` importa aqui: o listener do Firestore entrega um array novo a cada gravação, e
+ * sem isso os 40 cards da página re-renderizam toda vez que alguém conta um item.
+ */
+export const CardProduto = memo(CardProdutoBase);

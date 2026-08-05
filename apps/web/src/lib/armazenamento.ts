@@ -11,8 +11,6 @@ export const CHAVES = {
   historicoPendente: 'themis_historico_pendente_v1',
   dispositivo: 'themis_device_id_v1',
   estoqueAtual: 'themis_estoque_atual_v1',
-  itensAtualizados: 'themis_itens_atualizados_v1',
-  preferencias: 'themis_preferencias_v1',
 } as const;
 
 export function ler<T>(chave: string, padrao: T): T {

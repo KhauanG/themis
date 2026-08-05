@@ -73,8 +73,9 @@ export interface Produto {
 /** Abas de filtro da tela de contagem. */
 export type FiltroContagem =
   | 'all'
-  | 'no-barcode'
+  | 'pendentes'
   | 'updated'
+  | 'no-barcode'
   | 'conferido-correto'
   | 'conferido-incorreto'
   | 'api-not-found'

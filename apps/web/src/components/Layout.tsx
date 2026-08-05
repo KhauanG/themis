@@ -8,7 +8,7 @@ import { ModalFinalizar } from '../features/finalizar/ModalFinalizar.js';
 
 export function Layout() {
   const { nome, papel, permissoes, sair } = useAuth();
-  const { estoques, estoqueAtual, trocarEstoque, ciclo } = useEstoque();
+  const { estoques, estoqueAtual, trocarEstoque, ciclo, progresso } = useEstoque();
   const [finalizando, setFinalizando] = useState(false);
   const [menuAberto, setMenuAberto] = useState(false);
 
@@ -41,7 +41,15 @@ export function Layout() {
           </button>
         </div>
 
-        <p className="topo__ciclo">Ciclo {ciclo}</p>
+        <p className="topo__ciclo">
+          Ciclo {ciclo}
+          {progresso.total > 0 && (
+            <>
+              {' · '}
+              {progresso.contados}/{progresso.total} contados
+            </>
+          )}
+        </p>
 
         {menuAberto && (
           <div className="menu">
@@ -89,6 +97,11 @@ export function Layout() {
         {permissoes.verHistorico && (
           <NavLink to="/historico" className={({ isActive }) => (isActive ? 'nav nav--ativa' : 'nav')}>
             Histórico
+          </NavLink>
+        )}
+        {permissoes.gerenciarUsuarios && (
+          <NavLink to="/usuarios" className={({ isActive }) => (isActive ? 'nav nav--ativa' : 'nav')}>
+            Usuários
           </NavLink>
         )}
       </nav>

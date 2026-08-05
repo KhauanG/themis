@@ -1,38 +1,34 @@
 import { useRef, useState } from 'react';
 import { fisicoDe, isItemContado, nomeDe, type Produto } from '@themis/shared';
 import { useEstoque } from '../../contexts/EstoqueContext.js';
-import { useAuth } from '../../contexts/AuthContext.js';
 import { useToast } from '../../contexts/ToastContext.js';
 import { Modal } from '../../components/Modal.js';
-import { criarProduto, limparContagem } from '../../lib/produtos-repo.js';
+import { criarProduto, criarProdutosEmLote, limparContagem } from '../../lib/produtos-repo.js';
 import { lerPlanilha } from '../../lib/planilha.js';
 import { enviarAoErp, hashDaLoja } from '../../lib/erp.js';
 import { registrar } from '../../lib/historico.js';
 
+interface Ocupado {
+  texto: string;
+  feitos?: number;
+  total?: number;
+}
+
 export function TelaProdutos() {
-  const { estoqueAtual, produtos, ciclo } = useEstoque();
-  const { usuario, nome } = useAuth();
+  const { estoqueAtual, produtos, ciclo, contextoLog, progresso } = useEstoque();
   const { mostrar } = useToast();
 
   const entradaArquivo = useRef<HTMLInputElement>(null);
-  const [ocupado, setOcupado] = useState('');
+  const [ocupado, setOcupado] = useState<Ocupado | null>(null);
   const [confirmarLimpeza, setConfirmarLimpeza] = useState(false);
   const [cadastrando, setCadastrando] = useState(false);
   const [novo, setNovo] = useState({ nome: '', codigoBarras: '', estoqueSistema: '' });
 
-  const contexto = estoqueAtual && usuario
-    ? {
-        userId: usuario.uid,
-        userEmail: usuario.email ?? '',
-        userName: nome,
-        inventoryId: estoqueAtual.id,
-        inventoryName: estoqueAtual.nome ?? estoqueAtual.id,
-      }
-    : null;
+  const bloqueado = ocupado !== null;
 
   async function importar(arquivo: File) {
     if (!estoqueAtual) return;
-    setOcupado('Lendo planilha...');
+    setOcupado({ texto: 'Lendo planilha...' });
     try {
       const { linhas, ignoradas, colunasFaltando } = await lerPlanilha(arquivo);
 
@@ -45,43 +41,40 @@ export function TelaProdutos() {
         return;
       }
 
-      // Uma criação por vez, com o teto de tempo de cada escrita. Um batch de 2000
-      // linhas estouraria o limite de 500 operações do Firestore.
-      let criados = 0;
-      for (const [indice, linha] of linhas.entries()) {
-        setOcupado(`Importando ${indice + 1} de ${linhas.length}...`);
-        // Sem `productStatus`: "não contado" é a ausência do campo, e a regra só aceita
-        // 'ATUALIZADO' ou 'CONFERIDO'. `codigoBarras` vai como string vazia porque a
-        // regra exige `is string` e a chave é obrigatória.
-        await criarProduto(estoqueAtual.id, {
-          nome: linha.nome,
-          NomeProduto: linha.nome,
-          codigoBarras: linha.codigoBarras ?? '',
+      // Sem `productStatus`: "não contado" é a ausência do campo, e a regra só aceita
+      // 'ATUALIZADO' ou 'CONFERIDO'. `codigoBarras` vai como string vazia porque a
+      // regra exige `is string` e a chave é obrigatória.
+      const criados = await criarProdutosEmLote(
+        estoqueAtual.id,
+        linhas.map((l) => ({
+          nome: l.nome,
+          NomeProduto: l.nome,
+          codigoBarras: l.codigoBarras ?? '',
           quantidade: 0,
-          estoqueSistema: linha.estoqueSistema,
-          temCodigoBarras: linha.temCodigoBarras,
-          ...(linha.IdProduto ? { IdProduto: linha.IdProduto } : {}),
-        });
-        criados++;
-      }
+          estoqueSistema: l.estoqueSistema,
+          temCodigoBarras: l.temCodigoBarras,
+          ...(l.IdProduto ? { IdProduto: l.IdProduto } : {}),
+        })),
+        (feitos, total) => setOcupado({ texto: 'Importando', feitos, total }),
+      );
 
       mostrar(
         `${criados} ${criados === 1 ? 'produto importado' : 'produtos importados'}${ignoradas > 0 ? `, ${ignoradas} linha(s) ignorada(s)` : ''}.`,
         'success',
       );
-      if (contexto) void registrar('IMPORTAR_PLANILHA', contexto, { criados, ignoradas });
+      if (contextoLog) void registrar('IMPORTAR_PLANILHA', contextoLog, { criados, ignoradas });
     } catch (erro) {
       console.error('[produtos] Importação falhou:', erro);
       mostrar('Não foi possível importar a planilha.', 'error');
     } finally {
-      setOcupado('');
+      setOcupado(null);
       if (entradaArquivo.current) entradaArquivo.current.value = '';
     }
   }
 
   async function cadastrar() {
     if (!estoqueAtual || !novo.nome.trim()) return;
-    setOcupado('Cadastrando...');
+    setOcupado({ texto: 'Cadastrando...' });
     try {
       const codigo = novo.codigoBarras.trim();
       await criarProduto(estoqueAtual.id, {
@@ -99,23 +92,23 @@ export function TelaProdutos() {
       console.error('[produtos] Cadastro falhou:', erro);
       mostrar('Não foi possível cadastrar.', 'error');
     } finally {
-      setOcupado('');
+      setOcupado(null);
     }
   }
 
   async function limpar() {
     if (!estoqueAtual) return;
     setConfirmarLimpeza(false);
-    setOcupado('Limpando contagem...');
+    setOcupado({ texto: 'Limpando contagem...' });
     try {
       await limparContagem(estoqueAtual.id, produtos);
       mostrar('Contagem limpa.', 'success');
-      if (contexto) void registrar('LIMPAR_CONTAGEM', contexto, { ciclo, total: produtos.length });
+      if (contextoLog) void registrar('LIMPAR_CONTAGEM', contextoLog, { ciclo, total: produtos.length });
     } catch (erro) {
       console.error('[produtos] Limpeza falhou:', erro);
       mostrar('Não foi possível limpar a contagem.', 'error');
     } finally {
-      setOcupado('');
+      setOcupado(null);
     }
   }
 
@@ -129,11 +122,11 @@ export function TelaProdutos() {
       return;
     }
 
-    setOcupado('Consultando configuração da loja...');
+    setOcupado({ texto: 'Consultando configuração da loja...' });
     const hash = await hashDaLoja(estoqueAtual.id);
     if (!hash) {
       mostrar('Nenhum HashLoja configurado para este estoque.', 'error');
-      setOcupado('');
+      setOcupado(null);
       return;
     }
 
@@ -141,7 +134,7 @@ export function TelaProdutos() {
     const falhas: string[] = [];
 
     for (const [indice, p] of contados.entries()) {
-      setOcupado(`Enviando ${indice + 1} de ${contados.length}...`);
+      setOcupado({ texto: 'Enviando ao ERP', feitos: indice + 1, total: contados.length });
       const resultado = await enviarAoErp({
         IdProduto: String(p.IdProduto),
         HashLoja: hash,
@@ -152,32 +145,44 @@ export function TelaProdutos() {
       else falhas.push(nomeDe(p));
     }
 
-    setOcupado('');
+    setOcupado(null);
     mostrar(
       falhas.length === 0
         ? `${enviados} ${enviados === 1 ? 'item enviado' : 'itens enviados'} ao ERP.`
         : `${enviados} enviados, ${falhas.length} com falha. Tente de novo os que faltaram.`,
       falhas.length === 0 ? 'success' : 'warning',
     );
-    if (contexto) void registrar('CORRIGIR_ESTOQUE', contexto, { enviados, falhas: falhas.length });
+    if (contextoLog) void registrar('CORRIGIR_ESTOQUE', contextoLog, { enviados, falhas: falhas.length });
   }
 
   return (
     <section className="produtos">
       <h2 className="secao__titulo">Gerenciar estoque</h2>
       <p className="secao__sub">
-        {produtos.length} {produtos.length === 1 ? 'produto' : 'produtos'} em{' '}
-        {estoqueAtual?.nome ?? '—'}
+        {estoqueAtual?.nome ?? '—'} · {produtos.length}{' '}
+        {produtos.length === 1 ? 'produto' : 'produtos'} · {progresso.contados} contados no ciclo{' '}
+        {ciclo}
       </p>
 
       {ocupado && (
-        <p className="aviso" role="status">
-          {ocupado}
-        </p>
+        <div className="aviso" role="status" aria-live="polite">
+          <p className="aviso__texto">
+            {ocupado.texto}
+            {ocupado.total ? ` ${ocupado.feitos} de ${ocupado.total}...` : ''}
+          </p>
+          {ocupado.total ? (
+            <div className="progresso__trilha">
+              <div
+                className="progresso__barra"
+                style={{ width: `${Math.round(((ocupado.feitos ?? 0) / ocupado.total) * 100)}%` }}
+              />
+            </div>
+          ) : null}
+        </div>
       )}
 
       <div className="acoes-lista">
-        <button className="botao botao--primario" type="button" onClick={() => setCadastrando(true)} disabled={Boolean(ocupado)}>
+        <button className="botao botao--primario" type="button" onClick={() => setCadastrando(true)} disabled={bloqueado}>
           Cadastrar produto
         </button>
 
@@ -185,7 +190,7 @@ export function TelaProdutos() {
           className="botao botao--neutro"
           type="button"
           onClick={() => entradaArquivo.current?.click()}
-          disabled={Boolean(ocupado)}
+          disabled={bloqueado}
         >
           Importar planilha
         </button>
@@ -200,7 +205,7 @@ export function TelaProdutos() {
           }}
         />
 
-        <button className="botao botao--neutro" type="button" onClick={() => void enviarContagemAoErp()} disabled={Boolean(ocupado)}>
+        <button className="botao botao--neutro" type="button" onClick={() => void enviarContagemAoErp()} disabled={bloqueado}>
           Enviar contagem ao ERP
         </button>
 
@@ -208,7 +213,7 @@ export function TelaProdutos() {
           className="botao botao--perigo"
           type="button"
           onClick={() => setConfirmarLimpeza(true)}
-          disabled={Boolean(ocupado)}
+          disabled={bloqueado}
         >
           Limpar contagem
         </button>
@@ -227,7 +232,7 @@ export function TelaProdutos() {
               className="botao botao--primario"
               type="button"
               onClick={() => void cadastrar()}
-              disabled={!novo.nome.trim() || Boolean(ocupado)}
+              disabled={!novo.nome.trim() || bloqueado}
             >
               Cadastrar
             </button>

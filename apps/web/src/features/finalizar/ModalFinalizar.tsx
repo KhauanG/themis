@@ -18,8 +18,8 @@ interface Props {
 }
 
 export function ModalFinalizar({ aberto, onFechar }: Props) {
-  const { estoqueAtual, produtos, ciclo } = useEstoque();
-  const { usuario, nome } = useAuth();
+  const { estoqueAtual, produtos, ciclo, contextoLog } = useEstoque();
+  const { usuario } = useAuth();
   const { mostrar } = useToast();
 
   const [texto, setTexto] = useState('');
@@ -64,17 +64,15 @@ export function ModalFinalizar({ aberto, onFechar }: Props) {
         }
       }
 
-      void registrar(
-        'FINALIZAR_CONTAGEM',
-        {
-          userId: usuario.uid,
-          userEmail: usuario.email ?? '',
-          userName: nome,
-          inventoryId: estoqueAtual.id,
-          inventoryName: estoqueAtual.nome ?? estoqueAtual.id,
-        },
-        { auditoriaId, ciclo, ...estatisticas },
-      );
+      if (contextoLog) {
+        void registrar('FINALIZAR_CONTAGEM', contextoLog, {
+          auditoriaId,
+          ciclo,
+          contados: estatisticas.contados,
+          naoContados: estatisticas.naoContados,
+          incorretos: estatisticas.incorretos,
+        });
+      }
 
       fechar();
     } catch (erro) {
