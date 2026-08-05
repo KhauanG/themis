@@ -1,0 +1,88 @@
+name: Deploy Hostinger
+
+# Push na main publica o site. É o que substitui o ciclo de build do AAB +
+# revisão da Play Store do Themis 1.x.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  # Dois deploys ao mesmo tempo deixariam o servidor num estado misto.
+  group: deploy-producao
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: producao
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build
+        env:
+          VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
+          VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
+          VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
+          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
+          VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
+        run: npm run build
+
+      - name: Configurar chave SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.HOSTINGER_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          # known_hosts fixo: sem isso o primeiro deploy aceitaria qualquer host
+          # que respondesse no endereço, abrindo espaço para man-in-the-middle.
+          echo "${{ secrets.HOSTINGER_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Publicar PWA
+        env:
+          SSH_ALVO: ${{ secrets.HOSTINGER_SSH_USER }}@${{ secrets.HOSTINGER_SSH_HOST }}
+          SSH_PORTA: ${{ secrets.HOSTINGER_SSH_PORT }}
+          DIR_WEB: ${{ secrets.HOSTINGER_WEB_DIR }}
+        run: |
+          rsync -az --delete \
+            -e "ssh -p $SSH_PORTA -i ~/.ssh/id_ed25519" \
+            apps/web/dist/ "$SSH_ALVO:$DIR_WEB/"
+
+      - name: Publicar API
+        env:
+          SSH_ALVO: ${{ secrets.HOSTINGER_SSH_USER }}@${{ secrets.HOSTINGER_SSH_HOST }}
+          SSH_PORTA: ${{ secrets.HOSTINGER_SSH_PORT }}
+          DIR_API: ${{ secrets.HOSTINGER_API_DIR }}
+        run: |
+          # --delete de propósito NÃO usado aqui: apagaria o .env do servidor.
+          rsync -az \
+            -e "ssh -p $SSH_PORTA -i ~/.ssh/id_ed25519" \
+            apps/api/dist/ "$SSH_ALVO:$DIR_API/dist/"
+          rsync -az \
+            -e "ssh -p $SSH_PORTA -i ~/.ssh/id_ed25519" \
+            packages/shared/dist/ "$SSH_ALVO:$DIR_API/node_modules/@themis/shared/dist/"
+          rsync -az \
+            -e "ssh -p $SSH_PORTA -i ~/.ssh/id_ed25519" \
+            apps/api/package.json "$SSH_ALVO:$DIR_API/package.json"
+
+      - name: Instalar dependências e reiniciar API
+        env:
+          SSH_ALVO: ${{ secrets.HOSTINGER_SSH_USER }}@${{ secrets.HOSTINGER_SSH_HOST }}
+          SSH_PORTA: ${{ secrets.HOSTINGER_SSH_PORT }}
+          DIR_API: ${{ secrets.HOSTINGER_API_DIR }}
+        run: |
+          ssh -p "$SSH_PORTA" -i ~/.ssh/id_ed25519 "$SSH_ALVO" \
+            "cd $DIR_API && npm install --omit=dev --no-audit --no-fund && (pm2 reload themis-api || pm2 start dist/server.js --name themis-api)"
+
+      - name: Verificar que a API subiu
+        run: |
+          sleep 5
+          curl --fail --silent --show-error "${{ secrets.URL_HEALTHCHECK }}"

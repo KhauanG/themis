@@ -1,0 +1,8 @@
+# Normaliza fim de linha: LF no repositório, nativo no disco de quem clona.
+# Sem isso, Windows e o runner Linux do CI mostram o arquivo inteiro como alterado.
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.ico binary
+*.woff2 binary

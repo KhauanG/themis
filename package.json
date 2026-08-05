@@ -1,0 +1,32 @@
+{
+  "name": "themis",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Themis 2.0 - PWA de contagem de estoque do Grupo Ice Beer",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "npm run dev --workspace @themis/web",
+    "dev:api": "npm run dev --workspace @themis/api",
+    "build": "npm run build --workspace @themis/shared && npm run build --workspace @themis/web && npm run build --workspace @themis/api",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint .",
+    "typecheck": "tsc --build --pretty",
+    "deploy-rules": "firebase deploy --only firestore:rules",
+    "deploy-indexes": "firebase deploy --only firestore:indexes"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.17.0",
+    "@types/node": "^22.10.2",
+    "eslint": "^9.17.0",
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.18.1",
+    "vitest": "^2.1.8"
+  }
+}
