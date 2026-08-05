@@ -108,7 +108,33 @@ firebase deploy --only firestore:rules
 > Publicar regra afeta os usuários do app 1.x **na hora**. Se estiverem idênticas, pule
 > este passo. Em caso de problema, o Console tem histórico de versões com rollback.
 
-**2.5** Verifique se o domínio novo está autorizado no Auth:
+**2.5 Varredura de produtos legados — faça antes de liberar para a equipe**
+
+`validProductData` valida o documento **resultante** de qualquer update. Um produto antigo
+com `corrigidoIncorreto: null` ou `lastModified` gravado como texto faz o funcionário
+receber permission-denied ao contar, mesmo sem encostar nesse campo. O sintoma em campo é
+"não salva", e é difícil de rastrear porque só acontece com alguns produtos.
+
+O script é **somente leitura** — não altera nada:
+
+```bash
+npm run auditar-produtos
+```
+
+Pede e-mail e senha de um usuário do Themis (leitura é liberada para qualquer autenticado,
+não precisa de service account). Ao final:
+
+- imprime o total por campo problemático
+- grava `produtos-invalidos.csv` e `produtos-invalidos.json`, com a sugestão de conserto
+  de cada caso
+
+Se a saída for "Nenhum documento violaria as regras", siga em frente. Se listar produtos,
+me mostre o CSV — o conserto depende do que aparecer, e é escrita em produção, então
+prefiro combinar antes de mexer.
+
+> O CSV tem nomes de produto e está no `.gitignore` de propósito. Não versione.
+
+**2.6** Verifique se o domínio novo está autorizado no Auth:
 Firebase Console → Authentication → Settings → Authorized domains → adicione
 `themis.grupoicebeer.com.br`. **Sem isso o login não funciona no domínio novo.**
 

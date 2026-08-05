@@ -22,3 +22,7 @@ desktop.ini
 # Logs
 *.log
 npm-debug.log*
+
+# Relatórios gerados pela varredura de produtos (contêm nomes de produto do cliente)
+produtos-invalidos.csv
+produtos-invalidos.json

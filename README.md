@@ -105,10 +105,12 @@ Portado e verificado (typecheck + lint + 56 testes + build):
 - [x] Gestão de papéis dos usuários (master)
 - [x] Limite de erro, foco preso no modal, esqueletos de carga, barra de progresso
 
+- [x] Varredura de produtos legados (`npm run auditar-produtos`, somente leitura)
+
 Falta:
 - [ ] Teste manual em celular Android real (câmera exige HTTPS)
+- [ ] Rodar a varredura no banco de produção e consertar o que aparecer
 - [ ] Migração dos usuários do APK para o PWA
-- [ ] Varredura de produtos legados com tipo de campo inválido para as regras
 - [ ] Criar e excluir usuário pelo app (hoje só pelo Console do Firebase)
 
 ## Deploy
