@@ -119,6 +119,13 @@ npx firebase-tools deploy --only firestore:indexes
 A construção leva de minutos a algumas horas conforme o volume. Acompanhe em
 Firestore → Índices. Só teste o Histórico depois que ficarem "Ativado".
 
+> **Se a CLI perguntar "Would you like to delete these indexes?", responda `N`.**
+> Ela oferece apagar índices que existem no projeto mas não estão no arquivo. Responder
+> `y` apaga índice em produção — os de `historico_geral` por `userId` e por `action` são
+> do Themis 1.x, que continua no ar. Se a pergunta aparecer, alguém criou índice pelo
+> Console: traga-o para `firestore/firestore.indexes.json` em vez de mandar apagar.
+> Detalhes em `firestore/README.md`.
+
 **2.4** As regras, **só se realmente divergirem**:
 
 ```powershell
