@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { COR_ACAO, ROTULO_ACAO, descreverEvento, type AcaoHistorico } from '@themis/shared';
 import { useEstoque } from '../../contexts/EstoqueContext.js';
 import { useToast } from '../../contexts/ToastContext.js';
@@ -46,17 +46,38 @@ export function TelaHistorico() {
   const [carregando, setCarregando] = useState(true);
   const [acao, setAcao] = useState<AcaoHistorico | 'TODAS'>('TODAS');
 
+  /**
+   * Depende do **id**, não do objeto `estoqueAtual`.
+   *
+   * O objeto ganha identidade nova toda vez que o listener de `inventories` re-emite — o
+   * que acontece quando a conexão se restabelece. Com o objeto na dependência, a consulta
+   * era refeita e o esqueleto piscava sem nada ter mudado.
+   */
+  const estoqueId = estoqueAtual?.id;
+
+  /** Último recorte já carregado. Distingue primeira carga de reconsulta. */
+  const carregado = useRef<string | null>(null);
+
   useEffect(() => {
-    if (!estoqueAtual) return;
+    if (!estoqueId) return;
     let vivo = true;
-    setCarregando(true);
+    const chave = `${estoqueId}:${acao}`;
+
+    // Esqueleto só quando o recorte muda. Reconsulta mantém o que está na tela.
+    if (carregado.current !== chave) {
+      setCarregando(true);
+      setEntradas([]);
+    }
+
     consultarHistorico({
-      inventoryId: estoqueAtual.id,
+      inventoryId: estoqueId,
       ...(acao === 'TODAS' ? {} : { acao }),
       maximo: 200,
     })
       .then((lista) => {
-        if (vivo) setEntradas(lista);
+        if (!vivo) return;
+        setEntradas(lista);
+        carregado.current = chave;
       })
       .catch((erro) => {
         console.warn('[histórico] Consulta falhou:', erro);
@@ -66,10 +87,11 @@ export function TelaHistorico() {
       .finally(() => {
         if (vivo) setCarregando(false);
       });
+
     return () => {
       vivo = false;
     };
-  }, [estoqueAtual, acao, mostrar]);
+  }, [estoqueId, acao, mostrar]);
 
   // Agrupa por dia mantendo a ordem que veio do Firestore (mais recente primeiro).
   const grupos = useMemo(() => {

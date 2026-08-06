@@ -92,6 +92,25 @@ trabalho dobra, exatamente no cenário em que o app precisa ser confiável.
 **Evitar.** `aplicarPendentes()` sobrepõe a fila na lista antes de renderizar. Qualquer
 caminho novo que enfileire sem escrever no Firestore precisa passar por lá.
 
+### A tela recarrega sozinha, sem ninguém mexer
+
+**Sintoma.** A auditoria (ou o histórico) termina de carregar e, do nada, o esqueleto volta
+e ela recarrega. Ninguém tocou em nada.
+
+**Causa.** O `useEffect` dependia do **objeto** `estoqueAtual`, não do id. Esse objeto ganha
+identidade nova toda vez que o listener de `inventories` re-emite — o que acontece quando a
+conexão se restabelece. Em wifi de depósito, isso é frequente. O id nunca mudou; só a
+referência.
+
+**Evitar.** Em dependência de efeito, use o **id** (`estoqueAtual?.id`), não o objeto.
+Objeto vindo de listener do Firestore nunca é estável.
+
+E, na rebusca, **não troque dado bom por esqueleto**: mostre o esqueleto só quando o
+recorte muda de verdade. Um `useRef` com a última chave carregada resolve.
+
+⚠️ Não faça essa checagem dentro de um atualizador de estado (`setX(atual => {...})`) —
+atualizador precisa ser puro, e o StrictMode o invoca duas vezes.
+
 ### A câmera do leitor reabre sem parar
 
 **Causa.** O callback passado ao leitor não era memoizado e estava nas dependências do

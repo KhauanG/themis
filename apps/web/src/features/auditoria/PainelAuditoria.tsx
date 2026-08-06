@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   FILTRO_PADRAO,
   ROTULO_ORDEM,
@@ -44,13 +44,35 @@ export function PainelAuditoria() {
   const [exportando, setExportando] = useState(false);
   const [corrigindo, setCorrigindo] = useState<string | null>(null);
 
+  /**
+   * Depende do **id**, não do objeto `estoqueAtual`.
+   *
+   * O objeto ganha identidade nova toda vez que o listener de `inventories` re-emite — o
+   * que acontece quando a conexão se restabelece, e em wifi de depósito isso é frequente.
+   * Com o objeto na dependência, a lista era rebuscada e o esqueleto piscava na tela sem
+   * nada ter mudado de fato.
+   */
+  const estoqueId = estoqueAtual?.id;
+
+  /** Último estoque já carregado. Distingue primeira carga de rebusca. */
+  const carregado = useRef<string | null>(null);
+
   useEffect(() => {
-    if (!estoqueAtual) return;
+    if (!estoqueId) return;
     let vivo = true;
-    setCarregando(true);
-    listarAuditorias(estoqueAtual.id)
+
+    // Esqueleto só na primeira carga deste estoque. Numa rebusca, mantém o que já está na
+    // tela: trocar dado bom por esqueleto é perder informação, não ganhar.
+    if (carregado.current !== estoqueId) {
+      setCarregando(true);
+      setSalvas([]);
+    }
+
+    listarAuditorias(estoqueId)
       .then((lista) => {
-        if (vivo) setSalvas(lista);
+        if (!vivo) return;
+        setSalvas(lista);
+        carregado.current = estoqueId;
       })
       .catch((erro) => {
         console.warn('[auditoria] Não foi possível listar:', erro);
@@ -59,10 +81,11 @@ export function PainelAuditoria() {
       .finally(() => {
         if (vivo) setCarregando(false);
       });
+
     return () => {
       vivo = false;
     };
-  }, [estoqueAtual, mostrar]);
+  }, [estoqueId, mostrar]);
 
   const auditoria = fonte === 'ao-vivo' ? null : salvas.find((a) => a.id === fonte);
   const aoVivo = !auditoria;

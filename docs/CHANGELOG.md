@@ -6,6 +6,20 @@ Categorias: **Adicionado**, **Alterado**, **Corrigido**, **Removido**, **Seguran
 
 ---
 
+## 2.6.1 — 2026-08-06
+
+### Corrigido
+
+- **Auditoria e Histórico recarregavam sozinhos.** O `useEffect` dependia do objeto
+  `estoqueAtual`, não do id. O objeto ganha identidade nova toda vez que o listener de
+  `inventories` re-emite — o que acontece quando a conexão se restabelece, e em wifi de
+  depósito isso é frequente. O id nunca mudava; só a referência.
+
+  Agora dependem do id. E a rebusca não troca mais dado bom por esqueleto: ele só aparece
+  quando o recorte muda de verdade.
+
+---
+
 ## 2.6.0 — 2026-08-06
 
 ### Adicionado
