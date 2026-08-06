@@ -214,6 +214,29 @@ Nuvem3 aceita — não dá para descobrir o resto testando contra o estoque real
 A API repete o envio até **4 vezes**, com 1s entre tentativas, e trata `200` com
 `{ success: false }` no corpo como recusa. Ambos vêm do 1.x.
 
+#### A leitura do estoque
+
+`GET EstoqueQuantidadePorLojaListar/{hashLoja}`. A resposta vem como lista, às vezes
+embrulhada em `data` ou `items`.
+
+⚠️ **O nome dos campos varia**, e o 1.x já sabia disso:
+
+| | Grafias aceitas |
+|---|---|
+| Identificador | `idproduto`, `IdProduto`, `idProduto`, `IdProdutoERP`, `idProdutoERP` |
+| Quantidade | `quantidade`, `Quantidade`, `EstoqueAtual`, `estoqueAtual` |
+
+Quantidade é arredondada; valor ilegível vira `0` e o item **permanece** na lista — "dado
+ruim" e "não existe no ERP" são problemas diferentes.
+
+A resposta traz diagnóstico: `recebidos`, `semId` e `campos` (só os **nomes** das chaves do
+primeiro item, nunca o conteúdo). **Zero produtos casados é erro**, não "tudo já estava
+igual" — nesse caso o saldo na tela é o da última importação, e "Corrigir estoque" aborta em
+vez de mandar correções calculadas sobre dado velho.
+
+Para investigar fora do app: `node scripts/diagnosticar-erp.mjs <hashLoja> [idProduto...]`.
+Ver [armadilhas.md](armadilhas.md) §"Buscar estoque" traz saldo diferente do Nuvem3.
+
 ---
 
 ## Histórico

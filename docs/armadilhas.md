@@ -65,6 +65,54 @@ traga-o para o arquivo.
 
 ## ERP
 
+### `net::ERR_BLOCKED_BY_CLIENT` no Firestore
+
+**Sintoma.** No console, `POST .../google.firestore.v1.Firestore/Write/channel` falha com
+`ERR_BLOCKED_BY_CLIENT`. Gravações estouram o teto (`Teto de 20000ms atingido em "importar
+planilha"`). O app parece funcionar porque a persistência local aceita tudo.
+
+**Causa.** **Não é o código.** `ERR_BLOCKED_BY_CLIENT` só existe quando algo no navegador
+cancela a requisição: bloqueador de anúncios, escudo do Brave, antivírus com filtro web,
+extensão de privacidade. `firestore.googleapis.com` entra em várias listas de bloqueio.
+
+**Por que é perigoso.** A escrita fica no cache local e o `onSnapshot` dispara: **a tela
+mostra o valor novo**. Só que ele nunca chegou ao servidor, ninguém mais vê, e um `clear
+site data` apaga o trabalho.
+
+**Evitar.** Testar em aba anônima sem extensões, ou liberar `firestore.googleapis.com` e
+`*.googleapis.com` no bloqueador. O aviso de `firestore-write.ts` é o sintoma correto sendo
+reportado — não o silencie.
+
+### "Buscar estoque" traz saldo diferente do Nuvem3
+
+**Sintoma.** O saldo na tela não bate com o que o Nuvem3 mostra, conferindo lado a lado.
+
+**Causa mais provável.** A listagem foi descartada e ninguém percebeu. O nome dos campos da
+resposta **varia** — `idproduto`, `IdProduto`, `idProduto`, `IdProdutoERP` para o id;
+`quantidade`, `Quantidade`, `EstoqueAtual` para a quantidade. Lendo só uma grafia, nada
+casa, o saldo continua sendo o da **última importação**, e a comparação com o Nuvem3 acusa a
+diferença — que é real, só que a culpa não é do ERP.
+
+**Evitar.** Ver a resposta crua antes de teorizar:
+
+```
+node scripts/diagnosticar-erp.mjs <hashLoja> 30289733
+```
+
+Ele mostra quantos itens vieram, **quais campos** existem, quantos ficaram sem identificador,
+e a quantidade dos produtos consultados. O HashLoja está na tela Estoques.
+
+Outras causas que o script separa:
+
+- **HashLoja errado** — devolve lista vazia em vez de erro.
+- **Identificador repetido** — se o ERP manda uma linha por depósito, o app grava a última
+  ocorrência (como o 1.x) e o Nuvem3 pode estar mostrando a soma. O script imprime as duas.
+- **`IdProduto` do catálogo diferente do da listagem** — aparece como "fora do ERP".
+
+⚠️ Zero produtos casados é **erro**, nunca "tudo já estava igual". A tela já disse a segunda
+coisa quando era a primeira; é por isso que `atualizarEstoqueSistema` devolve `casaram`
+separado de `atualizados`.
+
 ### O payload do ERP não é negociável
 
 **Sintoma.** O envio falha com 400, ou é aceito e não reflete no sistema.

@@ -447,6 +447,15 @@ export interface ResultadoSincronia {
   atualizados: number;
   /** Produtos que o ERP não conhece. Ficam marcados com `apiNotFound`. */
   semCorrespondencia: number;
+  /**
+   * Produtos que casaram com a listagem, tendo mudado o saldo ou não.
+   *
+   * Separado de `atualizados` porque **zero atualizados significa duas coisas opostas**:
+   * "tudo já estava igual ao ERP" (ótimo) e "nada casou com o ERP" (a sincronização não
+   * aconteceu). Sem este número a tela dizia a primeira quando era a segunda, e o usuário
+   * ficava olhando o saldo da última importação achando que era o do ERP.
+   */
+  casaram: number;
 }
 
 /**
@@ -470,6 +479,7 @@ export async function atualizarEstoqueSistema(
   const mudancas: Array<{ id: string; dados: Record<string, unknown> }> = [];
   let atualizados = 0;
   let semCorrespondencia = 0;
+  let casaram = 0;
 
   for (const p of produtos) {
     const saldo = saldoNoErp(estoqueErp, p);
@@ -479,8 +489,12 @@ export async function atualizarEstoqueSistema(
       semCorrespondencia++;
       if (p.apiNotFound !== true) dados['apiNotFound'] = true;
     } else {
+      casaram++;
       if (sistemaDe(p) !== saldo) {
         dados['estoqueSistema'] = saldo;
+        // `EstoqueAtual` acompanha porque o Themis 1.x continua em produção no mesmo banco
+        // e lê a grafia antiga. Gravar só uma deixaria os dois apps discordando do saldo.
+        dados['EstoqueAtual'] = saldo;
         atualizados++;
       }
       if (p.apiNotFound === true) dados['apiNotFound'] = false;
@@ -506,7 +520,7 @@ export async function atualizarEstoqueSistema(
     await withWriteTimeout(lote.commit(), { ms: 20_000, label: 'sincronizar estoque do ERP' });
   }
 
-  return { atualizados, semCorrespondencia };
+  return { atualizados, semCorrespondencia, casaram };
 }
 
 export interface ResultadoConferencia {

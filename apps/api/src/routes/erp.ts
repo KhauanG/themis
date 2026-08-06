@@ -66,10 +66,87 @@ const schemaAtualizacao = {
   },
 } as const;
 
-/** Item da listagem de estoque do ERP. Campos em minúsculas, como o ERP devolve. */
+/**
+ * Item da listagem de estoque do ERP.
+ *
+ * ⚠️ **O nome dos campos varia.** A resposta costuma vir em minúsculas (`idproduto`,
+ * `quantidade`), mas o `auditoria.js` do 1.x — a versão mais testada em campo — aceitava
+ * quatro grafias para o id e três para a quantidade. Aceitar só `idproduto` faz a listagem
+ * inteira ser descartada em silêncio: nenhum produto casa, e o app mostra o saldo da última
+ * importação achando que acabou de sincronizar.
+ */
 interface ItemEstoqueErp {
-  idproduto?: unknown;
-  quantidade?: unknown;
+  [campo: string]: unknown;
+}
+
+/** Grafias do identificador, na ordem em que o 1.x tentava. */
+const CAMPOS_ID = ['idproduto', 'IdProduto', 'idProduto', 'IdProdutoERP', 'idProdutoERP'] as const;
+
+/** Grafias da quantidade. `EstoqueAtual` aparece em respostas mais antigas. */
+const CAMPOS_QUANTIDADE = ['quantidade', 'Quantidade', 'EstoqueAtual', 'estoqueAtual'] as const;
+
+function primeiroPresente(item: ItemEstoqueErp, campos: readonly string[]): unknown {
+  for (const campo of campos) {
+    const valor = item[campo];
+    if (valor !== undefined && valor !== null) return valor;
+  }
+  return null;
+}
+
+/**
+ * Quantidade normalizada. Porte do `parseQuantidade` do 1.x.
+ *
+ * Valor ilegível vira **0**, não descarte: o 1.x fazia assim, e descartar transformaria um
+ * produto com dado ruim em "não existe no ERP" — dois problemas diferentes que pedem
+ * respostas diferentes.
+ */
+function quantidadeDoErp(bruto: unknown): number {
+  const n = Number(bruto);
+  return Number.isFinite(n) ? Math.round(n) : 0;
+}
+
+export interface EstoqueNormalizado {
+  itens: Array<{ idProduto: string; quantidade: number }>;
+  /** Linhas descartadas por não ter identificador reconhecível. */
+  semId: number;
+  /**
+   * Nomes das chaves do primeiro item — **só os nomes, nunca o conteúdo**.
+   *
+   * É o que responde "o ERP mudou o nome do campo?" sem mandar nome de produto nem preço
+   * para o log. O `auditoria.js` do 1.x logava o item inteiro; isto é o mesmo diagnóstico
+   * sem o vazamento.
+   */
+  campos: string[];
+}
+
+/** Converte a lista crua do ERP no formato que o app consome. */
+export function normalizarItensDoErp(itens: readonly unknown[]): EstoqueNormalizado {
+  const saida: EstoqueNormalizado['itens'] = [];
+  let semId = 0;
+
+  for (const bruto of itens) {
+    if (!bruto || typeof bruto !== 'object') {
+      semId++;
+      continue;
+    }
+    const item = bruto as ItemEstoqueErp;
+    const id = String(primeiroPresente(item, CAMPOS_ID) ?? '').trim();
+
+    if (id === '' || id === 'null' || id === 'undefined') {
+      semId++;
+      continue;
+    }
+
+    saida.push({
+      idProduto: id,
+      quantidade: quantidadeDoErp(primeiroPresente(item, CAMPOS_QUANTIDADE)),
+    });
+  }
+
+  const primeiro = itens[0];
+  const campos = primeiro && typeof primeiro === 'object' ? Object.keys(primeiro) : [];
+
+  return { itens: saida, semId, campos };
 }
 
 /** Tentativas totais de envio, contando a primeira. Mesmo orçamento do 1.x (1 + 3). */
@@ -280,22 +357,22 @@ export async function rotasErp(app: FastifyInstance): Promise<void> {
           return reply.status(502).send({ ok: false, erro: 'Resposta do ERP em formato inesperado' });
         }
 
-        const estoque = (itens as ItemEstoqueErp[])
-          .map((i) => ({
-            idProduto: String(i.idproduto ?? '').trim(),
-            // Arredondado como no `parseQuantidade` do 1.x. Saldo fracionário viria a ser
-            // comparado com contagem inteira e nunca bateria, virando divergência eterna.
-            quantidade: Math.round(Number(i.quantidade)),
-          }))
-          .filter(
-            (i) =>
-              i.idProduto !== '' &&
-              i.idProduto !== 'null' &&
-              i.idProduto !== 'undefined' &&
-              Number.isFinite(i.quantidade),
-          );
+        const normalizado = normalizarItensDoErp(itens);
 
-        return reply.send({ ok: true, itens: estoque, recebidos: itens.length });
+        if (normalizado.itens.length === 0 && itens.length > 0) {
+          req.log.error(
+            { recebidos: itens.length, campos: normalizado.campos },
+            'ERP devolveu itens, mas nenhum tinha identificador reconhecível',
+          );
+        }
+
+        return reply.send({
+          ok: true,
+          itens: normalizado.itens,
+          recebidos: itens.length,
+          semId: normalizado.semId,
+          campos: normalizado.campos,
+        });
       } catch (erro) {
         const abortou = erro instanceof Error && erro.name === 'AbortError';
         req.log.error({ erro }, 'Falha ao buscar o estoque no ERP');

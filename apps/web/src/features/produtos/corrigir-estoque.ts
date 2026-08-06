@@ -91,6 +91,20 @@ export async function diagnosticar(
   aoProgredir('Atualizando os saldos do sistema');
   const sincronia = await atualizarEstoqueSistema(inventoryId, produtos, leitura.estoque);
 
+  /**
+   * Nenhum produto casou: parar aqui.
+   *
+   * Seguir compararia a contagem com o saldo da última importação e mandaria "correções"
+   * calculadas sobre dado velho — escrita no estoque real da empresa a partir de uma
+   * comparação que não vale. O `auditoria.js` do 1.x também abortava nesse caso.
+   */
+  if (sincronia.casaram === 0) {
+    throw new Error(
+      `Nenhum dos ${produtos.length} produtos casou com os ${leitura.itens} itens do ERP. ` +
+        'Confira o HashLoja do estoque antes de corrigir.',
+    );
+  }
+
   // Reaplica o saldo lido na cópia em memória: o listener do Firestore ainda não trouxe
   // a gravação, e o diagnóstico precisa dos números novos agora.
   const frescos = produtos.map((p) => {

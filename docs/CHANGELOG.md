@@ -6,6 +6,49 @@ Categorias: **Adicionado**, **Alterado**, **Corrigido**, **Removido**, **Seguran
 
 ---
 
+## 2.7.1 — 2026-08-06
+
+### Corrigido
+
+- **"Buscar estoque" podia descartar a listagem inteira em silêncio.** O proxy lia só
+  `idproduto` e `quantidade`. O `auditoria.js` do 1.x — a versão mais testada em campo —
+  aceitava quatro grafias para o identificador (`idproduto`, `IdProduto`, `idProduto`,
+  `IdProdutoERP`) e três para a quantidade (`quantidade`, `Quantidade`, `EstoqueAtual`),
+  justamente porque a resposta varia. Com uma grafia só, nenhum produto casava e o saldo na
+  tela continuava sendo o da última importação — que o usuário compara com o Nuvem3 e
+  conclui que o ERP está errado.
+
+- **A mensagem dizia o oposto do que tinha acontecido.** Com zero produtos casados, a tela
+  mostrava *"Tudo já estava igual ao ERP"*. São duas situações opostas: "nada mudou porque
+  já estava certo" e "nada mudou porque a sincronização não aconteceu". Agora
+  `atualizarEstoqueSistema` devolve `casaram`, e nenhum casamento é **erro**, com o total de
+  produtos e de itens do ERP na mensagem.
+
+- **"Corrigir estoque" seguia adiante sem correspondência nenhuma.** Compararia a contagem
+  com o saldo da última importação e mandaria ao ERP "correções" calculadas sobre dado
+  velho. Agora aborta no diagnóstico, como o 1.x fazia.
+
+- **Quantidade ilegível descartava o item.** O `parseQuantidade` do 1.x devolvia `0`.
+  Descartar transforma "dado ruim" em "não existe no ERP" — problemas diferentes, respostas
+  diferentes.
+
+- **`EstoqueAtual` não acompanhava `estoqueSistema`.** O Themis 1.x continua em produção no
+  mesmo banco e lê a grafia antiga; gravar só uma deixava os dois apps discordando do saldo.
+
+### Adicionado
+
+- **Diagnóstico na resposta da listagem**: `recebidos`, `semId` e `campos` — este último com
+  **apenas os nomes das chaves** do primeiro item, nunca o conteúdo. Responde "o ERP mudou o
+  nome do campo?" sem mandar nome de produto ou preço para o log.
+
+- **`node scripts/diagnosticar-erp.mjs <hashLoja> [idProduto...]`** — mostra a resposta crua
+  do ERP fora do app: quantos itens, quais campos, quantos sem identificador, e a quantidade
+  de produtos específicos para comparar com o Nuvem3 aberto do lado. Também aponta
+  identificadores repetidos, mostrando **última ocorrência** e **soma** — se o ERP manda uma
+  linha por depósito, é aí que a diferença aparece. Só leitura.
+
+---
+
 ## 2.7.0 — 2026-08-06
 
 ### Corrigido

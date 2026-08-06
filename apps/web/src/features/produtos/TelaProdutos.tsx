@@ -156,19 +156,42 @@ export function TelaProdutos() {
       setOcupado({ texto: 'Gravando os saldos' });
       const r = await atualizarEstoqueSistema(estoqueAtual.id, produtos, leitura.estoque);
 
-      mostrar(
-        r.atualizados === 0
-          ? 'Tudo já estava igual ao ERP.'
-          : `${r.atualizados} ${r.atualizados === 1 ? 'saldo atualizado' : 'saldos atualizados'}.${
-              r.semCorrespondencia > 0 ? ` ${r.semCorrespondencia} sem correspondência no ERP.` : ''
-            }`,
-        'success',
-      );
+      /**
+       * Nenhum produto casou com a listagem: a sincronização **não aconteceu**. O saldo na
+       * tela continua sendo o da última importação, e dizer "tudo já estava igual ao ERP"
+       * — como esta mensagem dizia — faz o usuário conferir número velho contra o Nuvem3
+       * e concluir que o ERP é que está errado.
+       */
+      if (r.casaram === 0) {
+        console.error('[erp] Nenhum produto casou com a listagem. Campos do ERP:', leitura.campos);
+        mostrar(
+          `Nenhum dos ${produtos.length} produtos casou com os ${leitura.itens} itens do ERP. ` +
+            'O saldo na tela continua o da última importação. Confira o HashLoja do estoque.',
+          'error',
+        );
+      } else {
+        const parte = (n: number, um: string, muitos: string) =>
+          `${n} ${n === 1 ? um : muitos}`;
+        mostrar(
+          [
+            r.atualizados === 0
+              ? `Saldo já estava igual ao ERP em ${parte(r.casaram, 'produto', 'produtos')}.`
+              : `${parte(r.atualizados, 'saldo atualizado', 'saldos atualizados')} de ${r.casaram} que casaram.`,
+            r.semCorrespondencia > 0
+              ? `${parte(r.semCorrespondencia, 'produto', 'produtos')} fora do ERP.`
+              : null,
+          ]
+            .filter(Boolean)
+            .join(' '),
+          r.semCorrespondencia > r.casaram ? 'warning' : 'success',
+        );
+      }
 
       if (contextoLog) {
         void registrar('BUSCAR_ESTOQUE', contextoLog, {
           // `itens`, não `estoque.size`: o mapa indexa cada produto por várias grafias.
           recebidosDoErp: leitura.itens,
+          casaram: r.casaram,
           atualizados: r.atualizados,
           semCorrespondencia: r.semCorrespondencia,
         });

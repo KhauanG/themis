@@ -66,6 +66,12 @@ export interface ResultadoBusca {
   estoque: Map<string, number>;
   /** Produtos distintos recebidos do ERP. É este o número que se mostra ao usuário. */
   itens: number;
+  /** Linhas que o ERP devolveu, antes de qualquer descarte. */
+  recebidos: number;
+  /** Linhas descartadas por não ter identificador reconhecível. */
+  semId: number;
+  /** Nomes dos campos do primeiro item — só os nomes. Diagnóstico de mudança de contrato. */
+  campos: string[];
   erro?: string;
 }
 
@@ -86,16 +92,42 @@ export async function buscarEstoqueDoErp(hashLoja: string): Promise<ResultadoBus
       signal: controller.signal,
     });
 
-    const corpo = (await resposta.json().catch(() => null)) as
-      | { ok?: boolean; itens?: Array<{ idProduto: string; quantidade: number }>; erro?: string }
-      | null;
+    const corpo = (await resposta.json().catch(() => null)) as {
+      ok?: boolean;
+      itens?: Array<{ idProduto: string; quantidade: number }>;
+      recebidos?: number;
+      semId?: number;
+      campos?: string[];
+      erro?: string;
+    } | null;
+
+    const vazio = { estoque: new Map<string, number>(), itens: 0, recebidos: 0, semId: 0, campos: [] };
 
     if (!resposta.ok || !corpo?.ok || !Array.isArray(corpo.itens)) {
+      return { ok: false, ...vazio, erro: corpo?.erro ?? `Falha ${resposta.status}` };
+    }
+
+    const recebidos = corpo.recebidos ?? corpo.itens.length;
+    const semId = corpo.semId ?? 0;
+    const campos = corpo.campos ?? [];
+
+    /**
+     * Resposta com linhas mas sem nenhum identificador reconhecível é **falha**, não
+     * "nada a atualizar". O `auditoria.js` do 1.x lançava erro nesse caso, e com razão:
+     * seguir em frente marca o catálogo inteiro como "fora do ERP" e deixa na tela o saldo
+     * da última importação — que o usuário lê como se fosse o saldo do ERP.
+     */
+    if (corpo.itens.length === 0 && recebidos > 0) {
+      console.error('[erp] Nenhum item com identificador. Campos recebidos:', campos);
       return {
         ok: false,
-        estoque: new Map(),
-        itens: 0,
-        erro: corpo?.erro ?? `Falha ${resposta.status}`,
+        ...vazio,
+        recebidos,
+        semId,
+        campos,
+        erro:
+          `O ERP devolveu ${recebidos} itens, mas nenhum com identificador reconhecível. ` +
+          `Campos recebidos: ${campos.join(', ') || 'nenhum'}.`,
       };
     }
 
@@ -119,13 +151,16 @@ export async function buscarEstoqueDoErp(hashLoja: string): Promise<ResultadoBus
       itens++;
     }
 
-    return { ok: true, estoque, itens };
+    return { ok: true, estoque, itens, recebidos, semId, campos };
   } catch (erro) {
     const abortou = (erro as { name?: string } | null)?.name === 'AbortError';
     return {
       ok: false,
       estoque: new Map(),
       itens: 0,
+      recebidos: 0,
+      semId: 0,
+      campos: [],
       erro: abortou ? 'Tempo esgotado ao buscar o estoque' : 'Sem resposta do servidor',
     };
   } finally {
