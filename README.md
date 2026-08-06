@@ -145,12 +145,16 @@ Portado e verificado (typecheck + lint + 56 testes + build):
 - [x] Limite de erro, foco preso no modal, esqueletos de carga, barra de progresso
 
 - [x] Varredura de produtos legados (`npm run auditar-produtos`, somente leitura)
+- [x] Publicado em `themis.grupoicebeer.com.br` (2026-08-06)
+- [x] Varredura rodada em produção — **base limpa**, nada a corrigir (2026-08-06)
+- [x] Documentação completa em [`docs/`](docs/README.md)
 
 Falta:
 - [ ] Teste manual em celular Android real (câmera exige HTTPS)
-- [ ] Rodar a varredura no banco de produção e consertar o que aparecer
 - [ ] Migração dos usuários do APK para o PWA
 - [ ] Criar e excluir usuário pelo app (hoje só pelo Console do Firebase)
+- [ ] Mover os cabeçalhos de segurança do `.htaccess` para o Fastify — ver
+      [docs/seguranca.md](docs/seguranca.md) §Cabeçalhos
 
 ## Deploy
 

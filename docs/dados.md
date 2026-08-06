@@ -74,6 +74,12 @@ testes. Para varrer o banco atrás de documentos legados que violem isso:
 npm run auditar-produtos
 ```
 
+> **Última varredura: 2026-08-06 — nenhum documento violaria as regras.**
+>
+> Registrar a data importa: se "não salva" reaparecer em campo, saber que a base estava
+> íntegra nesta data descarta o produto legado como causa e aponta para código novo.
+> Rode de novo depois de qualquer importação grande ou escrita em massa.
+
 ### Marcador `REMOVER`
 
 O sentinela `deleteField()` do Firestore é um objeto e **não sobrevive ao JSON** da fila
