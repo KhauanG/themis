@@ -50,6 +50,58 @@ export async function enviarAoErp(dados: EnvioEstoque): Promise<ResultadoEnvio> 
   }
 }
 
+/** Buscar o estoque inteiro da loja demora; o teto acompanha o da API. */
+const TIMEOUT_LISTAR_MS = 60_000;
+
+export interface ResultadoBusca {
+  ok: boolean;
+  /** `idProduto` → quantidade no ERP. */
+  estoque: Map<string, number>;
+  erro?: string;
+}
+
+/**
+ * Lê o saldo atual da loja no ERP.
+ *
+ * Usado duas vezes no "Corrigir estoque": **antes**, para comparar a contagem contra dado
+ * fresco em vez do `estoqueSistema` guardado; e **depois**, para verificar se o envio foi
+ * mesmo aplicado. Sem a primeira leitura, o app mandaria correções de itens que já batiam
+ * e deixaria passar divergências surgidas desde a importação.
+ */
+export async function buscarEstoqueDoErp(hashLoja: string): Promise<ResultadoBusca> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_LISTAR_MS);
+
+  try {
+    const resposta = await fetch(urlApi(`/erp/estoque/${encodeURIComponent(hashLoja)}`), {
+      signal: controller.signal,
+    });
+
+    const corpo = (await resposta.json().catch(() => null)) as
+      | { ok?: boolean; itens?: Array<{ idProduto: string; quantidade: number }>; erro?: string }
+      | null;
+
+    if (!resposta.ok || !corpo?.ok || !Array.isArray(corpo.itens)) {
+      return { ok: false, estoque: new Map(), erro: corpo?.erro ?? `Falha ${resposta.status}` };
+    }
+
+    // Última ocorrência vence, como no 1.x: o ERP às vezes repete o mesmo produto.
+    const estoque = new Map<string, number>();
+    for (const item of corpo.itens) estoque.set(String(item.idProduto), item.quantidade);
+
+    return { ok: true, estoque };
+  } catch (erro) {
+    const abortou = (erro as { name?: string } | null)?.name === 'AbortError';
+    return {
+      ok: false,
+      estoque: new Map(),
+      erro: abortou ? 'Tempo esgotado ao buscar o estoque' : 'Sem resposta do servidor',
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export interface ConfigLoja {
   id: string;
   hashLoja: string;

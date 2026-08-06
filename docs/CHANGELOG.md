@@ -6,6 +6,37 @@ Categorias: **Adicionado**, **Alterado**, **Corrigido**, **Removido**, **Seguran
 
 ---
 
+## 2.3.0 — 2026-08-06
+
+### Adicionado
+
+- **Corrigir estoque completo, com as três fases do 1.x.** A versão anterior só enviava as
+  divergências; faltavam as duas leituras do ERP.
+
+  1. **Ler antes** — busca o saldo atual e grava em `estoqueSistema`. Sem isso a comparação
+     usaria o saldo da última importação: mandaria corrigir item que já batia e deixaria
+     passar divergência surgida desde então.
+  2. **Enviar** só as divergências, com pausa de 500 ms.
+  3. **Verificar depois** — espera 1,5 s, relê o ERP e confere item a item se o saldo ficou
+     igual ao enviado. O que não refletiu vira pendência listada com "enviado" e "no ERP",
+     com botão de reenviar.
+
+  Sem a fase 3, um envio aceito pelo ERP mas não aplicado passava despercebido, e o estoque
+  ficava errado com todo mundo achando que tinha sido corrigido.
+
+  A confirmação passou para **entre as fases 1 e 2**, com os números já corrigidos pela
+  leitura — perguntar antes mostrava dado velho.
+
+- `GET /api/erp/estoque/:hashLoja` — proxy da listagem de estoque do ERP, com timeout de
+  45 s e desembrulho dos três formatos de resposta que o ERP usa (`array`, `{data}`,
+  `{items}`).
+- `chavesDeIdProduto()` — casa o produto com a listagem do ERP tolerando `"007"`, `"7"` e
+  `7` como o mesmo identificador. Sem isso o app concluiria que metade do estoque não
+  existe no ERP.
+- 13 testes de `produto.ts`, cobrindo o casamento de identificador e os campos legados.
+
+---
+
 ## 2.2.0 — 2026-08-06
 
 ### Corrigido

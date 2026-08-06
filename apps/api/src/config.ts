@@ -48,8 +48,17 @@ export const config = {
     .filter(Boolean),
 
   erp: {
-    url: texto('ERP_API_URL', 'https://erp.nuvem3.com.br/apiv1/Estoque/EstoqueInventarioAtualizar'),
+    urlAtualizar: texto(
+      'ERP_API_URL',
+      'https://erp.nuvem3.com.br/apiv1/Estoque/EstoqueInventarioAtualizar',
+    ),
+    urlListar: texto(
+      'ERP_LISTAR_URL',
+      'https://erp.nuvem3.com.br/apiv1/Estoque/EstoqueQuantidadePorLojaListar',
+    ),
     timeoutMs: inteiro('ERP_TIMEOUT_MS', 10_000),
+    // A listagem traz o estoque inteiro da loja; 10s não bastam.
+    timeoutListarMs: inteiro('ERP_LISTAR_TIMEOUT_MS', 45_000),
   },
 
   /** Vazio desabilita o webhook — ver comentário em .env.example. */

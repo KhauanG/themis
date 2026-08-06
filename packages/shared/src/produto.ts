@@ -22,6 +22,27 @@ export function codigoBarrasDe(p: Produto): string | null {
 }
 
 /**
+ * Formas em que o `IdProduto` pode aparecer, para casar com a listagem do ERP.
+ *
+ * O mesmo identificador vem ora como número, ora como texto, ora com zeros à esquerda —
+ * `"007"`, `"7"` e `7` são o mesmo produto. Comparar só a forma crua faz o app achar que
+ * metade do estoque não existe no ERP.
+ */
+export function chavesDeIdProduto(valor: unknown): string[] {
+  if (valor === null || valor === undefined) return [];
+
+  const cru = String(valor).trim();
+  if (cru === '') return [];
+
+  const chaves = new Set<string>([cru]);
+
+  const numero = Number(cru);
+  if (Number.isFinite(numero)) chaves.add(String(numero));
+
+  return [...chaves];
+}
+
+/**
  * Estoque físico: o que o funcionário contou.
  * `quantidade` tem precedência; `estoqueFisico` é o campo legado.
  * Atenção: `quantidade: 0` é contagem válida — só cai no fallback se for null/undefined.

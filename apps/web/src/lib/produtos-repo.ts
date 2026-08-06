@@ -18,7 +18,14 @@ import {
   type DocumentData,
   type QueryDocumentSnapshot,
 } from 'firebase/firestore';
-import { LIMITE_CRITICO, fisicoDe, sistemaDe, type Produto } from '@themis/shared';
+import {
+  LIMITE_CRITICO,
+  chavesDeIdProduto,
+  fisicoDe,
+  idProdutoDe,
+  sistemaDe,
+  type Produto,
+} from '@themis/shared';
 import { db } from './firebase.js';
 import { deviceId } from './dispositivo.js';
 import { runTransactionWithTimeout, withWriteTimeout } from './firestore-write.js';
@@ -299,6 +306,56 @@ export async function marcarConferido(
     }),
     { label: 'marcar conferido' },
   );
+}
+
+export interface ResultadoSincronia {
+  atualizados: number;
+  semCorrespondencia: number;
+}
+
+/**
+ * Grava no Firestore o saldo lido do ERP, no campo `estoqueSistema`.
+ *
+ * Só escreve quem mudou: reescrever 2000 produtos com o mesmo valor gasta cota e polui o
+ * `lastModified` de todo mundo, o que atrapalha a ordenação da aba "Contados".
+ *
+ * ⚠️ Não toca em `quantidade` nem em `productStatus` — o saldo do ERP é o lado "sistema"
+ * da comparação, nunca a contagem do funcionário.
+ */
+export async function atualizarEstoqueSistema(
+  inventoryId: string,
+  produtos: readonly Produto[],
+  estoqueErp: ReadonlyMap<string, number>,
+): Promise<ResultadoSincronia> {
+  const mudancas: Array<{ id: string; valor: number }> = [];
+  let semCorrespondencia = 0;
+
+  for (const p of produtos) {
+    const chave = chavesDeIdProduto(idProdutoDe(p)).find((c) => estoqueErp.has(c));
+    if (chave === undefined) {
+      semCorrespondencia++;
+      continue;
+    }
+    const valor = estoqueErp.get(chave)!;
+    if (sistemaDe(p) !== valor) mudancas.push({ id: p.id, valor });
+  }
+
+  const agora = new Date();
+  const autor = deviceId();
+
+  for (let i = 0; i < mudancas.length; i += LIMITE_BATCH) {
+    const lote = writeBatch(db);
+    for (const m of mudancas.slice(i, i + LIMITE_BATCH)) {
+      lote.update(doc(colecaoProdutos(inventoryId), m.id), {
+        estoqueSistema: m.valor,
+        lastModified: agora,
+        modifiedBy: autor,
+      });
+    }
+    await withWriteTimeout(lote.commit(), { ms: 20_000, label: 'sincronizar estoque do ERP' });
+  }
+
+  return { atualizados: mudancas.length, semCorrespondencia };
 }
 
 export interface ResultadoConferencia {

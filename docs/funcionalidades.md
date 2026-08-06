@@ -133,10 +133,37 @@ contabilizada.
 ⚠️ Em lotes de 500 (o limite do Firestore). Uma escrita por produto, com teto de 8s cada,
 tornava a importação de 2000 linhas inviável.
 
-### Envio ao ERP
+### Corrigir estoque
 
-Passa pelo proxy da API. O `HashLoja` vem de `hashConfigs`. Item sem contagem não tem o que
-corrigir e é ignorado. Ao fim, informa quantos foram e quantos falharam.
+Porte do fluxo homônimo do 1.x. **Três fases, e nenhuma é opcional.**
+
+**1. Ler o ERP antes.** Busca o saldo atual e grava em `estoqueSistema`. Sem isso a
+comparação usaria o saldo da última importação: o app mandaria "corrigir" itens que já
+batiam e deixaria passar divergências surgidas desde então.
+
+**2. Enviar as divergências.** Só elas. Item que bateu não tem o que corrigir, e mandar
+todos seriam 2000 requisições para resolver 40 problemas. Pausa de 500 ms entre envios.
+
+**3. Verificar se aplicou.** Espera 1,5 s, lê o ERP de novo e confere item a item se o
+saldo ficou igual ao enviado. O que não refletiu vira pendência, listada com "enviado" e
+"no ERP", com botão de **reenviar**.
+
+> Sem a fase 3, um envio aceito pelo ERP mas não aplicado passa despercebido — e o estoque
+> fica errado com todo mundo achando que foi corrigido.
+
+Ao fim, **fecha a conferência** de todos os contados: `CONFERIDO`, com `corrigidoIncorreto`
+e `corrigidoCritico` conforme o caso. Os itens saem da lista de trabalho do funcionário.
+
+⚠️ O fechamento acontece **mesmo se o ERP falhar**: o usuário já confirmou que quer fechar,
+e a conferência registra o que foi verificado, não o que o ERP aceitou.
+
+A confirmação aparece **entre as fases 1 e 2**, com os números já corrigidos pela leitura.
+Perguntar antes mostraria dados velhos.
+
+Exige conexão: offline os lotes do Firestore ficariam pendentes para sempre.
+
+O `HashLoja` vem de `hashConfigs`. Produtos que o ERP não conhece são contabilizados e
+avisados — não dá para corrigir o que ele não tem.
 
 ---
 
