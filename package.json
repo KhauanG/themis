@@ -20,8 +20,8 @@
     "lint": "eslint .",
     "typecheck": "tsc --build --pretty",
     "auditar-produtos": "npm run build --workspace @themis/shared && node --env-file=apps/web/.env scripts/auditar-produtos.mjs",
-    "deploy-rules": "firebase deploy --only firestore:rules",
-    "deploy-indexes": "firebase deploy --only firestore:indexes"
+    "deploy-rules": "npx firebase-tools deploy --only firestore:rules",
+    "deploy-indexes": "npx firebase-tools deploy --only firestore:indexes"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",

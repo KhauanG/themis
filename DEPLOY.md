@@ -78,12 +78,27 @@ Proteja a `main` (Settings → Branches → Add rule): exigir pull request e exi
 
 O banco é o mesmo do Themis 1.x. **Nenhuma migração de dados.**
 
-**2.1** Instale e autentique a CLI:
+**2.1** Autentique a CLI:
 
 ```powershell
-npm install -g firebase-tools
-firebase login
+cd "C:\Projetos\Themis 2.0"
+npx firebase-tools login
 ```
+
+Abre o navegador para o login do Google. Use a conta com acesso ao projeto
+`auditoria-icebeer`.
+
+> **Por que `npx` e não `npm install -g firebase-tools`.** No Windows, o `npm -g` instala
+> em `%APPDATA%\npm`, que frequentemente **não está no PATH** — aí o comando `firebase`
+> devolve `O termo 'firebase' não é reconhecido...` mesmo com a instalação tendo dado
+> certo. O `npx` resolve o binário sozinho e funciona em qualquer máquina.
+>
+> Se preferir o comando curto, adicione a pasta ao PATH do usuário (uma vez só) e
+> **abra um terminal novo** depois:
+>
+> ```powershell
+> [Environment]::SetEnvironmentVariable('Path', [Environment]::GetEnvironmentVariable('Path','User') + ';' + (npm config get prefix), 'User')
+> ```
 
 **2.2** Confira o que vai mudar antes de publicar:
 
@@ -98,7 +113,7 @@ firebase login
 
 ```powershell
 cd "C:\Projetos\Themis 2.0"
-firebase deploy --only firestore:indexes
+npx firebase-tools deploy --only firestore:indexes
 ```
 
 A construção leva de minutos a algumas horas conforme o volume. Acompanhe em
@@ -107,7 +122,7 @@ Firestore → Índices. Só teste o Histórico depois que ficarem "Ativado".
 **2.4** As regras, **só se realmente divergirem**:
 
 ```powershell
-firebase deploy --only firestore:rules
+npx firebase-tools deploy --only firestore:rules
 ```
 
 > Publicar regra afeta os usuários do app 1.x **na hora**. Se estiverem idênticas, pule
