@@ -191,12 +191,17 @@ workspaces.
 | Diretório de saída | deixe vazio |
 | Arquivo de entrada | `apps/api/dist/server.js` |
 
-**Por que `build:hostinger` e não `build`.** A instalação da Hostinger traz só as
-dependências de produção, e o `tsc` é `devDependency` — o build morre com
-`sh: line 1: tsc: command not found`. O `NODE_ENV=production` das variáveis de ambiente
-alimenta isso: o npm lê essa variável e passa a omitir `devDependencies`.
-O script faz `npm ci --include=dev && npm run build`, o que resolve independentemente do
-que a plataforma decidir.
+**Sobre as devDependencies.** O projeto é compilado a partir do código-fonte na
+hospedagem, e `typescript` e `vite` são `devDependencies`. Instalação só de produção faz o
+build morrer com `sh: line 1: tsc: command not found`. O gatilho é o `NODE_ENV=production`
+das variáveis de ambiente: o npm lê essa variável e passa a omitir `devDependencies`.
+
+O `.npmrc` na raiz resolve isso de vez, com `include=dev` — `include` tem precedência
+sobre `omit` qualquer que seja a ordem, então vale mesmo se a plataforma passar
+`--omit=dev` na linha de comando. **Não remova esse arquivo.**
+
+O script `build:hostinger` (`npm ci --include=dev && npm run build`) continua disponível
+como reforço, caso alguma plataforma ignore o `.npmrc`.
 
 O diretório de saída fica vazio porque o build gera **duas** pastas que precisam coexistir
 (`apps/api/dist` e `apps/web/dist`), e quem serve os arquivos é o Node, não o servidor
