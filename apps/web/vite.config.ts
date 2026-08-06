@@ -19,8 +19,10 @@ export default defineConfig({
         scope: '/',
         display: 'standalone',
         orientation: 'portrait',
-        background_color: '#0f172a',
-        theme_color: '#0f172a',
+        // Combinam com `--fundo` e `--superficie` do tema claro: a tela de abertura e a
+        // barra do sistema emendam com o app, sem o pisca escuro do tema antigo.
+        background_color: '#f5f5f7',
+        theme_color: '#ffffff',
         icons: [
           { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
           { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },

@@ -11,6 +11,7 @@ import { useEstoque } from '../../contexts/EstoqueContext.js';
 import { useAuth } from '../../contexts/AuthContext.js';
 import { useToast } from '../../contexts/ToastContext.js';
 import { Esqueleto } from '../../components/Esqueleto.js';
+import { Icone } from '../../components/Icone.js';
 import { listarAuditorias } from '../../lib/auditorias-repo.js';
 import { desfazerConferido, marcarConferido } from '../../lib/produtos-repo.js';
 import { exportarContagemPDF, exportarValidadePDF, type ContextoRelatorio } from '../../lib/pdf.js';
@@ -18,10 +19,10 @@ import { exportarPlanilha } from '../../lib/planilha.js';
 import { registrar } from '../../lib/historico.js';
 
 const CLASSE_STATUS: Record<StatusAuditoria, string> = {
-  CORRETO: 'pill pill--ok',
-  ERRADO: 'pill pill--erro',
-  CRITICO: 'pill pill--critico',
-  'NÃO CONTADO': 'pill pill--neutro',
+  CORRETO: 'etiqueta etiqueta--ok',
+  ERRADO: 'etiqueta etiqueta--alerta',
+  CRITICO: 'etiqueta etiqueta--critico',
+  'NÃO CONTADO': 'etiqueta etiqueta--neutra',
 };
 
 export function PainelAuditoria() {
@@ -57,7 +58,7 @@ export function PainelAuditoria() {
   }, [estoqueAtual, mostrar]);
 
   const auditoria = fonte === 'ao-vivo' ? null : salvas.find((a) => a.id === fonte);
-  const aoVivo = auditoria === null || auditoria === undefined;
+  const aoVivo = !auditoria;
 
   // Uma origem só para tela e exportação: antes a tabela mostrava a auditoria salva e a
   // exportação gerava o arquivo com a contagem ao vivo.
@@ -119,7 +120,10 @@ export function PainelAuditoria() {
       setCorrigindo(produtoId);
       try {
         await marcarConferido(estoqueAtual.id, produtoId, divergenciaConfirmada);
-        mostrar(divergenciaConfirmada ? 'Divergência confirmada.' : 'Item conferido como correto.', 'success');
+        mostrar(
+          divergenciaConfirmada ? 'Divergência confirmada.' : 'Item conferido como correto.',
+          'success',
+        );
         if (contextoLog) {
           void registrar('CORRIGIR_ESTOQUE', contextoLog, { produtoId, divergenciaConfirmada, ciclo });
         }
@@ -161,8 +165,17 @@ export function PainelAuditoria() {
   if (carregando) return <Esqueleto linhas={5} />;
 
   return (
-    <section className="auditoria">
-      <div className="auditoria__controles">
+    <section className="pilha-g">
+      <div>
+        <h1 className="titulo-tela">Auditoria</h1>
+        <p className="subtitulo">
+          {aoVivo
+            ? `Contagem em andamento · ciclo ${ciclo}`
+            : `Salva em ${auditoria.data.toLocaleString('pt-BR')} · somente leitura`}
+        </p>
+      </div>
+
+      <div className="filtros">
         <label className="campo">
           <span className="campo__rotulo">Contagem</span>
           <select className="campo__entrada" value={fonte} onChange={(e) => setFonte(e.target.value)}>
@@ -191,128 +204,153 @@ export function PainelAuditoria() {
         </label>
       </div>
 
-      {!aoVivo && (
-        <p className="aviso aviso--compacto">
-          Auditoria salva em {auditoria.data.toLocaleString('pt-BR')} — somente leitura.
-        </p>
-      )}
-
-      <ul className="cartoes">
-        <li className="cartao">
-          <span>Contados</span>
-          <strong>{estatisticas.contados}</strong>
+      <ul className="metricas">
+        <li className="metrica">
+          <span className="metrica__rotulo">Contados</span>
+          <strong className="metrica__valor">{estatisticas.contados}</strong>
         </li>
-        <li className="cartao">
-          <span>Não contados</span>
-          <strong>{estatisticas.naoContados}</strong>
+        <li className="metrica">
+          <span className="metrica__rotulo">A contar</span>
+          <strong className="metrica__valor">{estatisticas.naoContados}</strong>
         </li>
-        <li className="cartao cartao--ok">
-          <span>Corretos</span>
-          <strong>{estatisticas.corretos}</strong>
+        <li className="metrica metrica--ok">
+          <span className="metrica__rotulo">Corretos</span>
+          <strong className="metrica__valor">{estatisticas.corretos}</strong>
         </li>
-        <li className="cartao cartao--alerta">
-          <span>Divergentes</span>
-          <strong>{estatisticas.incorretos}</strong>
+        <li className="metrica metrica--alerta">
+          <span className="metrica__rotulo">Divergentes</span>
+          <strong className="metrica__valor">{estatisticas.incorretos}</strong>
         </li>
-        <li className="cartao">
-          <span>% divergência</span>
-          <strong>{estatisticas.percentualIncorretos}%</strong>
+        <li className="metrica">
+          <span className="metrica__rotulo">Divergência</span>
+          <strong className="metrica__valor">{estatisticas.percentualIncorretos}%</strong>
         </li>
         {estatisticas.corrigidos.total > 0 && (
-          <li className="cartao">
-            <span>Conferidos</span>
-            <strong>{estatisticas.corrigidos.total}</strong>
+          <li className="metrica">
+            <span className="metrica__rotulo">Conferidos</span>
+            <strong className="metrica__valor">{estatisticas.corrigidos.total}</strong>
           </li>
         )}
       </ul>
 
-      <div className="auditoria__acoes">
-        <button className="botao botao--neutro" type="button" onClick={() => void exportar('contagem')} disabled={exportando}>
-          PDF da contagem
-        </button>
-        <button className="botao botao--neutro" type="button" onClick={() => void exportar('validade')} disabled={exportando}>
-          PDF de validade
-        </button>
-        <button className="botao botao--neutro" type="button" onClick={() => void exportar('planilha')} disabled={exportando}>
-          Planilha
-        </button>
+      <div>
+        <p className="rotulo-secao" style={{ marginBottom: 'var(--e2)' }}>
+          Exportar
+        </p>
+        <div className="acoes-lista">
+          <button className="acao" type="button" onClick={() => void exportar('contagem')} disabled={exportando}>
+            <span className="acao__icone">
+              <Icone nome="baixar" />
+            </span>
+            <span className="acao__texto">
+              <span className="acao__titulo">PDF da contagem</span>
+              <span className="acao__descricao">Todos os itens, com status e diferença</span>
+            </span>
+          </button>
+
+          <button className="acao" type="button" onClick={() => void exportar('validade')} disabled={exportando}>
+            <span className="acao__icone">
+              <Icone nome="baixar" />
+            </span>
+            <span className="acao__texto">
+              <span className="acao__titulo">PDF de validade</span>
+              <span className="acao__descricao">Do vencimento mais próximo ao mais distante</span>
+            </span>
+          </button>
+
+          <button className="acao" type="button" onClick={() => void exportar('planilha')} disabled={exportando}>
+            <span className="acao__icone">
+              <Icone nome="baixar" />
+            </span>
+            <span className="acao__texto">
+              <span className="acao__titulo">Planilha</span>
+              <span className="acao__descricao">Formato .xlsx para análise</span>
+            </span>
+          </button>
+        </div>
       </div>
 
-      <p className="contagem__resumo">
-        {visiveis.length} {visiveis.length === 1 ? 'item' : 'itens'}
-      </p>
+      <div className="pilha">
+        <p className="contagem__resumo">
+          {visiveis.length} {visiveis.length === 1 ? 'item' : 'itens'}
+        </p>
 
-      {visiveis.length === 0 ? (
-        <p className="vazio">Nenhum item com este status</p>
-      ) : (
-        <div className="tabela-rolagem">
-          <table className="tabela">
-            <thead>
-              <tr>
-                <th>Produto</th>
-                <th className="num">Sistema</th>
-                <th className="num">Contado</th>
-                <th className="num">Dif.</th>
-                <th>Status</th>
-                {podeConferir && <th>Conferência</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {visiveis.map((l) => {
-                const conferido = statusPorId.get(l.id) === 'CONFERIDO';
-                return (
-                  <tr key={l.id} className={conferido ? 'linha--conferida' : undefined}>
-                    <td>{l.nome}</td>
-                    <td className="num">{l.sistema}</td>
-                    <td className="num">{l.contado ?? '—'}</td>
-                    <td className="num">{l.diferenca}</td>
-                    <td>
-                      <span className={CLASSE_STATUS[l.status]}>{l.status}</span>
-                    </td>
-                    {podeConferir && (
-                      <td>
-                        {conferido ? (
-                          <button
-                            className="botao botao--mini"
-                            type="button"
-                            onClick={() => void desfazer(l.id)}
-                            disabled={corrigindo === l.id}
-                          >
-                            Desfazer
-                          </button>
-                        ) : l.status === 'CORRETO' || l.status === 'NÃO CONTADO' ? (
-                          <span className="suave">—</span>
-                        ) : (
-                          <span className="acoes-linha">
-                            <button
-                              className="botao botao--mini botao--ok"
-                              type="button"
-                              onClick={() => void conferir(l.id, false)}
-                              disabled={corrigindo === l.id}
-                              title="A contagem estava certa; a divergência não se confirmou"
-                            >
-                              OK
-                            </button>
-                            <button
-                              className="botao botao--mini botao--erro"
-                              type="button"
-                              onClick={() => void conferir(l.id, true)}
-                              disabled={corrigindo === l.id}
-                              title="A divergência se confirmou na conferência física"
-                            >
-                              Divergiu
-                            </button>
-                          </span>
-                        )}
-                      </td>
-                    )}
+        {visiveis.length === 0 ? (
+          <div className="vazio">
+            <p className="vazio__titulo">Nenhum item com este status</p>
+          </div>
+        ) : (
+          <div className="tabela-caixa">
+            <div className="rolagem-h">
+              <table className="tabela">
+                <thead>
+                  <tr>
+                    <th>Produto</th>
+                    <th className="num">Sistema</th>
+                    <th className="num">Contado</th>
+                    <th className="num">Dif.</th>
+                    <th>Status</th>
+                    {podeConferir && <th>Conferência</th>}
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
+                </thead>
+                <tbody>
+                  {visiveis.map((l) => {
+                    const conferido = statusPorId.get(l.id) === 'CONFERIDO';
+                    return (
+                      <tr key={l.id} className={conferido ? 'linha--conferida' : undefined}>
+                        <td>{l.nome}</td>
+                        <td className="num">{l.sistema}</td>
+                        <td className="num">{l.contado ?? '—'}</td>
+                        <td className="num">{l.diferenca}</td>
+                        <td>
+                          <span className={CLASSE_STATUS[l.status]}>{l.status}</span>
+                        </td>
+                        {podeConferir && (
+                          <td>
+                            {conferido ? (
+                              <button
+                                className="botao botao--secundario botao--mini"
+                                type="button"
+                                onClick={() => void desfazer(l.id)}
+                                disabled={corrigindo === l.id}
+                              >
+                                Desfazer
+                              </button>
+                            ) : l.status === 'CORRETO' || l.status === 'NÃO CONTADO' ? (
+                              <span className="suave">—</span>
+                            ) : (
+                              <span className="acoes-linha">
+                                <button
+                                  className="botao botao--secundario botao--mini"
+                                  type="button"
+                                  onClick={() => void conferir(l.id, false)}
+                                  disabled={corrigindo === l.id}
+                                  title="A contagem estava certa; a divergência não se confirmou"
+                                >
+                                  OK
+                                </button>
+                                <button
+                                  className="botao botao--perigo botao--mini"
+                                  type="button"
+                                  onClick={() => void conferir(l.id, true)}
+                                  disabled={corrigindo === l.id}
+                                  title="A divergência se confirmou na conferência física"
+                                >
+                                  Divergiu
+                                </button>
+                              </span>
+                            )}
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </div>
     </section>
   );
 }

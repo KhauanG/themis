@@ -99,7 +99,7 @@ export function LeitorCodigo({ onLer, onFechar }: Props) {
         ) : (
           <p className="leitor__dica">{pronto ? 'Aponte para o código de barras' : 'Abrindo câmera...'}</p>
         )}
-        <button className="botao botao--neutro" type="button" onClick={onFechar}>
+        <button className="botao botao--secundario botao--largo" type="button" onClick={onFechar}>
           Fechar
         </button>
       </div>

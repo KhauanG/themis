@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { validadeDe, type Produto } from '@themis/shared';
+import { sistemaDe, validadeDe, type Produto } from '@themis/shared';
 
 interface Props {
   produto: Produto;
@@ -34,6 +34,8 @@ export function FormContagem({ produto, onCancelar, onSalvar }: Props) {
 
   const valor = Number(quantidade.replace(',', '.'));
   const valido = quantidade.trim() !== '' && Number.isFinite(valor);
+  const sistema = sistemaDe(produto);
+  const diferenca = valido ? valor - sistema : null;
 
   async function salvar() {
     if (!valido || salvando) return;
@@ -49,7 +51,7 @@ export function FormContagem({ produto, onCancelar, onSalvar }: Props) {
   return (
     <div className="card__cascata">
       {mudouNoServidor && (
-        <p className="aviso aviso--compacto" role="alert">
+        <p className="aviso" role="alert" style={{ marginBottom: 'var(--e4)' }}>
           Outro aparelho alterou este produto agora. Confira antes de salvar.
         </p>
       )}
@@ -70,6 +72,12 @@ export function FormContagem({ produto, onCancelar, onSalvar }: Props) {
             }}
             autoFocus
           />
+          <span className="campo__ajuda">
+            Sistema: {sistema}
+            {diferenca !== null && diferenca !== 0 && (
+              <> · diferença {diferenca > 0 ? `+${diferenca}` : diferenca}</>
+            )}
+          </span>
         </label>
 
         <label className="campo">
@@ -80,11 +88,12 @@ export function FormContagem({ produto, onCancelar, onSalvar }: Props) {
             value={validade}
             onChange={(e) => setValidade(e.target.value)}
           />
+          <span className="campo__ajuda">Opcional</span>
         </label>
       </div>
 
       <div className="card__acoes">
-        <button className="botao botao--neutro" type="button" onClick={onCancelar}>
+        <button className="botao botao--secundario" type="button" onClick={onCancelar}>
           Cancelar
         </button>
         <button
@@ -93,7 +102,7 @@ export function FormContagem({ produto, onCancelar, onSalvar }: Props) {
           onClick={() => void salvar()}
           disabled={!valido || salvando}
         >
-          {salvando ? 'Salvando...' : 'Salvar'}
+          {salvando ? 'Salvando…' : 'Salvar'}
         </button>
       </div>
     </div>

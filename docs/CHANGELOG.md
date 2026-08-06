@@ -6,6 +6,47 @@ Categorias: **Adicionado**, **Alterado**, **Corrigido**, **Removido**, **Seguran
 
 ---
 
+## 2.1.0 — 2026-08-06
+
+Reconstrução visual completa. Identidade empresarial, referência nas interfaces da Apple.
+Sem mudança de comportamento: nenhuma regra de negócio, gravação ou permissão foi alterada.
+
+### Adicionado
+
+- **Sistema de design** em `apps/web/src/estilos/` — tokens, base, componentes, telas.
+  Documentado em [design.md](design.md)
+- **Tema claro como padrão, escuro de verdade.** Não é inversão automática: as cores de
+  estado são recalibradas, porque os tons do modo claro não têm contraste em fundo escuro
+- **Menu principal em folha**, agrupado por finalidade (Contagem, Relatórios, Gestão,
+  Conta), montado a partir das permissões. Item que o papel não permite não aparece —
+  nem desabilitado, nem com cadeado
+- **14 ícones SVG inline** (`components/Icone.tsx`), sem biblioteca
+- Seletor de estoque em modal, no lugar do `<select>` no cabeçalho
+- Painel de progresso com número grande, barra e contagem de pendentes
+- Diferença calculada ao vivo no formulário, enquanto o usuário digita
+
+### Alterado
+
+- **Abas por papel**: comum não vê aba nenhuma (só a contagem); auditor vê duas; admin e
+  master, três. Histórico e Usuários passam a viver só no menu — com eles nas abas, um
+  master teria cinco disputando a largura do celular
+- Filtros viraram controle segmentado com contador
+- Card de produto: barra de estado fina à esquerda no lugar de borda colorida; etiquetas
+  de validade e diferença no lugar de texto solto
+- Telas de produtos e auditoria: ações viraram lista com ícone, título e descrição —
+  "Limpar contagem" agora diz o que apaga antes de ser tocado
+- **PDFs redesenhados**: régua fina no lugar de zebrado, resumo em métricas, cor só na
+  coluna de status, rodapé com paginação
+- `theme_color` e `background_color` do manifesto acompanham o tema claro; o HTML declara
+  `theme-color` por esquema de cor
+
+### Removido
+
+- `BannerOffline` — substituído por `FaixaConexao`, que some quando está tudo em dia.
+  Faixa permanente vira mobília e ninguém mais lê
+
+---
+
 ## 2.0.1 — 2026-08-06
 
 Validado em celular Android real contra o Firestore de produção: login, contagem, leitor

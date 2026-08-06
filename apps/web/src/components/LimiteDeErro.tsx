@@ -38,7 +38,11 @@ export class LimiteDeErro extends Component<Props, State> {
           Suas contagens estão salvas no aparelho e serão enviadas normalmente. Recarregar
           costuma resolver.
         </p>
-        <button className="botao botao--primario" type="button" onClick={() => window.location.reload()}>
+        <button
+          className="botao botao--primario botao--g botao--largo"
+          type="button"
+          onClick={() => window.location.reload()}
+        >
           Recarregar
         </button>
         <details className="falha__detalhe">

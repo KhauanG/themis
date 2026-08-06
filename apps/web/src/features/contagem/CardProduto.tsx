@@ -32,6 +32,8 @@ function diasAte(iso: string): number {
   return Math.round((Date.parse(iso) - Date.parse(hoje)) / 86_400_000);
 }
 
+const LIMITE_CRITICO = 10;
+
 function CardProdutoBase({ produto, expandido, onAlternar, onSalvar }: Props) {
   const status = statusContagemDe(produto);
   const contado = status !== null;
@@ -40,67 +42,75 @@ function CardProdutoBase({ produto, expandido, onAlternar, onSalvar }: Props) {
   const fisico = fisicoDe(produto);
   const sistema = sistemaDe(produto);
   const diferenca = fisico - sistema;
-  const critico = Math.abs(diferenca) >= 10;
 
   const validade = validadeDe(produto);
   const dias = validade ? diasAte(validade) : null;
 
+  const classeEstado = conferido
+    ? 'card__estado card__estado--conferido'
+    : contado
+      ? 'card__estado card__estado--contado'
+      : 'card__estado';
+
   return (
-    <li
-      className={[
-        'card',
-        contado ? 'card--contado' : '',
-        conferido ? 'card--conferido' : '',
-        expandido ? 'card--aberto' : '',
-      ]
-        .filter(Boolean)
-        .join(' ')}
-    >
+    <li className={expandido ? 'card card--aberto' : 'card'}>
       <button
         className="card__topo"
         type="button"
         onClick={() => onAlternar(produto.id)}
         aria-expanded={expandido}
       >
-        <div className="card__info">
+        <span className={classeEstado} aria-hidden="true" />
+
+        <span className="card__info">
           <span className="card__nome">{nomeDe(produto)}</span>
           <span className="card__meta">
             <span className="card__codigo">{codigoBarrasDe(produto) || 'sem código'}</span>
+
             {validade && dias !== null && (
               <span
                 className={
                   dias < 0
-                    ? 'etiqueta etiqueta--vencido'
+                    ? 'etiqueta etiqueta--critico'
                     : dias <= DIAS_ALERTA_VALIDADE
                       ? 'etiqueta etiqueta--alerta'
-                      : 'etiqueta'
+                      : 'etiqueta etiqueta--neutra'
                 }
               >
-                {dias < 0 ? 'vencido' : `val. ${validadeCurta(validade)}`}
+                {dias < 0 ? 'vencido' : `val ${validadeCurta(validade)}`}
               </span>
             )}
-          </span>
-        </div>
 
-        <div className="card__numeros">
+            {conferido && <span className="etiqueta etiqueta--acento">conferido</span>}
+          </span>
+        </span>
+
+        <span className="card__numeros">
           <span className={contado ? 'card__qtd' : 'card__qtd card__qtd--vazio'}>
             {contado ? fisico : '—'}
           </span>
-          <span className="card__sistema">sist. {sistema}</span>
+
           {contado && diferenca !== 0 && (
-            <span className={critico ? 'card__dif card__dif--critico' : 'card__dif card__dif--erro'}>
+            <span
+              className={
+                Math.abs(diferenca) >= LIMITE_CRITICO
+                  ? 'etiqueta etiqueta--critico'
+                  : 'etiqueta etiqueta--alerta'
+              }
+            >
               {diferenca > 0 ? `+${diferenca}` : diferenca}
             </span>
           )}
-          {contado && diferenca === 0 && <span className="card__dif card__dif--ok">ok</span>}
-        </div>
+          {contado && diferenca === 0 && <span className="etiqueta etiqueta--ok">ok</span>}
+          {!contado && <span className="card__sistema">sistema {sistema}</span>}
+        </span>
       </button>
 
       {expandido && (
         <FormContagem
           produto={produto}
           onCancelar={() => onAlternar(produto.id)}
-          onSalvar={(quantidade, validade) => onSalvar(produto, quantidade, validade)}
+          onSalvar={(quantidade, validadeNova) => onSalvar(produto, quantidade, validadeNova)}
         />
       )}
     </li>

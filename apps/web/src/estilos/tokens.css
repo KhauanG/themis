@@ -1,0 +1,137 @@
+/**
+ * Sistema de design do Themis.
+ *
+ * Referência: interfaces empresariais da Apple. Três princípios, e todo o resto decorre:
+ *
+ * 1. COR SÓ COM SIGNIFICADO. Cinzas carregam a interface; cor aparece quando comunica
+ *    estado (correto, divergente, crítico) ou ação primária. Um card colorido "porque
+ *    fica bonito" rouba a atenção de um card que está avisando de divergência.
+ *
+ * 2. HIERARQUIA POR PESO E ESPAÇO, não por caixa. Antes de desenhar uma borda ou um
+ *    fundo, tente resolver com tamanho, peso da fonte e respiro.
+ *
+ * 3. LINHAS DE CABELO. Separadores de 1px em cinza claro, não blocos de fundo.
+ *
+ * Claro é o padrão: depósito é ambiente iluminado. Escuro é suportado de verdade, não
+ * como inversão automática — as cores de estado são recalibradas para contraste em fundo
+ * escuro.
+ */
+
+:root {
+  color-scheme: light dark;
+
+  /* ---------- Neutros ---------- */
+  --fundo: #f5f5f7;
+  --superficie: #ffffff;
+  --superficie-2: #fbfbfd;
+  --superficie-3: #f0f0f3;
+  --borda: #d2d2d7;
+  --borda-suave: #e8e8ed;
+
+  --texto: #1d1d1f;
+  --texto-2: #6e6e73;
+  --texto-3: #86868b;
+  --texto-invertido: #ffffff;
+
+  /* ---------- Acento ---------- */
+  --acento: #0071e3;
+  --acento-forte: #0058b9;
+  --acento-fundo: #ebf5ff;
+
+  /* ---------- Estado ---------- */
+  --ok: #00875a;
+  --ok-fundo: #e6f5ef;
+  --alerta: #a45b00;
+  --alerta-fundo: #fdf1e3;
+  --critico: #c9252d;
+  --critico-fundo: #fdecec;
+  --neutro-estado: #6e6e73;
+  --neutro-estado-fundo: #f0f0f3;
+
+  /* ---------- Tipografia ---------- */
+  --fonte: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto,
+    'Helvetica Neue', Arial, sans-serif;
+  --fonte-numero: ui-rounded, -apple-system, 'SF Pro Rounded', 'Segoe UI', Roboto, sans-serif;
+
+  --t-micro: 0.6875rem; /* 11px — rótulos em caixa alta */
+  --t-menor: 0.8125rem; /* 13px — apoio */
+  --t-corpo: 0.9375rem; /* 15px — padrão */
+  --t-maior: 1.0625rem; /* 17px — destaque */
+  --t-titulo: 1.375rem; /* 22px — título de tela */
+  --t-numero: 1.75rem; /* 28px — números que importam */
+  --t-display: 2.25rem; /* 36px — progresso */
+
+  --peso-normal: 400;
+  --peso-medio: 500;
+  --peso-forte: 600;
+
+  /* ---------- Espaçamento — escala de 4px ---------- */
+  --e1: 0.25rem;
+  --e2: 0.5rem;
+  --e3: 0.75rem;
+  --e4: 1rem;
+  --e5: 1.25rem;
+  --e6: 1.5rem;
+  --e8: 2rem;
+  --e10: 2.5rem;
+  --e12: 3rem;
+
+  /* ---------- Forma ---------- */
+  --raio-p: 0.5rem;
+  --raio: 0.75rem;
+  --raio-g: 1rem;
+  --raio-total: 999px;
+
+  /* Sombras discretas. Elevação é sugerida, não anunciada. */
+  --sombra-1: 0 1px 2px rgb(0 0 0 / 4%), 0 1px 1px rgb(0 0 0 / 3%);
+  --sombra-2: 0 4px 12px rgb(0 0 0 / 8%);
+  --sombra-3: 0 12px 32px rgb(0 0 0 / 14%);
+
+  /* Alvo de toque. Contagem é feita com o polegar, às vezes com luva. */
+  --toque: 2.75rem;
+  --toque-g: 3.25rem;
+
+  --largura-max: 46rem;
+  --transicao: 160ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --fundo: #000000;
+    --superficie: #1c1c1e;
+    --superficie-2: #2c2c2e;
+    --superficie-3: #3a3a3c;
+    --borda: #38383a;
+    --borda-suave: #2c2c2e;
+
+    --texto: #f5f5f7;
+    --texto-2: #aeaeb2;
+    --texto-3: #8e8e93;
+    --texto-invertido: #ffffff;
+
+    --acento: #0a84ff;
+    --acento-forte: #409cff;
+    --acento-fundo: #0a2540;
+
+    /* Recalibrados: os tons do modo claro não têm contraste suficiente aqui. */
+    --ok: #30d158;
+    --ok-fundo: #0e2e1c;
+    --alerta: #ff9f0a;
+    --alerta-fundo: #33240a;
+    --critico: #ff453a;
+    --critico-fundo: #3a1512;
+    --neutro-estado: #aeaeb2;
+    --neutro-estado-fundo: #2c2c2e;
+
+    --sombra-1: 0 1px 2px rgb(0 0 0 / 40%);
+    --sombra-2: 0 4px 12px rgb(0 0 0 / 50%);
+    --sombra-3: 0 12px 32px rgb(0 0 0 / 60%);
+  }
+}
+
+/* Quem pede menos movimento recebe menos movimento. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --transicao: 0ms;
+  }
+}

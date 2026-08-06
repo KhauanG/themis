@@ -90,7 +90,7 @@ export function ModalFinalizar({ aberto, onFechar }: Props) {
       onFechar={fechar}
       rodape={
         <>
-          <button className="botao botao--neutro" type="button" onClick={fechar} disabled={salvando}>
+          <button className="botao botao--secundario" type="button" onClick={fechar} disabled={salvando}>
             Cancelar
           </button>
           <button

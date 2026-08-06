@@ -30,6 +30,7 @@ Mapa do projeto. Comece por aqui.
 | [arquitetura.md](arquitetura.md) | Como o projeto é montado e por quê |
 | [dados.md](dados.md) | Coleções do Firestore, campos, tipos, armadilhas do modelo |
 | [funcionalidades.md](funcionalidades.md) | Cada tela, o que faz, quem pode |
+| [design.md](design.md) | Sistema visual: tokens, componentes, hierarquia |
 | [regras-de-negocio.md](regras-de-negocio.md) | Status, estatísticas, ciclo, validade |
 | [offline.md](offline.md) | Conexão, fila, escrita com teto de tempo |
 | [seguranca.md](seguranca.md) | Papéis, Security Rules, segredos |

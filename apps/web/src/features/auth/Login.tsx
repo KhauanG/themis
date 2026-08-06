@@ -48,9 +48,11 @@ export function Login() {
   return (
     <main className="login">
       <form className="login__caixa" onSubmit={aoEnviar}>
-        <img className="login__logo" src="/icons/icon-192.png" alt="" width={72} height={72} />
-        <h1 className="login__titulo">Themis</h1>
-        <p className="login__sub">Contagem de estoque</p>
+        <div className="login__marca">
+          <img className="login__logo" src="/icons/icon-192.png" alt="" width={64} height={64} />
+          <h1 className="login__titulo">Themis</h1>
+          <p className="login__sub">Contagem de estoque · Grupo Ice Beer</p>
+        </div>
 
         <label className="campo">
           <span className="campo__rotulo">E-mail</span>
@@ -84,8 +86,12 @@ export function Login() {
           </p>
         )}
 
-        <button className="botao botao--primario botao--largo" type="submit" disabled={enviando}>
-          {enviando ? 'Entrando...' : 'Entrar'}
+        <button
+          className="botao botao--primario botao--g botao--largo"
+          type="submit"
+          disabled={enviando}
+        >
+          {enviando ? 'Entrando…' : 'Entrar'}
         </button>
       </form>
     </main>

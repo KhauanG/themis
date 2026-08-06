@@ -1,4 +1,5 @@
 import { useEffect, useRef, type ReactNode } from 'react';
+import { Icone } from './Icone.js';
 
 interface Props {
   aberto: boolean;
@@ -76,7 +77,7 @@ export function Modal({ aberto, titulo, onFechar, children, rodape }: Props) {
         <header className="modal__cabecalho">
           <h2 className="modal__titulo">{titulo}</h2>
           <button className="modal__fechar" onClick={onFechar} type="button" aria-label="Fechar">
-            ✕
+            <Icone nome="fechar" tamanho={0.95} />
           </button>
         </header>
         <div className="modal__corpo">{children}</div>

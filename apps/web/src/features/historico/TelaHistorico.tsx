@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import type { AcaoHistorico } from '@themis/shared';
 import { useEstoque } from '../../contexts/EstoqueContext.js';
 import { useToast } from '../../contexts/ToastContext.js';
-import { Carregando } from '../../components/Carregando.js';
+import { Esqueleto } from '../../components/Esqueleto.js';
 import {
   COR_ACAO,
   ROTULO_ACAO,
@@ -26,10 +26,10 @@ function descrever(entrada: EntradaHistoricoLida): string {
     return partes.join(' · ');
   }
 
-  const pares = Object.entries(d)
+  return Object.entries(d)
     .filter(([, v]) => v !== null && v !== undefined && typeof v !== 'object')
-    .map(([k, v]) => `${k}: ${String(v)}`);
-  return pares.join(' · ');
+    .map(([k, v]) => `${k}: ${String(v)}`)
+    .join(' · ');
 }
 
 export function TelaHistorico() {
@@ -42,23 +42,36 @@ export function TelaHistorico() {
 
   useEffect(() => {
     if (!estoqueAtual) return;
+    let vivo = true;
     setCarregando(true);
     consultarHistorico({
       inventoryId: estoqueAtual.id,
       ...(acao === 'TODAS' ? {} : { acao }),
       maximo: 200,
     })
-      .then(setEntradas)
+      .then((lista) => {
+        if (vivo) setEntradas(lista);
+      })
       .catch((erro) => {
         console.warn('[histórico] Consulta falhou:', erro);
         // Consulta com filtro composto exige índice no Firestore. A mensagem diz o que fazer.
         mostrar('Não foi possível carregar o histórico. Pode faltar índice no Firestore.', 'error');
       })
-      .finally(() => setCarregando(false));
+      .finally(() => {
+        if (vivo) setCarregando(false);
+      });
+    return () => {
+      vivo = false;
+    };
   }, [estoqueAtual, acao, mostrar]);
 
   return (
-    <section className="historico">
+    <section className="pilha-g">
+      <div>
+        <h1 className="titulo-tela">Histórico</h1>
+        <p className="subtitulo">Últimas 200 ações em {estoqueAtual?.nome ?? '—'}</p>
+      </div>
+
       <label className="campo">
         <span className="campo__rotulo">Ação</span>
         <select
@@ -76,21 +89,27 @@ export function TelaHistorico() {
       </label>
 
       {carregando ? (
-        <Carregando texto="Carregando histórico..." />
+        <Esqueleto linhas={5} />
       ) : entradas.length === 0 ? (
-        <p className="vazio">Nenhum registro para este filtro</p>
+        <div className="vazio">
+          <p className="vazio__titulo">Nenhum registro</p>
+          <p>Nada foi registrado para este filtro.</p>
+        </div>
       ) : (
         <ul className="linha-tempo">
           {entradas.map((e) => (
             <li key={e.id} className="evento">
-              <span className="evento__tag" style={{ backgroundColor: COR_ACAO[e.action] }}>
-                {ROTULO_ACAO[e.action]}
-              </span>
+              <span
+                className="evento__marca"
+                style={{ backgroundColor: COR_ACAO[e.action] }}
+                aria-hidden="true"
+              />
               <div className="evento__corpo">
-                <p className="evento__quem">
-                  {e.userName || e.userEmail}
+                <div className="evento__cabecalho">
+                  <span className="evento__acao">{ROTULO_ACAO[e.action]}</span>
                   <span className="evento__quando">{e.quando.toLocaleString('pt-BR')}</span>
-                </p>
+                </div>
+                <p className="evento__quem">{e.userName || e.userEmail}</p>
                 {descrever(e) && <p className="evento__detalhe">{descrever(e)}</p>}
                 {e.deviceLabel && <p className="evento__aparelho">{e.deviceLabel}</p>}
               </div>

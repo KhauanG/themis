@@ -1,0 +1,175 @@
+/* Reset enxuto e primitivos de layout. */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--fundo);
+  color: var(--texto);
+  font-family: var(--fonte);
+  font-size: var(--t-corpo);
+  line-height: 1.45;
+  /* Texto de interface fica melhor sem o antialiasing pesado do padrão. */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overscroll-behavior-y: contain;
+}
+
+h1,
+h2,
+h3,
+p,
+figure {
+  margin: 0;
+}
+
+ul,
+ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+img,
+svg,
+video {
+  display: block;
+  max-width: 100%;
+}
+
+table {
+  border-collapse: collapse;
+}
+
+/* Foco visível só para teclado. No toque, o anel só polui. */
+:focus-visible {
+  outline: 2px solid var(--acento);
+  outline-offset: 2px;
+  border-radius: var(--raio-p);
+}
+
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* ---------- Tipografia ---------- */
+
+.titulo-tela {
+  font-size: var(--t-titulo);
+  font-weight: var(--peso-forte);
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.subtitulo {
+  font-size: var(--t-menor);
+  color: var(--texto-2);
+}
+
+/* Rótulo de seção. Caixa alta com espaçamento é o que separa blocos sem desenhar caixa. */
+.rotulo-secao {
+  font-size: var(--t-micro);
+  font-weight: var(--peso-forte);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--texto-3);
+}
+
+.numero {
+  font-family: var(--fonte-numero);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+.suave {
+  color: var(--texto-2);
+}
+
+/* ---------- Layout ---------- */
+
+.app {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+.conteudo {
+  flex: 1;
+  width: 100%;
+  max-width: var(--largura-max);
+  margin: 0 auto;
+  padding: var(--e5) var(--e4) calc(var(--e10) + env(safe-area-inset-bottom));
+}
+
+.pilha {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e3);
+}
+
+.pilha-g {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e6);
+}
+
+.linha {
+  display: flex;
+  align-items: center;
+  gap: var(--e3);
+}
+
+.espaco {
+  flex: 1;
+}
+
+/* Separador de 1px — o recurso mais usado deste sistema. */
+.divisor {
+  height: 1px;
+  background: var(--borda-suave);
+  border: none;
+  margin: 0;
+}
+
+/* Visível para leitor de tela, oculto na tela. */
+.oculto-visual {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Conteúdo largo rola dentro da própria caixa; a página nunca rola na horizontal. */
+.rolagem-h {
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.rolagem-h::-webkit-scrollbar {
+  display: none;
+}

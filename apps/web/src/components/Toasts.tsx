@@ -1,12 +1,12 @@
-import { useToast, type TipoToast } from '../contexts/ToastContext.js';
+import { useToast } from '../contexts/ToastContext.js';
 
-const ICONE: Record<TipoToast, string> = {
-  success: '✓',
-  error: '✕',
-  warning: '!',
-  info: 'i',
-};
-
+/**
+ * Avisos flutuantes.
+ *
+ * A cor fica num ponto de 8px, não no fundo do aviso: fundo colorido em tela cheia
+ * compete com as etiquetas de status dos produtos, que é onde a cor precisa significar
+ * alguma coisa.
+ */
 export function Toasts() {
   const { toasts, fechar } = useToast();
 
@@ -15,11 +15,14 @@ export function Toasts() {
   return (
     <div className="toasts" role="status" aria-live="polite">
       {toasts.map((t) => (
-        <button key={t.id} className={`toast toast--${t.tipo}`} onClick={() => fechar(t.id)} type="button">
-          <span className="toast__icone" aria-hidden="true">
-            {ICONE[t.tipo]}
-          </span>
-          <span className="toast__texto">{t.mensagem}</span>
+        <button
+          key={t.id}
+          className={`toast toast--${t.tipo}`}
+          onClick={() => fechar(t.id)}
+          type="button"
+        >
+          <span className="toast__marca" aria-hidden="true" />
+          <span>{t.mensagem}</span>
         </button>
       ))}
     </div>

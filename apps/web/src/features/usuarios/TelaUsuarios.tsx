@@ -16,6 +16,14 @@ function flagsDoPapel(papel: Papel): Pick<UserProfile, 'isAdmin' | 'isAuditor' |
   };
 }
 
+function iniciais(nome: string): string {
+  const partes = nome.trim().split(/\s+/).filter(Boolean);
+  if (partes.length === 0) return '?';
+  const primeira = partes[0]![0] ?? '';
+  const ultima = partes.length > 1 ? (partes[partes.length - 1]![0] ?? '') : '';
+  return (primeira + ultima).toUpperCase();
+}
+
 export function TelaUsuarios() {
   const { usuario } = useAuth();
   const { mostrar } = useToast();
@@ -58,26 +66,33 @@ export function TelaUsuarios() {
   if (carregando) return <Esqueleto linhas={4} />;
 
   return (
-    <section className="usuarios">
-      <h2 className="secao__titulo">Usuários</h2>
-      <p className="secao__sub">
-        {usuarios.length} {usuarios.length === 1 ? 'usuário' : 'usuários'}. Criar e excluir conta
-        continua no Console do Firebase; aqui só o papel.
-      </p>
+    <section className="pilha-g">
+      <div>
+        <h1 className="titulo-tela">Usuários</h1>
+        <p className="subtitulo">
+          {usuarios.length} {usuarios.length === 1 ? 'usuário' : 'usuários'}. Criar e excluir conta
+          continua no Console do Firebase.
+        </p>
+      </div>
 
-      <ul className="lista">
+      <ul className="pilha">
         {usuarios.map((u) => {
           const papel = papelDe(u);
           const euMesmo = u.uid === usuario?.uid;
+          const nome = nomeExibivel(u);
           return (
             <li key={u.uid} className="usuario">
+              <span className="usuario__avatar" aria-hidden="true">
+                {iniciais(nome)}
+              </span>
+
               <div className="usuario__info">
-                <span className="usuario__nome">{nomeExibivel(u)}</span>
-                <span className="usuario__email">{u.email ?? u.uid}</span>
+                <p className="usuario__nome">{nome}</p>
+                <p className="usuario__email">{u.email ?? u.uid}</p>
               </div>
 
               <label className="usuario__papel">
-                <span className="visualmente-oculto">Papel de {nomeExibivel(u)}</span>
+                <span className="oculto-visual">Papel de {nome}</span>
                 <select
                   className="campo__entrada"
                   value={papel}

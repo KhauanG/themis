@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { fisicoDe, isItemContado, nomeDe, type Produto } from '@themis/shared';
 import { useEstoque } from '../../contexts/EstoqueContext.js';
 import { useToast } from '../../contexts/ToastContext.js';
+import { Icone } from '../../components/Icone.js';
 import { Modal } from '../../components/Modal.js';
 import { criarProduto, criarProdutosEmLote, limparContagem } from '../../lib/produtos-repo.js';
 import { lerPlanilha } from '../../lib/planilha.js';
@@ -28,7 +29,7 @@ export function TelaProdutos() {
 
   async function importar(arquivo: File) {
     if (!estoqueAtual) return;
-    setOcupado({ texto: 'Lendo planilha...' });
+    setOcupado({ texto: 'Lendo planilha' });
     try {
       const { linhas, ignoradas, colunasFaltando } = await lerPlanilha(arquivo);
 
@@ -74,7 +75,7 @@ export function TelaProdutos() {
 
   async function cadastrar() {
     if (!estoqueAtual || !novo.nome.trim()) return;
-    setOcupado({ texto: 'Cadastrando...' });
+    setOcupado({ texto: 'Cadastrando' });
     try {
       const codigo = novo.codigoBarras.trim();
       await criarProduto(estoqueAtual.id, {
@@ -99,7 +100,7 @@ export function TelaProdutos() {
   async function limpar() {
     if (!estoqueAtual) return;
     setConfirmarLimpeza(false);
-    setOcupado({ texto: 'Limpando contagem...' });
+    setOcupado({ texto: 'Limpando contagem' });
     try {
       await limparContagem(estoqueAtual.id, produtos);
       mostrar('Contagem limpa.', 'success');
@@ -122,7 +123,7 @@ export function TelaProdutos() {
       return;
     }
 
-    setOcupado({ texto: 'Consultando configuração da loja...' });
+    setOcupado({ texto: 'Consultando configuração da loja' });
     const hash = await hashDaLoja(estoqueAtual.id);
     if (!hash) {
       mostrar('Nenhum HashLoja configurado para este estoque.', 'error');
@@ -155,68 +156,114 @@ export function TelaProdutos() {
     if (contextoLog) void registrar('CORRIGIR_ESTOQUE', contextoLog, { enviados, falhas: falhas.length });
   }
 
+  const pct = ocupado?.total ? Math.round(((ocupado.feitos ?? 0) / ocupado.total) * 100) : null;
+
   return (
-    <section className="produtos">
-      <h2 className="secao__titulo">Gerenciar estoque</h2>
-      <p className="secao__sub">
-        {estoqueAtual?.nome ?? '—'} · {produtos.length}{' '}
-        {produtos.length === 1 ? 'produto' : 'produtos'} · {progresso.contados} contados no ciclo{' '}
-        {ciclo}
-      </p>
+    <section className="pilha-g">
+      <div>
+        <h1 className="titulo-tela">Produtos e estoque</h1>
+        <p className="subtitulo">
+          {estoqueAtual?.nome ?? '—'} · {produtos.length}{' '}
+          {produtos.length === 1 ? 'produto' : 'produtos'} · {progresso.contados} contados no ciclo{' '}
+          {ciclo}
+        </p>
+      </div>
 
       {ocupado && (
-        <div className="aviso" role="status" aria-live="polite">
-          <p className="aviso__texto">
-            {ocupado.texto}
-            {ocupado.total ? ` ${ocupado.feitos} de ${ocupado.total}...` : ''}
-          </p>
-          {ocupado.total ? (
-            <div className="progresso__trilha">
-              <div
-                className="progresso__barra"
-                style={{ width: `${Math.round(((ocupado.feitos ?? 0) / ocupado.total) * 100)}%` }}
-              />
-            </div>
-          ) : null}
+        <div className="cartao">
+          <div className="cartao__corpo pilha">
+            <p className="subtitulo">
+              {ocupado.texto}
+              {ocupado.total ? ` · ${ocupado.feitos} de ${ocupado.total}` : '…'}
+            </p>
+            {pct !== null && (
+              <div className="progresso__trilha">
+                <div className="progresso__barra" style={{ width: `${pct}%` }} />
+              </div>
+            )}
+          </div>
         </div>
       )}
 
-      <div className="acoes-lista">
-        <button className="botao botao--primario" type="button" onClick={() => setCadastrando(true)} disabled={bloqueado}>
-          Cadastrar produto
-        </button>
+      <div>
+        <p className="rotulo-secao" style={{ marginBottom: 'var(--e2)' }}>
+          Cadastro
+        </p>
+        <div className="acoes-lista">
+          <button className="acao" type="button" onClick={() => setCadastrando(true)} disabled={bloqueado}>
+            <span className="acao__icone">
+              <Icone nome="produtos" />
+            </span>
+            <span className="acao__texto">
+              <span className="acao__titulo">Cadastrar produto</span>
+              <span className="acao__descricao">Adicionar um item avulso ao estoque</span>
+            </span>
+          </button>
 
-        <button
-          className="botao botao--neutro"
-          type="button"
-          onClick={() => entradaArquivo.current?.click()}
-          disabled={bloqueado}
-        >
-          Importar planilha
-        </button>
-        <input
-          ref={entradaArquivo}
-          type="file"
-          accept=".xlsx,.xls"
-          hidden
-          onChange={(e) => {
-            const arquivo = e.target.files?.[0];
-            if (arquivo) void importar(arquivo);
-          }}
-        />
+          <button
+            className="acao"
+            type="button"
+            onClick={() => entradaArquivo.current?.click()}
+            disabled={bloqueado}
+          >
+            <span className="acao__icone">
+              <Icone nome="baixar" />
+            </span>
+            <span className="acao__texto">
+              <span className="acao__titulo">Importar planilha</span>
+              <span className="acao__descricao">Arquivo .xlsx com nome e estoque do sistema</span>
+            </span>
+          </button>
+          <input
+            ref={entradaArquivo}
+            type="file"
+            accept=".xlsx,.xls"
+            hidden
+            onChange={(e) => {
+              const arquivo = e.target.files?.[0];
+              if (arquivo) void importar(arquivo);
+            }}
+          />
+        </div>
+      </div>
 
-        <button className="botao botao--neutro" type="button" onClick={() => void enviarContagemAoErp()} disabled={bloqueado}>
-          Enviar contagem ao ERP
-        </button>
+      <div>
+        <p className="rotulo-secao" style={{ marginBottom: 'var(--e2)' }}>
+          Integração
+        </p>
+        <div className="acoes-lista">
+          <button className="acao" type="button" onClick={() => void enviarContagemAoErp()} disabled={bloqueado}>
+            <span className="acao__icone">
+              <Icone nome="trocar" />
+            </span>
+            <span className="acao__texto">
+              <span className="acao__titulo">Enviar contagem ao ERP</span>
+              <span className="acao__descricao">Só os itens contados que têm código no ERP</span>
+            </span>
+          </button>
+        </div>
+      </div>
 
-        <button
-          className="botao botao--perigo"
-          type="button"
-          onClick={() => setConfirmarLimpeza(true)}
-          disabled={bloqueado}
-        >
-          Limpar contagem
-        </button>
+      <div>
+        <p className="rotulo-secao" style={{ marginBottom: 'var(--e2)' }}>
+          Zona de risco
+        </p>
+        <div className="acoes-lista">
+          <button
+            className="acao acao--perigo"
+            type="button"
+            onClick={() => setConfirmarLimpeza(true)}
+            disabled={bloqueado}
+          >
+            <span className="acao__icone">
+              <Icone nome="aviso" />
+            </span>
+            <span className="acao__texto">
+              <span className="acao__titulo">Limpar contagem</span>
+              <span className="acao__descricao">Zera quantidade, status e validade de todos</span>
+            </span>
+          </button>
+        </div>
       </div>
 
       <Modal
@@ -225,7 +272,7 @@ export function TelaProdutos() {
         onFechar={() => setCadastrando(false)}
         rodape={
           <>
-            <button className="botao botao--neutro" type="button" onClick={() => setCadastrando(false)}>
+            <button className="botao botao--secundario" type="button" onClick={() => setCadastrando(false)}>
               Cancelar
             </button>
             <button
@@ -239,33 +286,36 @@ export function TelaProdutos() {
           </>
         }
       >
-        <label className="campo">
-          <span className="campo__rotulo">Nome</span>
-          <input
-            className="campo__entrada"
-            value={novo.nome}
-            onChange={(e) => setNovo({ ...novo, nome: e.target.value })}
-            autoFocus
-          />
-        </label>
-        <label className="campo">
-          <span className="campo__rotulo">Código de barras</span>
-          <input
-            className="campo__entrada"
-            inputMode="numeric"
-            value={novo.codigoBarras}
-            onChange={(e) => setNovo({ ...novo, codigoBarras: e.target.value })}
-          />
-        </label>
-        <label className="campo">
-          <span className="campo__rotulo">Estoque do sistema</span>
-          <input
-            className="campo__entrada"
-            type="number"
-            value={novo.estoqueSistema}
-            onChange={(e) => setNovo({ ...novo, estoqueSistema: e.target.value })}
-          />
-        </label>
+        <div className="pilha">
+          <label className="campo">
+            <span className="campo__rotulo">Nome</span>
+            <input
+              className="campo__entrada"
+              value={novo.nome}
+              onChange={(e) => setNovo({ ...novo, nome: e.target.value })}
+              autoFocus
+            />
+          </label>
+          <label className="campo">
+            <span className="campo__rotulo">Código de barras</span>
+            <input
+              className="campo__entrada"
+              inputMode="numeric"
+              value={novo.codigoBarras}
+              onChange={(e) => setNovo({ ...novo, codigoBarras: e.target.value })}
+            />
+            <span className="campo__ajuda">Opcional</span>
+          </label>
+          <label className="campo">
+            <span className="campo__rotulo">Estoque do sistema</span>
+            <input
+              className="campo__entrada"
+              type="number"
+              value={novo.estoqueSistema}
+              onChange={(e) => setNovo({ ...novo, estoqueSistema: e.target.value })}
+            />
+          </label>
+        </div>
       </Modal>
 
       <Modal
@@ -274,7 +324,7 @@ export function TelaProdutos() {
         onFechar={() => setConfirmarLimpeza(false)}
         rodape={
           <>
-            <button className="botao botao--neutro" type="button" onClick={() => setConfirmarLimpeza(false)}>
+            <button className="botao botao--secundario" type="button" onClick={() => setConfirmarLimpeza(false)}>
               Cancelar
             </button>
             <button className="botao botao--perigo" type="button" onClick={() => void limpar()}>
@@ -283,11 +333,15 @@ export function TelaProdutos() {
           </>
         }
       >
-        <p>
-          Apaga a quantidade contada, o status e a <strong>data de validade</strong> de todos os{' '}
-          {produtos.length} produtos deste estoque. O estoque do sistema não é alterado.
-        </p>
-        <p className="aviso">Não dá para desfazer. Salve a auditoria antes se precisar do histórico.</p>
+        <div className="pilha">
+          <p>
+            Apaga a quantidade contada, o status e a <strong>data de validade</strong> de todos os{' '}
+            {produtos.length} produtos deste estoque. O estoque do sistema não é alterado.
+          </p>
+          <p className="aviso aviso--perigo">
+            Não dá para desfazer. Salve a auditoria antes se precisar do histórico.
+          </p>
+        </div>
       </Modal>
     </section>
   );
