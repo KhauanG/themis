@@ -11,6 +11,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  onSnapshot,
   setDoc,
   type DocumentData,
   type QueryDocumentSnapshot,
@@ -46,6 +47,36 @@ export async function buscarPerfil(uid: string): Promise<UserProfile | null> {
   const snap = await getDoc(doc(db, COLECAO, uid));
   if (!snap.exists()) return null;
   return paraPerfil(snap.id, snap.data());
+}
+
+/**
+ * Acompanha o perfil em tempo real.
+ *
+ * No 1.x o perfil era lido uma vez no login: promover alguém, ou mudar os estoques que ele
+ * enxerga, só valia depois de fechar e abrir o app — e ninguém avisava o usuário disso.
+ * Com o listener, a alteração feita pelo master chega ao celular na hora.
+ */
+export function ouvirPerfil(
+  uid: string,
+  aoMudar: (perfil: UserProfile | null) => void,
+  aoFalhar?: (erro: Error) => void,
+): () => void {
+  return onSnapshot(
+    doc(db, COLECAO, uid),
+    (snap) => aoMudar(snap.exists() ? paraPerfil(snap.id, snap.data()) : null),
+    (erro) => {
+      console.warn('[usuarios] Listener do perfil falhou:', erro);
+      aoFalhar?.(erro);
+    },
+  );
+}
+
+/** Estoques que o usuário pode ver. Lista vazia = todos. Só master pode alterar. */
+export async function salvarEstoquesPermitidos(uid: string, estoques: string[]): Promise<void> {
+  await withWriteTimeout(
+    setDoc(doc(db, COLECAO, uid), { allowedInventories: estoques, updatedAt: new Date() }, { merge: true }),
+    { label: 'salvar estoques permitidos' },
+  );
 }
 
 export async function listarUsuarios(): Promise<UserProfile[]> {

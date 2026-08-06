@@ -8,7 +8,13 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { progressoContagem, type Inventory, type Produto, type ProgressoContagem } from '@themis/shared';
+import {
+  filtrarEstoquesPermitidos,
+  progressoContagem,
+  type Inventory,
+  type Produto,
+  type ProgressoContagem,
+} from '@themis/shared';
 import { carregarEstoques, ouvirEstoques } from '../lib/estoques-repo.js';
 import { atualizarProduto, drenarFila, ouvirProdutos, type BaseCliente } from '../lib/produtos-repo.js';
 import { drenarHistorico, registrar } from '../lib/historico.js';
@@ -61,10 +67,10 @@ interface EstoqueAPI {
 const Ctx = createContext<EstoqueAPI | null>(null);
 
 export function EstoqueProvider({ children }: { children: ReactNode }) {
-  const { usuario, perfil, nome } = useAuth();
+  const { usuario, perfil, papel, nome } = useAuth();
   const { mostrar } = useToast();
 
-  const [estoques, setEstoques] = useState<Inventory[]>([]);
+  const [estoquesBrutos, setEstoquesBrutos] = useState<Inventory[]>([]);
   const [estoqueId, setEstoqueId] = useState<string | null>(null);
   const [produtosBrutos, setProdutosBrutos] = useState<Produto[]>([]);
   const [carregandoProdutos, setCarregandoProdutos] = useState(false);
@@ -74,10 +80,31 @@ export function EstoqueProvider({ children }: { children: ReactNode }) {
 
   const sincronizando = useRef(false);
 
+  // Escopo por usuário: quem só trabalha na Loja Centro não rola por seis depósitos para
+  // achar o dele, nem conta no lugar errado por engano.
+  const estoques = useMemo(
+    () => filtrarEstoquesPermitidos(estoquesBrutos, perfil, papel),
+    [estoquesBrutos, perfil, papel],
+  );
+
   const estoqueAtual = useMemo(
     () => estoques.find((e) => e.id === estoqueId) ?? null,
     [estoques, estoqueId],
   );
+
+  /**
+   * O estoque aberto deixou de ser permitido — o master mudou a lista enquanto o app
+   * estava aberto. Cai para o primeiro permitido em vez de deixar a tela sem contexto.
+   */
+  useEffect(() => {
+    if (!estoqueId || estoques.length === 0) return;
+    if (estoques.some((e) => e.id === estoqueId)) return;
+
+    const destino = estoques[0]!;
+    setEstoqueId(destino.id);
+    gravar(CHAVES.estoqueAtual, destino.id);
+    mostrar(`Você não tem mais acesso ao estoque anterior. Abrindo ${destino.nome}.`, 'info');
+  }, [estoques, estoqueId, mostrar]);
   const ciclo = estoqueAtual?.contagemCycle ?? 1;
 
   // O que a tela vê: o Firestore mais o que está na fila esperando subir. Sem a
@@ -143,7 +170,7 @@ export function EstoqueProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!usuario) {
-      setEstoques([]);
+      setEstoquesBrutos([]);
       return;
     }
     // A carga inicial é assíncrona e pode terminar depois do desmonte; sem a trava,
@@ -151,12 +178,12 @@ export function EstoqueProvider({ children }: { children: ReactNode }) {
     let vivo = true;
     carregarEstoques()
       .then((lista) => {
-        if (vivo) setEstoques(lista);
+        if (vivo) setEstoquesBrutos(lista);
       })
       .catch((erro) => console.warn('[estoque] Carga inicial falhou:', erro));
 
     const pararListener = ouvirEstoques((lista) => {
-      if (vivo) setEstoques(lista);
+      if (vivo) setEstoquesBrutos(lista);
     });
 
     return () => {

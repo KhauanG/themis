@@ -33,6 +33,34 @@ Precedência: master > admin > auditor > comum.
 
 ---
 
+## ⚠️ Estoques por usuário NÃO é barreira de segurança
+
+`users/{uid}.allowedInventories` define quais estoques cada pessoa **enxerga na
+interface**. As Security Rules liberam leitura e escrita de `estoques/{qualquer}/produtos`
+para **qualquer usuário autenticado** — era assim no 1.x e continua, porque as regras são
+compartilhadas entre os dois apps.
+
+Quem souber montar a requisição alcança qualquer estoque.
+
+**O que isso resolve mesmo assim:** o funcionário da Loja Centro não rola por seis
+depósitos para achar o dele, nem conta no lugar errado por engano. É prevenção de erro
+humano, e tem valor real — só não é controle de acesso.
+
+Semântica (herdada do 1.x, mantida de propósito):
+
+| Situação | Resultado |
+|---|---|
+| Lista vazia | Vê todos — é o padrão de quem nunca foi configurado |
+| Master | Vê todos, independente da lista |
+| Lista preenchida | Vê só os da lista |
+| Sem documento de perfil, ou falha ao ler | Vê todos |
+
+A última linha é deliberada: falha de leitura não pode trancar a equipe para fora no meio
+de uma contagem.
+
+> Transformar isso em barreira real está em [pendencias.md](pendencias.md). Exige mudar
+> `firestore.rules`, o que afeta o Themis 1.x na hora.
+
 ## Security Rules
 
 Arquivo versionado: `firestore/firestore.rules`. É **cópia do que está publicado** — não um

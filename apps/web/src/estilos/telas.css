@@ -956,6 +956,27 @@
   font-size: var(--t-menor);
 }
 
+.usuario--coluna {
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--e3);
+}
+
+.usuario__linha {
+  display: flex;
+  align-items: center;
+  gap: var(--e3);
+}
+
+.usuario__acesso {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--e3);
+  padding-top: var(--e3);
+  border-top: 1px solid var(--borda-suave);
+}
+
 /* ================= Login ================= */
 
 .login {

@@ -124,6 +124,37 @@ gargalo.
 
 ---
 
+## 4. Fazer `allowedInventories` valer nas Security Rules
+
+**Situação.** Os estoques permitidos por usuário filtram a **interface**, não o acesso.
+Qualquer autenticado ainda alcança `estoques/{qualquer}/produtos` montando a requisição na
+mão. Detalhes em [seguranca.md](seguranca.md).
+
+**Por que não foi feito agora.** A regra é compartilhada com o Themis 1.x, que está em
+produção. Endurecer agora quebraria o app antigo para quem tiver a lista preenchida — e o
+1.x não trata `permission-denied` na leitura de produtos.
+
+**Como fazer.** Nas regras de `estoques/{estoqueId}/produtos`, trocar `signedIn()` por algo
+como:
+
+```
+function podeVerEstoque(estoqueId) {
+  let perfil = get(userDoc(request.auth.uid)).data;
+  return isMaster() ||
+    !('allowedInventories' in perfil) ||
+    perfil.allowedInventories.size() == 0 ||
+    estoqueId in perfil.allowedInventories;
+}
+```
+
+⚠️ Isso adiciona um `get()` por operação — conta como leitura cobrada e tem limite de 10
+por requisição. Medir o impacto numa importação de 2000 produtos antes de publicar.
+
+**Quando fica urgente.** Quando o 1.x sair do ar, ou se a operação passar a ter dados que
+uma loja não pode ver da outra.
+
+---
+
 ## Como usar este documento
 
 - Ao concluir um item, mova o registro para o [CHANGELOG.md](CHANGELOG.md) e apague daqui

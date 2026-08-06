@@ -6,6 +6,32 @@ Categorias: **Adicionado**, **Alterado**, **Corrigido**, **Removido**, **Seguran
 
 ---
 
+## 2.6.0 — 2026-08-06
+
+### Adicionado
+
+- **Estoques permitidos por usuário**, como no 1.x. O master marca quais estoques cada
+  pessoa enxerga, na tela de Usuários. Lista vazia = todos, que é o padrão de quem nunca
+  foi configurado — inverter isso trancaria a equipe inteira para fora no dia da migração.
+- 16 testes de `acesso-estoque.ts`.
+
+### Alterado
+
+- **O perfil passou a ser acompanhado em tempo real.** No 1.x, promover alguém ou mudar
+  seus estoques só valia depois de fechar e abrir o app, e ninguém avisava o usuário. Agora
+  a alteração feita pelo master chega ao celular na hora.
+- Se o estoque aberto deixar de ser permitido, o app troca para o primeiro permitido e
+  avisa — em vez de ficar sem contexto.
+
+### Nota de segurança
+
+⚠️ Isto é **escopo de interface, não barreira de segurança**: as Security Rules liberam
+qualquer estoque para quem está autenticado, e são compartilhadas com o 1.x. Serve para
+evitar erro humano — contar no estoque errado —, não para impedir acesso. Registrado em
+[seguranca.md](seguranca.md), com o caminho para endurecer em [pendencias.md](pendencias.md).
+
+---
+
 ## 2.5.0 — 2026-08-06
 
 ### Adicionado

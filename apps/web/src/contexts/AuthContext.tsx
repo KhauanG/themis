@@ -15,7 +15,7 @@ import {
 } from 'firebase/auth';
 import { papelDe, permissoesDe, type Papel, type Permissoes, type UserProfile } from '@themis/shared';
 import { auth } from '../lib/firebase.js';
-import { buscarPerfil, nomeExibivel } from '../lib/usuarios-repo.js';
+import { nomeExibivel, ouvirPerfil } from '../lib/usuarios-repo.js';
 
 interface AuthAPI {
   usuario: User | null;
@@ -36,23 +36,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [carregando, setCarregando] = useState(true);
 
   useEffect(() => {
-    return onAuthStateChanged(auth, (u) => {
+    let pararPerfil: (() => void) | null = null;
+
+    const pararAuth = onAuthStateChanged(auth, (u) => {
+      pararPerfil?.();
+      pararPerfil = null;
+
       setUsuario(u);
       if (!u) {
         setPerfil(null);
         setCarregando(false);
         return;
       }
-      // O perfil traz os papéis. Falha de rede aqui não impede o login: o usuário
-      // entra como comum e o Firestore nega o que ele não puder fazer de qualquer jeito.
-      buscarPerfil(u.uid)
-        .then(setPerfil)
-        .catch((erro) => {
-          console.warn('[auth] Não foi possível carregar o perfil:', erro);
-          setPerfil(null);
-        })
-        .finally(() => setCarregando(false));
+
+      // Em tempo real: promover alguém, ou mudar os estoques que ele enxerga, passa a
+      // valer no aparelho na hora — no 1.x só depois de fechar e abrir o app.
+      //
+      // Falha aqui não impede o login: o usuário entra como comum, e o Firestore nega o
+      // que ele não puder fazer de qualquer jeito.
+      pararPerfil = ouvirPerfil(
+        u.uid,
+        (p) => {
+          setPerfil(p);
+          setCarregando(false);
+        },
+        () => setCarregando(false),
+      );
     });
+
+    return () => {
+      pararPerfil?.();
+      pararAuth();
+    };
   }, []);
 
   const entrar = useCallback(async (email: string, senha: string) => {
