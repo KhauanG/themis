@@ -7,9 +7,10 @@
  * O `HashLoja` vem da coleção `hashConfigs` — é o que amarra o estoque do Themis à loja
  * no ERP.
  */
-import { Timestamp, collection, getDocs, type DocumentData } from 'firebase/firestore';
+import { doc, getDoc, setDoc, type DocumentData } from 'firebase/firestore';
 import { db } from './firebase.js';
 import { urlApi } from './api.js';
+import { withWriteTimeout } from './firestore-write.js';
 
 const TIMEOUT_MS = 15_000;
 
@@ -102,34 +103,67 @@ export async function buscarEstoqueDoErp(hashLoja: string): Promise<ResultadoBus
   }
 }
 
-export interface ConfigLoja {
-  id: string;
-  hashLoja: string;
-  inventoryId?: string;
-  nome?: string;
-}
+/**
+ * Configuração de HashLoja.
+ *
+ * ⚠️ **É um documento só**, `hashConfigs/inventoryHashes`, com um mapa
+ * `{ inventoryId: hash }` no campo `hashes` — não uma coleção de documentos por loja.
+ * Documentos antigos usam `inventoryHashes` no lugar de `hashes`; os dois são lidos.
+ *
+ * Sem o hash, o ERP não sabe de qual loja se está falando: nem a leitura de estoque nem a
+ * correção funcionam.
+ */
+const DOC_HASHES = 'inventoryHashes';
 
-function texto(valor: unknown): string {
-  if (valor instanceof Timestamp) return valor.toDate().toISOString();
-  return typeof valor === 'string' ? valor : '';
-}
+export async function carregarHashes(): Promise<Map<string, string>> {
+  const snap = await getDoc(doc(db, 'hashConfigs', DOC_HASHES));
+  const mapa = new Map<string, string>();
+  if (!snap.exists()) return mapa;
 
-export async function carregarConfigsLoja(): Promise<ConfigLoja[]> {
-  const snap = await getDocs(collection(db, 'hashConfigs'));
-  return snap.docs.map((d) => {
-    const dados = d.data() as DocumentData;
-    return {
-      id: d.id,
-      hashLoja: texto(dados['hashLoja'] ?? dados['HashLoja'] ?? dados['hash']),
-      inventoryId: texto(dados['inventoryId']) || undefined,
-      nome: texto(dados['nome']) || undefined,
-    };
-  });
+  const dados = snap.data() as DocumentData;
+  const bruto = (dados['hashes'] ?? dados['inventoryHashes']) as Record<string, unknown> | undefined;
+  if (!bruto || typeof bruto !== 'object') return mapa;
+
+  for (const [inventoryId, hash] of Object.entries(bruto)) {
+    const valor = String(hash ?? '').trim();
+    if (valor !== '') mapa.set(inventoryId, valor);
+  }
+  return mapa;
 }
 
 /** Hash da loja ligada a um estoque. `null` quando não há configuração. */
 export async function hashDaLoja(inventoryId: string): Promise<string | null> {
-  const configs = await carregarConfigsLoja();
-  const achado = configs.find((c) => c.inventoryId === inventoryId) ?? configs[0];
-  return achado?.hashLoja || null;
+  const hashes = await carregarHashes();
+  return hashes.get(inventoryId) ?? null;
+}
+
+/**
+ * Grava o mapa inteiro.
+ *
+ * `merge: true` no campo `hashes` mantém o que outros estoques já tinham — gravar o
+ * documento inteiro apagaria a configuração de quem não estava na tela.
+ */
+export async function salvarHashes(hashes: ReadonlyMap<string, string>): Promise<void> {
+  const objeto: Record<string, string> = {};
+  for (const [inventoryId, hash] of hashes) {
+    const valor = hash.trim();
+    if (valor !== '') objeto[inventoryId] = valor;
+  }
+
+  await withWriteTimeout(
+    setDoc(doc(db, 'hashConfigs', DOC_HASHES), { hashes: objeto, updatedAt: new Date() }),
+    { label: 'salvar hashes' },
+  );
+}
+
+/**
+ * Testa se o hash responde no ERP.
+ *
+ * Hash errado devolve lista vazia em vez de erro, então "respondeu" não basta: o teste só
+ * passa se vier ao menos um item.
+ */
+export async function testarHash(hash: string): Promise<{ ok: boolean; itens: number; erro?: string }> {
+  const leitura = await buscarEstoqueDoErp(hash);
+  if (!leitura.ok) return { ok: false, itens: 0, erro: leitura.erro ?? 'Falha na consulta' };
+  return { ok: leitura.estoque.size > 0, itens: leitura.estoque.size };
 }

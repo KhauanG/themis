@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { Inventory } from '@themis/shared';
 import { useAuth } from '../../contexts/AuthContext.js';
 import { useEstoque } from '../../contexts/EstoqueContext.js';
@@ -6,11 +6,12 @@ import { useToast } from '../../contexts/ToastContext.js';
 import { Icone } from '../../components/Icone.js';
 import { Modal } from '../../components/Modal.js';
 import { criarEstoque, excluirEstoque, renomearEstoque } from '../../lib/estoques-repo.js';
+import { carregarHashes, salvarHashes, testarHash } from '../../lib/erp.js';
 import { registrar } from '../../lib/historico.js';
 
-type Formulario = { id: string | null; nome: string; descricao: string };
+type Formulario = { id: string | null; nome: string; descricao: string; hashLoja: string };
 
-const VAZIO: Formulario = { id: null, nome: '', descricao: '' };
+const VAZIO: Formulario = { id: null, nome: '', descricao: '', hashLoja: '' };
 
 export function TelaEstoques() {
   const { permissoes } = useAuth();
@@ -21,8 +22,46 @@ export function TelaEstoques() {
   const [excluindo, setExcluindo] = useState<Inventory | null>(null);
   const [confirmacao, setConfirmacao] = useState('');
   const [ocupado, setOcupado] = useState('');
+  const [hashes, setHashes] = useState<Map<string, string>>(new Map());
+  const [testando, setTestando] = useState(false);
 
   const editando = form?.id != null;
+
+  const recarregarHashes = useCallback(() => {
+    carregarHashes()
+      .then(setHashes)
+      .catch((erro) => console.warn('[estoques] Não foi possível ler os hashes:', erro));
+  }, []);
+
+  useEffect(recarregarHashes, [recarregarHashes]);
+
+  /**
+   * O hash vive num documento separado (`hashConfigs/inventoryHashes`), não no documento
+   * do estoque. Salvar os dois juntos aqui evita que alguém crie um estoque e só descubra
+   * na hora de corrigir que falta a amarração com o ERP.
+   */
+  async function salvarHashDoEstoque(inventoryId: string, hash: string) {
+    const novo = new Map(hashes);
+    if (hash.trim() === '') novo.delete(inventoryId);
+    else novo.set(inventoryId, hash.trim());
+    await salvarHashes(novo);
+    setHashes(novo);
+  }
+
+  async function testar() {
+    const hash = form?.hashLoja.trim();
+    if (!hash) return;
+    setTestando(true);
+    try {
+      const r = await testarHash(hash);
+      if (r.ok) mostrar(`Hash válido — o ERP devolveu ${r.itens} produtos.`, 'success');
+      else if (r.erro) mostrar(`Falha ao consultar o ERP: ${r.erro}`, 'error');
+      // Hash errado devolve lista vazia em vez de erro; por isso a mensagem é específica.
+      else mostrar('O ERP respondeu, mas não devolveu nenhum produto. Confira o hash.', 'warning');
+    } finally {
+      setTestando(false);
+    }
+  }
 
   async function salvar() {
     if (!form || !form.nome.trim()) return;
@@ -30,9 +69,11 @@ export function TelaEstoques() {
     try {
       if (form.id) {
         await renomearEstoque(form.id, form.nome, form.descricao);
+        await salvarHashDoEstoque(form.id, form.hashLoja);
         mostrar('Estoque atualizado.', 'success');
       } else {
         const id = await criarEstoque(form.nome, form.descricao);
+        await salvarHashDoEstoque(id, form.hashLoja);
         mostrar('Estoque criado. Importe a planilha para começar.', 'success');
         trocarEstoque(id);
       }
@@ -113,6 +154,12 @@ export function TelaEstoques() {
                 </span>
                 <span className="acao__descricao">
                   {e.descricao ? `${e.descricao} · ` : ''}Ciclo {e.contagemCycle ?? 1}
+                  {' · '}
+                  {hashes.has(e.id) ? (
+                    <span className="etiqueta etiqueta--ok">ERP ligado</span>
+                  ) : (
+                    <span className="etiqueta etiqueta--alerta">sem HashLoja</span>
+                  )}
                 </span>
               </span>
 
@@ -120,10 +167,17 @@ export function TelaEstoques() {
                 <button
                   className="botao botao--secundario botao--mini"
                   type="button"
-                  onClick={() => setForm({ id: e.id, nome: e.nome ?? '', descricao: e.descricao ?? '' })}
+                  onClick={() =>
+                    setForm({
+                      id: e.id,
+                      nome: e.nome ?? '',
+                      descricao: e.descricao ?? '',
+                      hashLoja: hashes.get(e.id) ?? '',
+                    })
+                  }
                   disabled={Boolean(ocupado)}
                 >
-                  Renomear
+                  Editar
                 </button>
                 {permissoes.gerenciarUsuarios && (
                   <button
@@ -186,6 +240,32 @@ export function TelaEstoques() {
             />
             <span className="campo__ajuda">Opcional. Ex.: endereço ou responsável.</span>
           </label>
+
+          <label className="campo">
+            <span className="campo__rotulo">HashLoja (ERP)</span>
+            <input
+              className="campo__entrada"
+              value={form?.hashLoja ?? ''}
+              onChange={(e) => setForm((f) => (f ? { ...f, hashLoja: e.target.value } : f))}
+              autoComplete="off"
+              spellCheck={false}
+            />
+            <span className="campo__ajuda">
+              É o que amarra este estoque à loja no ERP. Sem ele, Buscar estoque e Corrigir
+              estoque não funcionam.
+            </span>
+          </label>
+
+          {form?.hashLoja.trim() && (
+            <button
+              className="botao botao--secundario botao--largo"
+              type="button"
+              onClick={() => void testar()}
+              disabled={testando}
+            >
+              {testando ? 'Consultando o ERP…' : 'Testar hash'}
+            </button>
+          )}
 
           {!editando && (
             <p className="aviso aviso--info">
