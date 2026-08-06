@@ -105,6 +105,14 @@ function quantidadeDoErp(bruto: unknown): number {
   return Number.isFinite(n) ? Math.round(n) : 0;
 }
 
+/**
+ * Abaixo disto, "não veio nenhum item com saldo ≤ 0" não é evidência de nada — é amostra
+ * pequena. O número é um julgamento: alto o bastante para uma loja de verdade não passar
+ * por acaso, baixo o bastante para não descartar loja pequena. Uma loja do Ice Beer devolve
+ * mais de mil itens.
+ */
+const AMOSTRA_MINIMA = 50;
+
 export interface EstoqueNormalizado {
   itens: Array<{ idProduto: string; quantidade: number }>;
   /** Linhas descartadas por não ter identificador reconhecível. */
@@ -117,6 +125,24 @@ export interface EstoqueNormalizado {
    * sem o vazamento.
    */
   campos: string[];
+  /** Quantos itens vieram com saldo `<= 0`. */
+  naoPositivos: number;
+  /**
+   * A listagem só traz saldo positivo — logo, **produto ausente está zerado no ERP**.
+   *
+   * A conclusão sai da própria resposta: se numa amostra grande nenhum item veio com saldo
+   * `<= 0`, o ERP está filtrando. Isso importa porque muda o significado da ausência:
+   *
+   * - listagem **com** zeros → ausente = "o ERP não conhece este produto";
+   * - listagem **sem** zeros → ausente = "o ERP tem zero deste produto".
+   *
+   * Tratar o segundo caso como o primeiro deixa na tela o saldo da última importação e o
+   * produto sai da correção — o funcionário conta 5, o ERP fica em 0, e ninguém corrige.
+   *
+   * A conclusão se refaz a cada resposta: no dia em que o ERP passar a devolver zeros, o
+   * sinal desliga sozinho.
+   */
+  omiteZerados: boolean;
 }
 
 /** Converte a lista crua do ERP no formato que o app consome. */
@@ -146,7 +172,10 @@ export function normalizarItensDoErp(itens: readonly unknown[]): EstoqueNormaliz
   const primeiro = itens[0];
   const campos = primeiro && typeof primeiro === 'object' ? Object.keys(primeiro) : [];
 
-  return { itens: saida, semId, campos };
+  const naoPositivos = saida.filter((i) => i.quantidade <= 0).length;
+  const omiteZerados = saida.length >= AMOSTRA_MINIMA && naoPositivos === 0;
+
+  return { itens: saida, semId, campos, naoPositivos, omiteZerados };
 }
 
 /** Tentativas totais de envio, contando a primeira. Mesmo orçamento do 1.x (1 + 3). */
@@ -372,6 +401,8 @@ export async function rotasErp(app: FastifyInstance): Promise<void> {
           recebidos: itens.length,
           semId: normalizado.semId,
           campos: normalizado.campos,
+          naoPositivos: normalizado.naoPositivos,
+          omiteZerados: normalizado.omiteZerados,
         });
       } catch (erro) {
         const abortou = erro instanceof Error && erro.name === 'AbortError';

@@ -154,7 +154,9 @@ export function TelaProdutos() {
       }
 
       setOcupado({ texto: 'Gravando os saldos' });
-      const r = await atualizarEstoqueSistema(estoqueAtual.id, produtos, leitura.estoque);
+      const r = await atualizarEstoqueSistema(estoqueAtual.id, produtos, leitura.estoque, {
+        omiteZerados: leitura.omiteZerados,
+      });
 
       /**
        * Nenhum produto casou com a listagem: a sincronização **não aconteceu**. O saldo na
@@ -177,6 +179,10 @@ export function TelaProdutos() {
             r.atualizados === 0
               ? `Saldo já estava igual ao ERP em ${parte(r.casaram, 'produto', 'produtos')}.`
               : `${parte(r.atualizados, 'saldo atualizado', 'saldos atualizados')} de ${r.casaram} que casaram.`,
+            // O ERP não devolve saldo zero: ausência da listagem é zero, não desconhecido.
+            r.zeradosPorOmissao > 0
+              ? `${parte(r.zeradosPorOmissao, 'produto zerado', 'produtos zerados')} (não vêm na listagem do ERP).`
+              : null,
             r.semCorrespondencia > 0
               ? `${parte(r.semCorrespondencia, 'produto', 'produtos')} fora do ERP.`
               : null,
@@ -193,6 +199,7 @@ export function TelaProdutos() {
           recebidosDoErp: leitura.itens,
           casaram: r.casaram,
           atualizados: r.atualizados,
+          zeradosPorOmissao: r.zeradosPorOmissao,
           semCorrespondencia: r.semCorrespondencia,
         });
       }

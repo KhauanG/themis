@@ -6,6 +6,40 @@ Categorias: **Adicionado**, **Alterado**, **Corrigido**, **Removido**, **Seguran
 
 ---
 
+## 2.7.2 — 2026-08-06
+
+### Corrigido
+
+- **Produto zerado no ERP mantinha o saldo da última importação.** A listagem
+  `EstoqueQuantidadePorLojaListar` **não devolve produto com saldo zero** — ele
+  simplesmente não vem. O app tratava a ausência como "o ERP não conhece este produto",
+  marcava `apiNotFound` e deixava na tela o saldo antigo.
+
+  São duas coisas diferentes que só por acaso se parecem:
+
+  | Ausente da listagem | Significa | O que fazer |
+  |---|---|---|
+  | listagem traz saldos `<= 0` | o ERP não conhece o produto | marcar `apiNotFound` |
+  | listagem só traz saldo `> 0` | o ERP tem **zero** do produto | gravar `estoqueSistema: 0` |
+
+  Confundir os dois é grave justamente nos produtos que mais precisam de correção: o
+  funcionário conta 5, o ERP está em 0, mas o app compara contra o saldo importado, acha
+  que bate, e o item nunca entra na correção.
+
+  A distinção sai da **própria resposta**: se numa amostra de 50+ itens nenhum vem com
+  saldo `<= 0`, o ERP está filtrando. A conclusão se refaz a cada leitura — no dia em que o
+  ERP passar a devolver zeros, o comportamento volta sozinho. Campo `omiteZerados`.
+
+  `atualizarEstoqueSistema` devolve `zeradosPorOmissao` separado de `semCorrespondencia`, e
+  a tela informa os dois.
+
+### Adicionado
+
+- O `diagnosticar-erp.mjs` responde a pergunta direto: conta saldos zero e negativos, mostra
+  menor e maior, e conclui se a listagem só traz positivo.
+
+---
+
 ## 2.7.1 — 2026-08-06
 
 ### Corrigido

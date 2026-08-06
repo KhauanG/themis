@@ -104,6 +104,12 @@ e a quantidade dos produtos consultados. O HashLoja está na tela Estoques.
 
 Outras causas que o script separa:
 
+- **Produto zerado no ERP não vem na listagem.** `EstoqueQuantidadePorLojaListar` só devolve
+  saldo positivo. Ausência aí significa **zero**, não "desconhecido" — e tratar como
+  desconhecido deixa o saldo da última importação na tela justamente nos produtos que mais
+  precisam de correção. O app deduz isso da própria resposta (`omiteZerados`: 50+ itens e
+  nenhum com saldo `<= 0`) e grava `estoqueSistema: 0`. O script imprime a contagem de zeros
+  e negativos e diz a conclusão.
 - **HashLoja errado** — devolve lista vazia em vez de erro.
 - **Identificador repetido** — se o ERP manda uma linha por depósito, o app grava a última
   ocorrência (como o 1.x) e o Nuvem3 pode estar mostrando a soma. O script imprime as duas.

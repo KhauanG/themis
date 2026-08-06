@@ -89,7 +89,9 @@ export async function diagnosticar(
   if (!leitura.ok) throw new Error(leitura.erro ?? 'Não foi possível ler o estoque do ERP.');
 
   aoProgredir('Atualizando os saldos do sistema');
-  const sincronia = await atualizarEstoqueSistema(inventoryId, produtos, leitura.estoque);
+  const sincronia = await atualizarEstoqueSistema(inventoryId, produtos, leitura.estoque, {
+    omiteZerados: leitura.omiteZerados,
+  });
 
   /**
    * Nenhum produto casou: parar aqui.
@@ -107,8 +109,12 @@ export async function diagnosticar(
 
   // Reaplica o saldo lido na cópia em memória: o listener do Firestore ainda não trouxe
   // a gravação, e o diagnóstico precisa dos números novos agora.
+  // Ausente numa listagem que só traz saldo positivo é **zero**, não desconhecido — a
+  // mesma regra que `atualizarEstoqueSistema` acabou de gravar. Sem repeti-la aqui, o
+  // diagnóstico compararia a contagem com o saldo da última importação para justamente os
+  // produtos zerados no ERP, que são os que mais precisam de correção.
   const frescos = produtos.map((p) => {
-    const atualizado = saldoNoErp(leitura.estoque, p);
+    const atualizado = saldoNoErp(leitura.estoque, p) ?? (leitura.omiteZerados ? 0 : undefined);
     return atualizado === undefined ? p : { ...p, estoqueSistema: atualizado };
   });
 

@@ -442,11 +442,26 @@ export async function importarProdutos(
   return { criados, atualizados };
 }
 
+export interface OpcoesSincronia {
+  /**
+   * A listagem do ERP só traz saldo positivo — **ausente significa zerado**, não
+   * desconhecido. Vem de `omiteZerados` na resposta da API, deduzido da própria listagem.
+   */
+  omiteZerados?: boolean;
+}
+
 export interface ResultadoSincronia {
   /** Produtos cujo `estoqueSistema` mudou. É o número que a tela mostra. */
   atualizados: number;
   /** Produtos que o ERP não conhece. Ficam marcados com `apiNotFound`. */
   semCorrespondencia: number;
+  /**
+   * Produtos ausentes da listagem que foram **zerados**, porque o ERP omite saldo zero.
+   *
+   * Contado à parte de `semCorrespondencia`: são situações diferentes que só por acaso se
+   * parecem. Um é "o ERP não sabe o que é isso"; o outro é "o ERP tem zero disso".
+   */
+  zeradosPorOmissao: number;
   /**
    * Produtos que casaram com a listagem, tendo mudado o saldo ou não.
    *
@@ -470,26 +485,45 @@ export interface ResultadoSincronia {
  * Também marca `apiNotFound`, como o `buscarEstoqueSemConfirmacao` do 1.x. A aba
  * "Não encontrados na API" lê exatamente esse campo: sem gravá-lo, ela ficava vazia para
  * sempre e ninguém descobria que um produto do catálogo não existe no ERP.
+ *
+ * ## Produto ausente da listagem
+ *
+ * Significa duas coisas diferentes, e `omiteZerados` distingue:
+ *
+ * | Listagem | Ausente quer dizer | O que fazemos |
+ * |---|---|---|
+ * | traz saldos `<= 0` | o ERP não conhece o produto | marca `apiNotFound` |
+ * | só traz saldo `> 0` | o ERP tem **zero** do produto | grava `estoqueSistema: 0` |
+ *
+ * Tratar o segundo caso como o primeiro é o que deixava na tela o saldo da última
+ * importação: o produto zerado no ERP aparecia com o saldo antigo, saía da correção, e o
+ * funcionário que contou 5 nunca via aquilo chegar no ERP.
  */
 export async function atualizarEstoqueSistema(
   inventoryId: string,
   produtos: readonly Produto[],
   estoqueErp: ReadonlyMap<string, number>,
+  opcoes: OpcoesSincronia = {},
 ): Promise<ResultadoSincronia> {
   const mudancas: Array<{ id: string; dados: Record<string, unknown> }> = [];
   let atualizados = 0;
   let semCorrespondencia = 0;
+  let zeradosPorOmissao = 0;
   let casaram = 0;
 
   for (const p of produtos) {
-    const saldo = saldoNoErp(estoqueErp, p);
+    const naListagem = saldoNoErp(estoqueErp, p);
+    // Ausente numa listagem que só traz positivos é zero, não desconhecido.
+    const saldo = naListagem ?? (opcoes.omiteZerados ? 0 : undefined);
     const dados: Record<string, unknown> = {};
 
     if (saldo === undefined) {
       semCorrespondencia++;
       if (p.apiNotFound !== true) dados['apiNotFound'] = true;
     } else {
-      casaram++;
+      if (naListagem === undefined) zeradosPorOmissao++;
+      else casaram++;
+
       if (sistemaDe(p) !== saldo) {
         dados['estoqueSistema'] = saldo;
         // `EstoqueAtual` acompanha porque o Themis 1.x continua em produção no mesmo banco
@@ -520,7 +554,7 @@ export async function atualizarEstoqueSistema(
     await withWriteTimeout(lote.commit(), { ms: 20_000, label: 'sincronizar estoque do ERP' });
   }
 
-  return { atualizados, semCorrespondencia, casaram };
+  return { atualizados, semCorrespondencia, zeradosPorOmissao, casaram };
 }
 
 export interface ResultadoConferencia {

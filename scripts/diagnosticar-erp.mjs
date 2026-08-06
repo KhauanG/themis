@@ -111,6 +111,36 @@ console.log(`Sem identificador : ${semId}`);
 console.log(`Sem quantidade    : ${semQtd}`);
 
 /**
+ * A pergunta que decide o significado da ausência.
+ *
+ * Se numa amostra grande NENHUM item vem com saldo <= 0, o ERP está filtrando — e produto
+ * ausente da listagem não e "desconhecido", e sim "zerado". Confundir os dois deixa na tela
+ * o saldo da ultima importacao para justamente os produtos zerados, que sao os que mais
+ * precisam de correcao.
+ */
+const quantidades = [...porId.values()];
+const zeros = quantidades.filter((q) => q === 0).length;
+const negativos = quantidades.filter((q) => q < 0).length;
+
+console.log(`\nSaldo zero        : ${zeros}`);
+console.log(`Saldo negativo    : ${negativos}`);
+if (quantidades.length > 0) {
+  console.log(`Menor saldo       : ${Math.min(...quantidades)}`);
+  console.log(`Maior saldo       : ${Math.max(...quantidades)}`);
+}
+
+if (porId.size >= 50 && zeros === 0 && negativos === 0) {
+  console.log('\n=> A listagem SO traz saldo positivo.');
+  console.log('   Produto ausente esta ZERADO no ERP, nao "fora do ERP".');
+  console.log('   O app aplica isso automaticamente (omiteZerados).');
+} else if (zeros > 0 || negativos > 0) {
+  console.log('\n=> A listagem TRAZ saldo <= 0.');
+  console.log('   Produto ausente e mesmo desconhecido pelo ERP — provavel IdProduto diferente.');
+} else {
+  console.log(`\n=> Amostra pequena (${porId.size} itens); nao da para concluir.`);
+}
+
+/**
  * Produto repetido é o suspeito número um de "o número não bate".
  *
  * O app grava a última ocorrência, como o 1.x. Se o ERP manda uma linha por depósito, o

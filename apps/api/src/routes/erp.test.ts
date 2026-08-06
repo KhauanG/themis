@@ -126,6 +126,50 @@ describe('normalizarItensDoErp', () => {
   });
 
   it('lista vazia não quebra', () => {
-    expect(normalizarItensDoErp([])).toEqual({ itens: [], semId: 0, campos: [] });
+    expect(normalizarItensDoErp([])).toEqual({
+      itens: [],
+      semId: 0,
+      campos: [],
+      naoPositivos: 0,
+      omiteZerados: false,
+    });
+  });
+});
+
+/**
+ * Produto zerado no ERP simplesmente não vem na listagem. Confundir "ausente" com
+ * "desconhecido" deixa na tela o saldo da última importação para justamente os produtos
+ * zerados — que são os que mais precisam de correção. A conclusão sai da própria resposta,
+ * e se refaz a cada leitura.
+ */
+describe('normalizarItensDoErp — omiteZerados', () => {
+  const lista = (n: number, quantidade: number) =>
+    Array.from({ length: n }, (_, i) => ({ idproduto: String(i + 1), quantidade }));
+
+  it('amostra grande sem nenhum saldo <= 0 conclui que o ERP filtra', () => {
+    const r = normalizarItensDoErp(lista(60, 3));
+    expect(r.naoPositivos).toBe(0);
+    expect(r.omiteZerados).toBe(true);
+  });
+
+  it('um único zero derruba a conclusão', () => {
+    const r = normalizarItensDoErp([...lista(60, 3), { idproduto: 'z', quantidade: 0 }]);
+    expect(r.naoPositivos).toBe(1);
+    expect(r.omiteZerados).toBe(false);
+  });
+
+  it('negativo também conta como saldo não positivo', () => {
+    const r = normalizarItensDoErp([...lista(60, 3), { idproduto: 'n', quantidade: -2 }]);
+    expect(r.naoPositivos).toBe(1);
+    expect(r.omiteZerados).toBe(false);
+  });
+
+  // Concluir a partir de 3 itens seria adivinhação com cara de dedução.
+  it('amostra pequena não conclui nada, mesmo sem zeros', () => {
+    expect(normalizarItensDoErp(lista(10, 5)).omiteZerados).toBe(false);
+  });
+
+  it('lista vazia não conclui', () => {
+    expect(normalizarItensDoErp([]).omiteZerados).toBe(false);
   });
 });

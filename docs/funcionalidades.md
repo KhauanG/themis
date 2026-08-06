@@ -229,10 +229,22 @@ embrulhada em `data` ou `items`.
 Quantidade é arredondada; valor ilegível vira `0` e o item **permanece** na lista — "dado
 ruim" e "não existe no ERP" são problemas diferentes.
 
-A resposta traz diagnóstico: `recebidos`, `semId` e `campos` (só os **nomes** das chaves do
-primeiro item, nunca o conteúdo). **Zero produtos casados é erro**, não "tudo já estava
-igual" — nesse caso o saldo na tela é o da última importação, e "Corrigir estoque" aborta em
-vez de mandar correções calculadas sobre dado velho.
+⚠️ **Produto zerado no ERP não vem na listagem.** A ausência tem dois significados, e o
+campo `omiteZerados` distingue:
+
+| Listagem | Ausente quer dizer | O que o app faz |
+|---|---|---|
+| traz saldos `<= 0` | o ERP não conhece o produto | marca `apiNotFound` |
+| só traz saldo `> 0` | o ERP tem **zero** do produto | grava `estoqueSistema: 0` |
+
+A conclusão sai da própria resposta — 50 itens ou mais e nenhum com saldo `<= 0` — e se
+refaz a cada leitura. Tratar zerado como desconhecido deixa o saldo da última importação na
+tela justamente nos produtos que mais precisam de correção.
+
+A resposta traz diagnóstico: `recebidos`, `semId`, `naoPositivos` e `campos` (só os **nomes**
+das chaves do primeiro item, nunca o conteúdo). **Zero produtos casados é erro**, não "tudo
+já estava igual" — nesse caso o saldo na tela é o da última importação, e "Corrigir estoque"
+aborta em vez de mandar correções calculadas sobre dado velho.
 
 Para investigar fora do app: `node scripts/diagnosticar-erp.mjs <hashLoja> [idProduto...]`.
 Ver [armadilhas.md](armadilhas.md) §"Buscar estoque" traz saldo diferente do Nuvem3.

@@ -72,6 +72,11 @@ export interface ResultadoBusca {
   semId: number;
   /** Nomes dos campos do primeiro item — só os nomes. Diagnóstico de mudança de contrato. */
   campos: string[];
+  /**
+   * A listagem só traz saldo positivo — logo, **produto ausente está zerado no ERP**, e não
+   * "é desconhecido pelo ERP". Ver `omiteZerados` em `apps/api/src/routes/erp.ts`.
+   */
+  omiteZerados: boolean;
   erro?: string;
 }
 
@@ -98,10 +103,18 @@ export async function buscarEstoqueDoErp(hashLoja: string): Promise<ResultadoBus
       recebidos?: number;
       semId?: number;
       campos?: string[];
+      omiteZerados?: boolean;
       erro?: string;
     } | null;
 
-    const vazio = { estoque: new Map<string, number>(), itens: 0, recebidos: 0, semId: 0, campos: [] };
+    const vazio = {
+      estoque: new Map<string, number>(),
+      itens: 0,
+      recebidos: 0,
+      semId: 0,
+      campos: [],
+      omiteZerados: false,
+    };
 
     if (!resposta.ok || !corpo?.ok || !Array.isArray(corpo.itens)) {
       return { ok: false, ...vazio, erro: corpo?.erro ?? `Falha ${resposta.status}` };
@@ -110,6 +123,7 @@ export async function buscarEstoqueDoErp(hashLoja: string): Promise<ResultadoBus
     const recebidos = corpo.recebidos ?? corpo.itens.length;
     const semId = corpo.semId ?? 0;
     const campos = corpo.campos ?? [];
+    const omiteZerados = corpo.omiteZerados === true;
 
     /**
      * Resposta com linhas mas sem nenhum identificador reconhecível é **falha**, não
@@ -151,7 +165,7 @@ export async function buscarEstoqueDoErp(hashLoja: string): Promise<ResultadoBus
       itens++;
     }
 
-    return { ok: true, estoque, itens, recebidos, semId, campos };
+    return { ok: true, estoque, itens, recebidos, semId, campos, omiteZerados };
   } catch (erro) {
     const abortou = (erro as { name?: string } | null)?.name === 'AbortError';
     return {
@@ -161,6 +175,7 @@ export async function buscarEstoqueDoErp(hashLoja: string): Promise<ResultadoBus
       recebidos: 0,
       semId: 0,
       campos: [],
+      omiteZerados: false,
       erro: abortou ? 'Tempo esgotado ao buscar o estoque' : 'Sem resposta do servidor',
     };
   } finally {
