@@ -4,8 +4,17 @@ PWA de contagem e auditoria de estoque do Grupo Ice Beer. Reescrita do Themis 1.
 (Capacitor + JavaScript sem build) em Node/TypeScript.
 
 **O banco é o mesmo.** Firestore do projeto `auditoria-icebeer`, mesmas coleções, mesmas
-Security Rules. Nenhuma migração de dados — o 1.x e o 2.0 podem rodar em paralelo durante
-a transição.
+Security Rules. Nenhuma migração de dados — o 1.x e o 2.0 rodam em paralelo durante a
+transição.
+
+> ## 📚 A documentação fica em [`docs/`](docs/README.md)
+>
+> Comece por [docs/README.md](docs/README.md). Antes de mexer em qualquer coisa, leia
+> [docs/armadilhas.md](docs/armadilhas.md) — cada item ali custou tempo real de alguém.
+>
+> **Alteração de comportamento sem alteração de documentação é alteração incompleta.**
+>
+> Agentes e ferramentas de IA: [CLAUDE.md](CLAUDE.md).
 
 ## Estrutura
 
