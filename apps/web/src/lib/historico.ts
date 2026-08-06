@@ -19,6 +19,9 @@ import {
   type QueryDocumentSnapshot,
 } from 'firebase/firestore';
 import type { AcaoHistorico, EntradaHistorico } from '@themis/shared';
+// Rótulos e cores vivem em `@themis/shared` junto do formatador — assim tela e testes
+// leem a mesma tabela, e uma ação nova não fica sem nome.
+export { COR_ACAO, ROTULO_ACAO } from '@themis/shared';
 import { db } from './firebase.js';
 import { withWriteTimeout } from './firestore-write.js';
 import { CHAVES, gravar, ler, remover } from './armazenamento.js';
@@ -26,34 +29,6 @@ import { deviceId, deviceLabel } from './dispositivo.js';
 
 const COLECAO = 'historico_geral';
 const TETO_LOG_MS = 5_000;
-
-export const ROTULO_ACAO: Record<AcaoHistorico, string> = {
-  LOGIN: 'Login',
-  MODIFICAR_PRODUTO: 'Modificar Produto',
-  LIMPAR_CONTAGEM: 'Limpar Contagem',
-  LIMPAR_ESTOQUE: 'Limpar Estoque',
-  BUSCAR_ESTOQUE: 'Buscar Estoque',
-  IMPORTAR_PLANILHA: 'Importar Planilha',
-  EXPORTAR_PLANILHA: 'Exportar Planilha',
-  ABRIR_AUDITORIA: 'Abrir Auditoria',
-  CORRIGIR_ESTOQUE: 'Corrigir Estoque',
-  EXCLUIR_ESTOQUE: 'Excluir Estoque',
-  FINALIZAR_CONTAGEM: 'Finalizar Contagem',
-};
-
-export const COR_ACAO: Record<AcaoHistorico, string> = {
-  LOGIN: '#3b82f6',
-  MODIFICAR_PRODUTO: '#f59e0b',
-  LIMPAR_CONTAGEM: '#ef4444',
-  LIMPAR_ESTOQUE: '#dc2626',
-  BUSCAR_ESTOQUE: '#22c55e',
-  IMPORTAR_PLANILHA: '#8b5cf6',
-  EXPORTAR_PLANILHA: '#06b6d4',
-  ABRIR_AUDITORIA: '#ec4899',
-  CORRIGIR_ESTOQUE: '#14b8a6',
-  EXCLUIR_ESTOQUE: '#f97316',
-  FINALIZAR_CONTAGEM: '#10b981',
-};
 
 export interface ContextoLog {
   userId: string;

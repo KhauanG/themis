@@ -52,10 +52,30 @@ export function TelaEstoques() {
   /** Travar ou destravar a contagem de um estoque. Reflete em todos os aparelhos. */
   async function alternarSomenteLeitura(inventoryId: string) {
     const atual = configuracoes.somenteLeitura;
-    const novo = atual.includes(inventoryId)
-      ? atual.filter((id) => id !== inventoryId)
-      : [...atual, inventoryId];
+    const travando = !atual.includes(inventoryId);
+    const novo = travando
+      ? [...atual, inventoryId]
+      : atual.filter((id) => id !== inventoryId);
+
     await alterarConfiguracoes({ somenteLeitura: novo });
+
+    if (contextoLog) {
+      const nome = estoques.find((e) => e.id === inventoryId)?.nome ?? inventoryId;
+      void registrar('ALTERAR_CONFIGURACAO', contextoLog, {
+        [travando ? 'estoqueTravado' : 'estoqueLiberado']: nome,
+      });
+    }
+  }
+
+  async function alternarModoContagem() {
+    const antes = configuracoes.modoContagem;
+    await alterarConfiguracoes({ modoContagem: !antes });
+    if (contextoLog) {
+      void registrar('ALTERAR_CONFIGURACAO', contextoLog, {
+        modoContagemDe: antes,
+        modoContagemPara: !antes,
+      });
+    }
   }
 
   async function testar() {
@@ -78,12 +98,34 @@ export function TelaEstoques() {
     setOcupado(editando ? 'Salvando…' : 'Criando…');
     try {
       if (form.id) {
+        const antes = estoques.find((e) => e.id === form.id);
+        const hashAntes = hashes.get(form.id) ?? '';
+
         await renomearEstoque(form.id, form.nome, form.descricao);
         await salvarHashDoEstoque(form.id, form.hashLoja);
+
+        if (contextoLog) {
+          void registrar('EDITAR_ESTOQUE', contextoLog, {
+            estoque: antes?.nome ?? form.nome,
+            nomeDe: antes?.nome ?? '',
+            nomePara: form.nome.trim(),
+            descricaoDe: antes?.descricao ?? '',
+            descricaoPara: form.descricao.trim(),
+            hashAlterado: hashAntes !== form.hashLoja.trim(),
+          });
+        }
         mostrar('Estoque atualizado.', 'success');
       } else {
         const id = await criarEstoque(form.nome, form.descricao);
         await salvarHashDoEstoque(id, form.hashLoja);
+
+        if (contextoLog) {
+          void registrar('CRIAR_ESTOQUE', contextoLog, {
+            estoque: form.nome.trim(),
+            descricao: form.descricao.trim(),
+            comHash: form.hashLoja.trim() !== '',
+          });
+        }
         mostrar('Estoque criado. Importe a planilha para começar.', 'success');
         trocarEstoque(id);
       }
@@ -142,9 +184,7 @@ export function TelaEstoques() {
           <button
             type="button"
             className={configuracoes.modoContagem ? 'alternador alternador--ligado' : 'alternador'}
-            onClick={() =>
-              void alterarConfiguracoes({ modoContagem: !configuracoes.modoContagem })
-            }
+            onClick={() => void alternarModoContagem()}
             aria-pressed={configuracoes.modoContagem}
           >
             <span className="alternador__marca" aria-hidden="true" />

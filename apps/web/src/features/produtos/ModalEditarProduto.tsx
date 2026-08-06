@@ -12,6 +12,7 @@ import { useEstoque } from '../../contexts/EstoqueContext.js';
 import { useToast } from '../../contexts/ToastContext.js';
 import { Modal } from '../../components/Modal.js';
 import { atualizarCadastroProduto, excluirProduto } from '../../lib/produtos-repo.js';
+import { registrar } from '../../lib/historico.js';
 
 interface Props {
   produto: Produto | null;
@@ -27,7 +28,7 @@ interface Props {
  */
 export function ModalEditarProduto({ produto, onFechar }: Props) {
   const { permissoes } = useAuth();
-  const { estoqueAtual } = useEstoque();
+  const { estoqueAtual, contextoLog } = useEstoque();
   const { mostrar } = useToast();
 
   const [form, setForm] = useState({ nome: '', codigoBarras: '', estoqueSistema: '', idProduto: '' });
@@ -52,12 +53,36 @@ export function ModalEditarProduto({ produto, onFechar }: Props) {
     if (!produto || !estoqueAtual || !form.nome.trim() || salvando) return;
     setSalvando(true);
     try {
+      // Capturado antes da gravação: depois dela o objeto já é o novo, e o histórico
+      // perderia o "de".
+      const antes = {
+        nome: nomeDe(produto),
+        codigo: codigoBarrasDe(produto) ?? '',
+        sistema: sistemaDe(produto),
+        idErp: String(idProdutoDe(produto) ?? ''),
+      };
+
       await atualizarCadastroProduto(estoqueAtual.id, produto.id, {
         nome: form.nome,
         codigoBarras: form.codigoBarras,
         estoqueSistema: Number(form.estoqueSistema) || 0,
         idProduto: form.idProduto,
       });
+
+      if (contextoLog) {
+        void registrar('EDITAR_PRODUTO', contextoLog, {
+          produto: antes.nome,
+          nomeDe: antes.nome,
+          nomePara: form.nome.trim(),
+          codigoDe: antes.codigo,
+          codigoPara: form.codigoBarras.trim(),
+          sistemaDe: antes.sistema,
+          sistemaPara: Number(form.estoqueSistema) || 0,
+          idErpDe: antes.idErp,
+          idErpPara: form.idProduto.trim(),
+        });
+      }
+
       mostrar('Produto atualizado.', 'success');
       onFechar();
     } catch (erro) {
@@ -73,6 +98,14 @@ export function ModalEditarProduto({ produto, onFechar }: Props) {
     setSalvando(true);
     try {
       await excluirProduto(estoqueAtual.id, produto.id);
+
+      if (contextoLog) {
+        void registrar('EXCLUIR_PRODUTO', contextoLog, {
+          produto: nomeDe(produto),
+          tinhaContagem: isItemContado(produto),
+        });
+      }
+
       mostrar('Produto excluído.', 'success');
       onFechar();
     } catch (erro) {

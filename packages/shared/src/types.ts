@@ -159,6 +159,13 @@ export interface Auditoria {
   createdAt: Date;
 }
 
+/**
+ * Ações registradas no histórico.
+ *
+ * As onze primeiras vêm do Themis 1.x e não devem ser renomeadas: há anos de registro
+ * gravado com esses valores. As demais foram acrescentadas no 2.0 — o app antigo mostra
+ * o código cru para elas, o que é aceitável enquanto os dois convivem.
+ */
 export type AcaoHistorico =
   | 'LOGIN'
   | 'MODIFICAR_PRODUTO'
@@ -170,7 +177,16 @@ export type AcaoHistorico =
   | 'ABRIR_AUDITORIA'
   | 'CORRIGIR_ESTOQUE'
   | 'EXCLUIR_ESTOQUE'
-  | 'FINALIZAR_CONTAGEM';
+  | 'FINALIZAR_CONTAGEM'
+  // Acrescentadas no 2.0
+  | 'CRIAR_PRODUTO'
+  | 'EDITAR_PRODUTO'
+  | 'EXCLUIR_PRODUTO'
+  | 'CRIAR_ESTOQUE'
+  | 'EDITAR_ESTOQUE'
+  | 'CONFERIR_ITEM'
+  | 'ALTERAR_PAPEL'
+  | 'ALTERAR_CONFIGURACAO';
 
 /** `historico_geral/{id}` */
 export interface EntradaHistorico {

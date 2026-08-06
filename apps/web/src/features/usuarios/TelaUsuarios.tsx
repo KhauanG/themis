@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ROTULO_PAPEL, papelDe, type Papel, type UserProfile } from '@themis/shared';
 import { useAuth } from '../../contexts/AuthContext.js';
+import { useEstoque } from '../../contexts/EstoqueContext.js';
 import { useToast } from '../../contexts/ToastContext.js';
 import { Esqueleto } from '../../components/Esqueleto.js';
 import { listarUsuarios, nomeExibivel, salvarPapeis } from '../../lib/usuarios-repo.js';
+import { registrar } from '../../lib/historico.js';
 
 const PAPEIS: Papel[] = ['comum', 'auditor', 'admin', 'master'];
 
@@ -26,6 +28,7 @@ function iniciais(nome: string): string {
 
 export function TelaUsuarios() {
   const { usuario } = useAuth();
+  const { contextoLog } = useEstoque();
   const { mostrar } = useToast();
 
   const [usuarios, setUsuarios] = useState<UserProfile[]>([]);
@@ -48,11 +51,21 @@ export function TelaUsuarios() {
   async function trocarPapel(perfil: UserProfile, papel: Papel) {
     if (salvando) return;
     setSalvando(perfil.uid);
+    const papelAnterior = papelDe(perfil);
     try {
       await salvarPapeis(perfil.uid, flagsDoPapel(papel));
       setUsuarios((atuais) =>
         atuais.map((u) => (u.uid === perfil.uid ? { ...u, ...flagsDoPapel(papel) } : u)),
       );
+
+      if (contextoLog) {
+        void registrar('ALTERAR_PAPEL', contextoLog, {
+          usuario: `${nomeExibivel(perfil)} (${perfil.email ?? perfil.uid})`,
+          papelDe: ROTULO_PAPEL[papelAnterior],
+          papelPara: ROTULO_PAPEL[papel],
+        });
+      }
+
       mostrar(`${nomeExibivel(perfil)} agora é ${ROTULO_PAPEL[papel]}.`, 'success');
     } catch (erro) {
       console.error('[usuarios] Falha ao salvar papel:', erro);

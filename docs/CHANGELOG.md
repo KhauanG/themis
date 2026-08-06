@@ -6,6 +6,28 @@ Categorias: **Adicionado**, **Alterado**, **Corrigido**, **Removido**, **Seguran
 
 ---
 
+## 2.5.0 — 2026-08-06
+
+### Adicionado
+
+- **Histórico vira trilha de auditoria de verdade.** Antes mostrava `de: 12 · para: 15`,
+  que não responde "o que mudou". Agora cada evento traz o alvo e as alterações no formato
+  `QUANTIDADE 12 → 15`, com o valor antigo riscado e o novo em destaque. Agrupado por dia.
+- `packages/shared/src/historico-descricao.ts` — formatação de todas as ações, função pura
+  com 20 testes. A tela só desenha o que sai de lá.
+- **Oito ações que não eram registradas passaram a ser**: `LOGIN`, `CRIAR_PRODUTO`,
+  `EDITAR_PRODUTO`, `EXCLUIR_PRODUTO`, `CRIAR_ESTOQUE`, `EDITAR_ESTOQUE`, `CONFERIR_ITEM`,
+  `ALTERAR_PAPEL` e `ALTERAR_CONFIGURACAO`. Alterar o papel de um usuário, travar um
+  estoque ou apagar um produto não deixava rastro nenhum.
+
+### Alterado
+
+- A conferência do admin virou `CONFERIR_ITEM` e grava o **nome** do produto, não só o id
+  — quem abre o histórico meses depois não sabe qual produto era `xK92mFq`.
+- Ações destrutivas ganharam cor vermelha na etiqueta; a paleta acompanha os tokens.
+
+---
+
 ## 2.4.0 — 2026-08-06
 
 ### Corrigido

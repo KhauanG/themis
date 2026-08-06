@@ -103,6 +103,25 @@ export function EstoqueProvider({ children }: { children: ReactNode }) {
     return ouvirConfiguracoes(setConfiguracoes);
   }, [usuario]);
 
+  /**
+   * Registra o login uma vez por sessão de aparelho.
+   *
+   * Espera o estoque estar escolhido para o registro nascer com contexto — entrada de
+   * histórico sem `inventoryId` não aparece em filtro nenhum e vira registro órfão.
+   */
+  const loginRegistrado = useRef<string | null>(null);
+  useEffect(() => {
+    if (!usuario || !estoqueAtual || loginRegistrado.current === usuario.uid) return;
+    loginRegistrado.current = usuario.uid;
+    void registrar('LOGIN', {
+      userId: usuario.uid,
+      userEmail: usuario.email ?? '',
+      userName: nome,
+      inventoryId: estoqueAtual.id,
+      inventoryName: estoqueAtual.nome ?? estoqueAtual.id,
+    });
+  }, [usuario, estoqueAtual, nome]);
+
   const somenteLeitura = Boolean(estoqueId && configuracoes.somenteLeitura.includes(estoqueId));
 
   const alterarConfiguracoes = useCallback(

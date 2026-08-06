@@ -93,6 +93,14 @@ export function TelaProdutos() {
         estoqueSistema: Number(novo.estoqueSistema) || 0,
         temCodigoBarras: Boolean(codigo),
       });
+      if (contextoLog) {
+        void registrar('CRIAR_PRODUTO', contextoLog, {
+          produto: novo.nome.trim(),
+          codigoBarras: codigo,
+          estoqueSistema: Number(novo.estoqueSistema) || 0,
+          origem: 'Cadastro avulso',
+        });
+      }
       mostrar('Produto cadastrado.', 'success');
       setNovo({ nome: '', codigoBarras: '', estoqueSistema: '' });
       setCadastrando(false);

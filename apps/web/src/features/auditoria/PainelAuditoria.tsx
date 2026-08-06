@@ -145,7 +145,18 @@ export function PainelAuditoria() {
           'success',
         );
         if (contextoLog) {
-          void registrar('CORRIGIR_ESTOQUE', contextoLog, { produtoId, divergenciaConfirmada, ciclo });
+          // O nome, não só o id: o histórico é lido meses depois, quando ninguém sabe
+          // qual produto era `xK92mFq`.
+          const linha = todas.find((l) => l.id === produtoId);
+          // `todas`, não `visiveis`: o filtro pode ter escondido a linha entre o clique e
+          // o registro, e o histórico ficaria com o id cru no lugar do nome.
+          void registrar('CONFERIR_ITEM', contextoLog, {
+            produto: linha?.nome ?? produtoId,
+            divergenciaConfirmada,
+            contado: linha?.contado ?? null,
+            sistema: linha?.sistema ?? null,
+            ciclo,
+          });
         }
       } catch (erro) {
         console.error('[auditoria] Conferência falhou:', erro);
@@ -154,7 +165,7 @@ export function PainelAuditoria() {
         setCorrigindo(null);
       }
     },
-    [estoqueAtual, corrigindo, mostrar, contextoLog, ciclo],
+    [estoqueAtual, corrigindo, mostrar, contextoLog, ciclo, todas],
   );
 
   const desfazer = useCallback(
@@ -163,6 +174,13 @@ export function PainelAuditoria() {
       setCorrigindo(produtoId);
       try {
         await desfazerConferido(estoqueAtual.id, produtoId);
+        if (contextoLog) {
+          void registrar('CONFERIR_ITEM', contextoLog, {
+            produto: todas.find((l) => l.id === produtoId)?.nome ?? produtoId,
+            desfeito: true,
+            ciclo,
+          });
+        }
         mostrar('Conferência desfeita. O item voltou para a lista.', 'info');
       } catch (erro) {
         console.error('[auditoria] Desfazer falhou:', erro);
@@ -171,7 +189,7 @@ export function PainelAuditoria() {
         setCorrigindo(null);
       }
     },
-    [estoqueAtual, corrigindo, mostrar],
+    [estoqueAtual, corrigindo, mostrar, contextoLog, ciclo, todas],
   );
 
   // Conferir altera o documento do produto: só faz sentido na contagem corrente.

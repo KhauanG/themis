@@ -171,8 +171,49 @@ avisados — não dá para corrigir o que ele não tem.
 
 `features/historico/TelaHistorico.tsx` — auditor, admin, master.
 
-Últimas 200 ações do estoque, com filtro por tipo. Cada evento mostra a etiqueta colorida
-da ação, quem fez, quando e o aparelho.
+Trilha de auditoria. Últimas 200 ações do estoque, agrupadas por dia (Hoje, Ontem, data),
+com filtro por tipo.
+
+Cada evento mostra **o que exatamente mudou**, não um despejo de campos:
+
+```
+Contou produto                                    14:32
+Skol Lata 350ml
+QUANTIDADE          12  →  15
+VALIDADE             —  →  01/09/2026
+Ciclo 3
+Khauan · Android SM-A536 (a3f091)
+```
+
+O valor antigo aparece riscado e o novo em destaque. A formatação vive em
+`packages/shared/src/historico-descricao.ts`, é função pura e tem 20 testes — a tela só
+desenha o que sai de lá.
+
+### O que é registrado
+
+| Ação | Detalhes guardados |
+|---|---|
+| Contou produto | produto, quantidade de → para, validade de → para, ciclo |
+| Conferiu item | produto, se a divergência se confirmou, contado, sistema |
+| Cadastrou produto | nome, código, saldo, origem |
+| Editou produto | nome, código, saldo e código do ERP, cada um de → para |
+| Excluiu produto | nome, se já estava contado |
+| Buscou estoque | recebidos do ERP, saldos alterados, sem correspondência |
+| Corrigiu estoque | conferidos, divergentes, enviados, confirmados, pendentes, recusados |
+| Finalizou contagem | ciclo, contados, não contados, divergentes |
+| Importou planilha | criados, linhas ignoradas |
+| Exportou | tipo do arquivo e o recorte (`40 de 2000 itens`) |
+| Limpou contagem | total zerado, ciclo |
+| Criou/editou/excluiu estoque | nome, descrição, se o HashLoja mudou, produtos apagados |
+| Alterou papel | usuário, papel de → para |
+| Alterou configuração | modo contagem de → para, estoque travado ou liberado |
+| Entrou no sistema | uma vez por sessão, quando o estoque já está escolhido |
+
+⚠️ Ao gravar um "de → para", **capture o valor antigo antes da escrita**: depois dela o
+objeto em memória já é o novo, e o histórico perde a origem.
+
+⚠️ Guarde o **nome**, não só o id. Quem abre o histórico meses depois não sabe qual produto
+era `xK92mFq`.
 
 ⚠️ Depende dos **índices compostos** do Firestore. Sem eles a consulta falha, e a mensagem
 de erro diz isso.

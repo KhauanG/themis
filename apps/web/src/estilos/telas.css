@@ -834,19 +834,73 @@
   margin-left: auto;
 }
 
+.evento__alvo {
+  margin-top: var(--e1);
+  font-weight: var(--peso-medio);
+}
+
 .evento__quem {
-  font-size: var(--t-menor);
-  color: var(--texto-2);
+  margin-top: var(--e2);
+  font-size: var(--t-micro);
+  color: var(--texto-3);
 }
 
 .evento__detalhe {
   margin-top: var(--e1);
   font-size: var(--t-menor);
+  color: var(--texto-2);
 }
 
 .evento__aparelho {
-  margin-top: var(--e1);
+  color: var(--texto-3);
+}
+
+/* Alteração "de → para". A seta é o que faz a mudança ser lida de relance. */
+.mudancas {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e1);
+  margin-top: var(--e2);
+}
+
+.mudanca {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--e2);
+  font-size: var(--t-menor);
+}
+
+.mudanca__campo {
+  min-width: 7.5rem;
+  color: var(--texto-3);
   font-size: var(--t-micro);
+  font-weight: var(--peso-forte);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.mudanca__de,
+.mudanca__para {
+  padding: 0.0625rem var(--e2);
+  border-radius: var(--raio-p);
+  font-variant-numeric: tabular-nums;
+}
+
+.mudanca__de {
+  background: var(--superficie-3);
+  color: var(--texto-2);
+  text-decoration: line-through;
+  text-decoration-color: var(--texto-3);
+}
+
+.mudanca__para {
+  background: var(--acento-fundo);
+  color: var(--acento);
+  font-weight: var(--peso-forte);
+}
+
+.mudanca__seta {
   color: var(--texto-3);
 }
 
