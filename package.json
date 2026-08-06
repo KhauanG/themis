@@ -16,6 +16,7 @@
     "build": "npm run build --workspace @themis/shared && npm run build --workspace @themis/web && npm run build --workspace @themis/api",
     "test": "vitest run",
     "test:watch": "vitest",
+    "verificar": "npm run typecheck && npm run lint && npm test && npm run build",
     "lint": "eslint .",
     "typecheck": "tsc --build --pretty",
     "auditar-produtos": "npm run build --workspace @themis/shared && node --env-file=apps/web/.env scripts/auditar-produtos.mjs",

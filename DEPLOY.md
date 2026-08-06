@@ -4,6 +4,13 @@ Passo a passo do zero até o app no ar, com deploy automático a cada `push` na 
 
 Faça na ordem. Cada passo assume o anterior concluído.
 
+> **Qual terminal.** Os comandos locais são para o **PowerShell do Windows**, um por
+> linha. O Windows PowerShell 5.1 **não aceita `&&`** — colar uma linha com `&&` devolve
+> `O token '&&' não é um separador de instruções válido nesta versão`. Onde precisa
+> encadear, existe um script npm (`&&` funciona dentro deles, porque o npm usa o
+> `cmd.exe`). Os blocos marcados como "no servidor" rodam em bash, depois do `ssh`, e aí
+> `&&` e heredoc funcionam normalmente.
+
 ---
 
 ## Antes de começar
@@ -17,16 +24,14 @@ Tenha em mãos:
 
 Confira que a base está sã antes de publicar qualquer coisa:
 
-```bash
+```powershell
 cd "C:\Projetos\Themis 2.0"
 npm ci
-npm run typecheck
-npm run lint
-npm test
-npm run build
+npm run verificar
 ```
 
-Os cinco precisam passar. Se algum falhar, **pare** — não publique.
+`verificar` roda typecheck, lint, testes e build em sequência e para no primeiro erro.
+Se falhar, **pare** — não publique.
 
 ---
 
@@ -154,9 +159,13 @@ gratuito e ative "Forçar HTTPS".
 
 Gere um par **só para o deploy** — não reaproveite sua chave pessoal:
 
-```bash
+```powershell
 ssh-keygen -t ed25519 -C "github-actions-themis" -f themis_deploy -N '""'
 ```
+
+O `-N '""'` define senha vazia. As aspas duplas dentro das simples são necessárias no
+PowerShell: com `''` sozinho ele descarta o argumento e o `ssh-keygen` passa a **pedir**
+a senha no terminal. Em bash o equivalente é `-N ''`.
 
 Gera `themis_deploy` (privada) e `themis_deploy.pub` (pública).
 
@@ -172,6 +181,8 @@ ssh -p PORTA -i themis_deploy USUARIO@HOST "echo ok; node -v"
 Precisa responder `ok` e uma versão do Node **20 ou maior**.
 
 **3.3 Pastas no servidor**
+
+Conecte e rode lá dentro (daqui em diante é bash, não PowerShell):
 
 ```bash
 ssh -p PORTA -i themis_deploy USUARIO@HOST
