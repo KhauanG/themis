@@ -80,6 +80,28 @@ Contagem ao vivo e auditoria salva são normalizadas por `linhasDeProdutos` /
 própria origem, selecionar uma auditoria antiga e exportar gerava o arquivo com a contagem
 atual. Há teste de paridade entre os dois caminhos.
 
+## Avisos do `npm audit` que ficam abertos de propósito
+
+`npm audit --omit=dev` acusa 4 (2 high). Os quatro foram avaliados e **não se aplicam** ao
+nosso uso. Antes de "corrigir" qualquer um, leia aqui — as correções óbvias pioram a
+situação.
+
+**`react-router` / `react-router-dom` (high) — RSC Mode CSRF Bypass.**
+Atinge o React Server Components mode com server actions. O Themis é SPA estático com
+`BrowserRouter`: não há RSC, server action nem rota com `action`.
+
+Fique em **`^7.18.2`**. Não baixe a versão. As faixas de aviso se cruzam: 7.11.0 escapa
+deste, mas cai em 14 outros, entre eles *open redirect via backslash em `<Link>` e
+`useNavigate`* e *open redirect leading to XSS* — esses **atingem SPA de verdade**, e
+usamos `NavLink` e `Navigate`. Não existe versão 7.x livre dos dois grupos; a mais nova é
+a menos exposta.
+
+**`exceljs` / `uuid` (moderate) — falta de checagem de limites em `uuid` v3/v5/v6 quando
+`buf` é passado.**
+O `npm audit fix` sugere **baixar** `exceljs` de 4.4 para 3.4, o que é um retrocesso
+grande. Nem nós nem o exceljs passamos `buf`. Fica como está até sair `exceljs` com `uuid`
+atualizado.
+
 ## Estado do porte
 
 Portado e verificado (typecheck + lint + 56 testes + build):

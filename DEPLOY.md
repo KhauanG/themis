@@ -186,13 +186,21 @@ workspaces.
 
 | Campo | Valor |
 |---|---|
-| Instalação | `npm ci` |
-| Compilação | `npm run build` |
-| Iniciar | `npm start` |
+| Comando de construção | `npm run build:hostinger` |
+| Gerenciador de pacotes | `npm` |
 | Diretório de saída | deixe vazio |
+| Arquivo de entrada | `apps/api/dist/server.js` |
 
-`npm start` na raiz executa `node apps/api/dist/server.js`. O diretório de saída fica
-vazio porque quem serve os arquivos é o Node, não o servidor web.
+**Por que `build:hostinger` e não `build`.** A instalação da Hostinger traz só as
+dependências de produção, e o `tsc` é `devDependency` — o build morre com
+`sh: line 1: tsc: command not found`. O `NODE_ENV=production` das variáveis de ambiente
+alimenta isso: o npm lê essa variável e passa a omitir `devDependencies`.
+O script faz `npm ci --include=dev && npm run build`, o que resolve independentemente do
+que a plataforma decidir.
+
+O diretório de saída fica vazio porque o build gera **duas** pastas que precisam coexistir
+(`apps/api/dist` e `apps/web/dist`), e quem serve os arquivos é o Node, não o servidor
+web. Se o formulário recusar salvar vazio, use `.`.
 
 **Não configure `PORT`.** A Hostinger injeta a porta e o `config.ts` a lê de
 `process.env.PORT`. Fixar um valor faz o app escutar na porta errada e o domínio
