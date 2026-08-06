@@ -228,11 +228,17 @@ que outros processos podem enxergar.
 ```bash
 ssh -p PORTA -i themis_deploy USUARIO@HOST
 npm install -g pm2
-pm2 startup   # rode o comando que ele imprimir
+pm2 startup   # rode o comando que ele imprimir, para a API voltar sozinha após reboot
 ```
 
+O workflow inicia o processo com `--node-args='--env-file=.env'`. Isso é obrigatório: o
+pm2 executa `node dist/server.js` direto e **ignora** o script `start` do `package.json`,
+que é onde vive o `--env-file`. Sem esse argumento a API sobe sem ler o `.env`, com CORS
+errado e o webhook desligado — e sem nenhum erro visível.
+
 Se o hPanel já gerencia o processo Node, o pm2 é dispensável — nesse caso troque o passo
-de restart no workflow pelo botão/comando de restart do painel.
+de restart no workflow pelo comando de restart do painel, e garanta que ele passe o
+`--env-file` ou que as variáveis estejam configuradas no próprio painel.
 
 ---
 
@@ -260,9 +266,15 @@ Settings → Secrets and variables → Actions → New repository secret.
 O `HOSTINGER_KNOWN_HOSTS` não é burocracia: sem ele o deploy aceitaria qualquer servidor
 que respondesse naquele endereço, e a chave privada iria junto.
 
-**Se a API ficou em subdomínio separado**, adicione também o secret `VITE_API_URL` com
-`https://api-themis.grupoicebeer.com.br/api` e inclua essa linha no `env:` do passo
-"Build" em `.github/workflows/deploy.yml`.
+`HOSTINGER_WEB_DIR` precisa apontar exatamente para o `public_html` do subdomínio: o envio
+do PWA usa `rsync --delete` para remover assets antigos, e um caminho errado apaga a pasta
+errada. O workflow recusa valores obviamente perigosos (`/`, `~`, `/home`), mas não tem
+como adivinhar um caminho que existe e é o errado. **Confira este.**
+
+**Só se a API ficar em subdomínio separado**, crie também `VITE_API_URL` com
+`https://api-themis.grupoicebeer.com.br/api`. O workflow já lê esse secret; vazio, o PWA
+usa `/api` na mesma origem. Nesse caso o `CORS_ORIGINS` do `.env` da API precisa conter a
+origem do PWA, senão o navegador bloqueia a resposta.
 
 Depois apague `themis_deploy` da sua máquina — ela já está no GitHub e no servidor.
 

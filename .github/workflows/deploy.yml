@@ -26,8 +26,17 @@ jobs:
 
       - run: npm ci
 
+      # Publicar sem verificar já causou estrago em projeto que ninguém quer repetir.
+      - name: Verificar antes de publicar
+        run: |
+          npm run typecheck
+          npm run lint
+          npm test
+
       - name: Build
         env:
+          # Vazio faz o PWA usar /api na mesma origem, que é o padrão.
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}
           VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
           VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
           VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
@@ -35,6 +44,13 @@ jobs:
           VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
           VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
         run: npm run build
+
+      - name: Conferir o que vai ser publicado
+        run: |
+          test -f apps/web/dist/index.html || { echo "dist/index.html não existe"; exit 1; }
+          test -f apps/web/dist/sw.js || { echo "service worker não foi gerado"; exit 1; }
+          test -f apps/web/dist/.htaccess || { echo ".htaccess não foi copiado"; exit 1; }
+          test -f apps/api/dist/server.js || { echo "API não compilou"; exit 1; }
 
       - name: Configurar chave SSH
         run: |
@@ -52,6 +68,11 @@ jobs:
           SSH_PORTA: ${{ secrets.HOSTINGER_SSH_PORT }}
           DIR_WEB: ${{ secrets.HOSTINGER_WEB_DIR }}
         run: |
+          # O rsync abaixo usa --delete para remover assets antigos. Com um caminho
+          # errado isso apaga a pasta errada, então o caminho é conferido antes.
+          case "$DIR_WEB" in
+            ""|"/"|"~"|"~/"|"/home"|"/home/") echo "HOSTINGER_WEB_DIR inseguro: '$DIR_WEB'"; exit 1 ;;
+          esac
           rsync -az --delete \
             -e "ssh -p $SSH_PORTA -i ~/.ssh/id_ed25519" \
             apps/web/dist/ "$SSH_ALVO:$DIR_WEB/"
@@ -62,13 +83,10 @@ jobs:
           SSH_PORTA: ${{ secrets.HOSTINGER_SSH_PORT }}
           DIR_API: ${{ secrets.HOSTINGER_API_DIR }}
         run: |
-          # --delete de propósito NÃO usado aqui: apagaria o .env do servidor.
+          # Sem --delete de propósito: apagaria o .env, que só existe no servidor.
           rsync -az \
             -e "ssh -p $SSH_PORTA -i ~/.ssh/id_ed25519" \
             apps/api/dist/ "$SSH_ALVO:$DIR_API/dist/"
-          rsync -az \
-            -e "ssh -p $SSH_PORTA -i ~/.ssh/id_ed25519" \
-            packages/shared/dist/ "$SSH_ALVO:$DIR_API/node_modules/@themis/shared/dist/"
           rsync -az \
             -e "ssh -p $SSH_PORTA -i ~/.ssh/id_ed25519" \
             apps/api/package.json "$SSH_ALVO:$DIR_API/package.json"
@@ -79,10 +97,27 @@ jobs:
           SSH_PORTA: ${{ secrets.HOSTINGER_SSH_PORT }}
           DIR_API: ${{ secrets.HOSTINGER_API_DIR }}
         run: |
+          # --node-args é obrigatório: o pm2 chama `node dist/server.js` direto e
+          # ignora o script `start` do package.json, onde vive o --env-file. Sem isso
+          # a API sobe sem o .env, com CORS errado e o webhook desligado em silêncio.
           ssh -p "$SSH_PORTA" -i ~/.ssh/id_ed25519 "$SSH_ALVO" \
-            "cd $DIR_API && npm install --omit=dev --no-audit --no-fund && (pm2 reload themis-api || pm2 start dist/server.js --name themis-api)"
+            "cd $DIR_API \
+             && npm install --omit=dev --no-audit --no-fund \
+             && (pm2 reload themis-api --update-env \
+                 || pm2 start dist/server.js --name themis-api --node-args='--env-file=.env')"
 
       - name: Verificar que a API subiu
         run: |
-          sleep 5
-          curl --fail --silent --show-error "${{ secrets.URL_HEALTHCHECK }}"
+          # Espera ativa em vez de sleep fixo: o primeiro boot depois do npm install
+          # demora mais, e um sleep curto reprovaria um deploy que deu certo.
+          for tentativa in $(seq 1 10); do
+            if curl --fail --silent --show-error "${{ secrets.URL_HEALTHCHECK }}"; then
+              echo ""
+              echo "API respondendo."
+              exit 0
+            fi
+            echo "Tentativa $tentativa: ainda não respondeu, aguardando..."
+            sleep 3
+          done
+          echo "A API não respondeu em ~30s."
+          exit 1
