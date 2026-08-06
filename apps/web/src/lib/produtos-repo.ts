@@ -24,6 +24,7 @@ import { deviceId } from './dispositivo.js';
 import { runTransactionWithTimeout, withWriteTimeout } from './firestore-write.js';
 import {
   ConflitoProdutoError,
+  REMOVER,
   carregarFila,
   enfileirar,
   isConflito,
@@ -70,16 +71,6 @@ export async function carregarProdutos(inventoryId: string): Promise<Produto[]> 
   const snap = await getDocs(colecaoProdutos(inventoryId));
   return snap.docs.map(paraProduto);
 }
-
-/**
- * Marcador de "remover este campo".
- *
- * O sentinela `deleteField()` do Firestore é um objeto e **não sobrevive ao JSON** do
- * localStorage — uma alteração enfileirada offline chegaria ao servidor como `{}` e o
- * campo ficaria lá. Por isso o chamador usa este marcador, que é string, e a conversão
- * para `deleteField()` acontece só na hora de gravar.
- */
-export const REMOVER = '__themis_remover_campo__';
 
 function paraFirestore(dados: Record<string, unknown>): Record<string, unknown> {
   const saida: Record<string, unknown> = {};

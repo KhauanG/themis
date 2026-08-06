@@ -10,15 +10,15 @@ import {
 } from 'react';
 import { progressoContagem, type Inventory, type Produto, type ProgressoContagem } from '@themis/shared';
 import { carregarEstoques, ouvirEstoques } from '../lib/estoques-repo.js';
+import { atualizarProduto, drenarFila, ouvirProdutos, type BaseCliente } from '../lib/produtos-repo.js';
+import { drenarHistorico, registrar } from '../lib/historico.js';
 import {
   REMOVER,
-  atualizarProduto,
-  drenarFila,
-  ouvirProdutos,
-  type BaseCliente,
-} from '../lib/produtos-repo.js';
-import { drenarHistorico, registrar } from '../lib/historico.js';
-import { carregarFila, isConflito } from '../lib/fila-offline.js';
+  aplicarPendentes,
+  carregarFila,
+  isConflito,
+  type AlteracaoPendente,
+} from '../lib/fila-offline.js';
 import { monitorarConexao } from '../lib/conectividade.js';
 import { CHAVES, gravar, ler, solicitarArmazenamentoPersistente } from '../lib/armazenamento.js';
 import { registrarUltimoEstoque } from '../lib/usuarios-repo.js';
@@ -55,10 +55,10 @@ export function EstoqueProvider({ children }: { children: ReactNode }) {
 
   const [estoques, setEstoques] = useState<Inventory[]>([]);
   const [estoqueId, setEstoqueId] = useState<string | null>(null);
-  const [produtos, setProdutos] = useState<Produto[]>([]);
+  const [produtosBrutos, setProdutosBrutos] = useState<Produto[]>([]);
   const [carregandoProdutos, setCarregandoProdutos] = useState(false);
   const [online, setOnline] = useState(navigator.onLine);
-  const [pendentes, setPendentes] = useState(() => carregarFila().length);
+  const [fila, setFila] = useState<AlteracaoPendente[]>(() => carregarFila());
 
   const sincronizando = useRef(false);
 
@@ -67,6 +67,15 @@ export function EstoqueProvider({ children }: { children: ReactNode }) {
     [estoques, estoqueId],
   );
   const ciclo = estoqueAtual?.contagemCycle ?? 1;
+
+  // O que a tela vê: o Firestore mais o que está na fila esperando subir. Sem a
+  // sobreposição, um produto contado offline continua aparecendo como não contado.
+  const produtos = useMemo(
+    () => (estoqueId ? aplicarPendentes(produtosBrutos, fila, estoqueId) : produtosBrutos),
+    [produtosBrutos, fila, estoqueId],
+  );
+
+  const pendentes = fila.length;
 
   // Derivado dos produtos, não de rastreamento local: é a mesma verdade em todo aparelho.
   const progresso = useMemo(() => progressoContagem(produtos), [produtos]);
@@ -109,14 +118,14 @@ export function EstoqueProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!estoqueId || !usuario) {
-      setProdutos([]);
+      setProdutosBrutos([]);
       return;
     }
     setCarregandoProdutos(true);
     return ouvirProdutos(
       estoqueId,
       (lista) => {
-        setProdutos(lista);
+        setProdutosBrutos(lista);
         setCarregandoProdutos(false);
       },
       () => {
@@ -133,7 +142,7 @@ export function EstoqueProvider({ children }: { children: ReactNode }) {
     try {
       const resultado = await drenarFila();
       await drenarHistorico();
-      setPendentes(resultado.restantes);
+      setFila(carregarFila());
 
       if (resultado.enviados > 0) {
         mostrar(
@@ -201,7 +210,9 @@ export function EstoqueProvider({ children }: { children: ReactNode }) {
 
       try {
         const { sincronizado } = await atualizarProduto(estoqueId, produto.id, dados, base);
-        setPendentes(carregarFila().length);
+        // Releitura, não decremento: a fila pode ter deduplicado uma alteração anterior
+        // do mesmo produto, e o tamanho não muda de forma previsível.
+        setFila(carregarFila());
 
         if (sincronizado) mostrar('Contagem salva.', 'success');
         else mostrar('Sem conexão. Salvo no aparelho e enviado ao reconectar.', 'info');

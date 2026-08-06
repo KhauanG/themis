@@ -8,7 +8,20 @@
  *
  * Porte de `app.js::enqueuePendingUpdate` / `processPendingUpdates` (4.19.8).
  */
+import type { Produto } from '@themis/shared';
 import { CHAVES, gravar, ler, remover } from './armazenamento.js';
+
+/**
+ * Marcador de "remover este campo".
+ *
+ * O sentinela `deleteField()` do Firestore é um objeto e **não sobrevive ao JSON** do
+ * localStorage — uma alteração enfileirada offline chegaria ao servidor como `{}` e o
+ * campo ficaria lá. Por isso o chamador usa este marcador, que é string, e a conversão
+ * para `deleteField()` acontece só na hora de gravar (`produtos-repo.ts`).
+ *
+ * Mora aqui porque existe por causa da serialização da fila, não do Firestore.
+ */
+export const REMOVER = '__themis_remover_campo__';
 
 export interface AlteracaoPendente {
   id: string;
@@ -100,4 +113,51 @@ export function limparFila(): void {
 
 export function tamanhoFila(): number {
   return carregarFila().length;
+}
+
+/**
+ * Sobrepõe as alterações da fila na lista vinda do Firestore.
+ *
+ * Sem isto a tela mente. Offline, `atualizarProduto` só enfileira — não escreve no
+ * Firestore, então o cache local não muda, o `onSnapshot` não dispara e o produto continua
+ * aparecendo como não contado. O usuário não tem como saber se a contagem entrou, e
+ * reconta. O mesmo vale online com rede lenta, quando a transação estoura o teto.
+ *
+ * A fila é a verdade sobre "o que eu alterei e ainda não subiu". Quando ela drena, a
+ * sobreposição some sozinha, porque o dado real chega pelo listener.
+ *
+ * Função pura, sem Firestore — é o que permite testá-la sem ambiente.
+ */
+export function aplicarPendentes(
+  produtos: readonly Produto[],
+  fila: readonly AlteracaoPendente[],
+  inventoryId: string,
+): Produto[] {
+  const porProduto = new Map<string, AlteracaoPendente>();
+  for (const item of fila) {
+    if (item.tipo === 'update' && item.inventoryId === inventoryId) {
+      porProduto.set(item.produtoId, item);
+    }
+  }
+
+  if (porProduto.size === 0) return produtos as Produto[];
+
+  return produtos.map((p) => {
+    const pendente = porProduto.get(p.id);
+    if (!pendente) return p;
+
+    const mesclado: Produto = { ...p };
+    const campos = mesclado as unknown as Record<string, unknown>;
+
+    for (const [campo, valor] of Object.entries(pendente.dados)) {
+      if (valor === REMOVER) delete campos[campo];
+      else campos[campo] = valor;
+    }
+
+    // Momento em que o usuário alterou. Mantém a ordenação da aba "Contados" coerente
+    // sem inventar dado: é a hora real da edição, guardada na fila.
+    mesclado.lastModified = new Date(pendente.enfileiradoEm);
+
+    return mesclado;
+  });
 }

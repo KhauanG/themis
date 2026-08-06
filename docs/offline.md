@@ -91,6 +91,25 @@ Ao reconectar, `EstoqueContext.sincronizar()`:
 Se uma transação estoura o teto mas o servidor confirma depois, a fila reaplica o **mesmo
 valor**. A checagem de conflito não acusa divergência. Inofensivo.
 
+### A fila também alimenta a tela
+
+`aplicarPendentes(produtos, fila, inventoryId)` sobrepõe as alterações pendentes na lista
+vinda do Firestore, antes de renderizar.
+
+**Sem isso a tela mente.** Offline, `atualizarProduto` só enfileira — não escreve no
+Firestore. O cache local não muda, o `onSnapshot` não dispara, e o produto continua
+aparecendo como **não contado**. O usuário não tem como saber se a contagem entrou, e
+reconta. Vale igual online com rede lenta, quando a transação estoura o teto.
+
+Quando a fila drena, a sobreposição some sozinha: o dado real chega pelo listener.
+
+O `lastModified` exibido vem de `enfileiradoEm` — a hora real da edição. Sem ele, o item
+contado offline apareceria no fim da aba "Contados", longe de onde o usuário acabou de
+trabalhar.
+
+A função é pura e mora em `fila-offline.ts`, não em `produtos-repo.ts`: não depende do
+Firestore, e assim é testável sem ambiente. 9 testes.
+
 ---
 
 ## Detecção de conflito

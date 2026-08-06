@@ -76,6 +76,22 @@ item.
 **Evitar.** Formulário em componente separado, que **monta** ao abrir e lê o valor inicial
 uma vez no `useState`. É o que `FormContagem` faz.
 
+### Produto contado offline aparece como não contado
+
+**Sintoma.** Em modo avião o funcionário conta, o toast diz "salvo no aparelho", mas o card
+continua mostrando traço e a aba "A contar" não diminui. Ao voltar a rede, os produtos
+"pulam" para o valor certo.
+
+**Causa.** Offline, `atualizarProduto` **só enfileira** — não escreve no Firestore. O cache
+local não muda, o `onSnapshot` não dispara, a tela fica com o valor antigo. Acontece
+também online com rede lenta, quando a transação estoura o teto.
+
+**Por que é grave.** O usuário não tem como saber se a contagem entrou. Ele reconta — e o
+trabalho dobra, exatamente no cenário em que o app precisa ser confiável.
+
+**Evitar.** `aplicarPendentes()` sobrepõe a fila na lista antes de renderizar. Qualquer
+caminho novo que enfileire sem escrever no Firestore precisa passar por lá.
+
 ### A câmera do leitor reabre sem parar
 
 **Causa.** O callback passado ao leitor não era memoizado e estava nas dependências do

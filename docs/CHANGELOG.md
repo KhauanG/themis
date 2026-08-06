@@ -6,6 +6,33 @@ Categorias: **Adicionado**, **Alterado**, **Corrigido**, **Removido**, **Seguran
 
 ---
 
+## 2.0.1 — 2026-08-06
+
+### Corrigido
+
+- **Produto contado offline aparecia como não contado.** Em modo avião o toast dizia
+  "salvo no aparelho", mas o card seguia com traço e a aba "A contar" não diminuía; ao
+  voltar a rede os valores "pulavam" para o certo.
+
+  Offline, `atualizarProduto` só enfileira — não escreve no Firestore. O cache local não
+  muda, o `onSnapshot` não dispara e a tela fica com o valor antigo. O mesmo acontecia
+  online com rede lenta, quando a transação estoura o teto.
+
+  Grave porque o usuário não tinha como saber se a contagem entrou, e recontaria — o
+  oposto do que o app precisa fazer justamente quando a rede está ruim.
+
+  `aplicarPendentes()` passa a sobrepor a fila na lista antes de renderizar. O
+  `lastModified` exibido vem da hora da edição, para o item não cair no fim da aba
+  "Contados". 9 testes.
+
+### Alterado
+
+- `REMOVER` e `aplicarPendentes` saíram de `produtos-repo.ts` para `fila-offline.ts`. Os
+  dois existem por causa da serialização da fila, não do Firestore — e assim são testáveis
+  sem variáveis de ambiente.
+
+---
+
 ## 2.0.0 — 2026-08-06
 
 Primeira versão no ar em `themis.grupoicebeer.com.br`. Reescrita completa do Themis 1.x
