@@ -149,9 +149,11 @@ Portado e verificado (typecheck + lint + 56 testes + build):
 - [x] Varredura rodada em produção — **base limpa**, nada a corrigir (2026-08-06)
 - [x] Documentação completa em [`docs/`](docs/README.md)
 
+- [x] Validado em celular Android real: câmera, instalação, rota de SPA, offline e
+      drenagem da fila (2026-08-06)
+
 Falta:
-- [ ] Teste manual em celular Android real (câmera exige HTTPS)
-- [ ] Migração dos usuários do APK para o PWA
+- [ ] Migração dos usuários do APK para o PWA — ver [DEPLOY.md](DEPLOY.md) §Passo 8
 - [ ] Criar e excluir usuário pelo app (hoje só pelo Console do Firebase)
 - [ ] Mover os cabeçalhos de segurança do `.htaccess` para o Fastify — ver
       [docs/seguranca.md](docs/seguranca.md) §Cabeçalhos

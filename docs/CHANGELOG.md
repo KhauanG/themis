@@ -8,6 +8,10 @@ Categorias: **Adicionado**, **Alterado**, **Corrigido**, **Removido**, **Seguran
 
 ## 2.0.1 — 2026-08-06
 
+Validado em celular Android real contra o Firestore de produção: login, contagem, leitor
+de código de barras, instalação como app, rota de SPA, modo avião e drenagem da fila ao
+reconectar.
+
 ### Corrigido
 
 - **Produto contado offline aparecia como não contado.** Em modo avião o toast dizia
