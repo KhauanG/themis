@@ -6,7 +6,8 @@
     "moduleResolution": "nodenext",
     "types": ["node"],
     "rootDir": "./src",
-    "outDir": "./dist"
+    // Só checagem de tipos: quem produz `dist/server.js` é o esbuild (build.mjs).
+    "outDir": "./dist-types"
   },
   "include": ["src/**/*.ts"],
   "exclude": ["src/**/*.test.ts"]

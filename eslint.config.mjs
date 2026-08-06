@@ -18,7 +18,7 @@ export default tseslint.config(
   {
     // Scripts de manutenção rodam no Node e falam com o operador pelo terminal:
     // `console.log` é a interface deles, não sujeira esquecida no código.
-    files: ['scripts/**/*.mjs', '*.config.{js,mjs,ts}'],
+    files: ['scripts/**/*.mjs', '**/build.mjs', '*.config.{js,mjs,ts}'],
     languageOptions: { globals: globals.node },
     rules: { 'no-console': 'off' },
   },

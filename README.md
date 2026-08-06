@@ -80,6 +80,14 @@ Contagem ao vivo e auditoria salva são normalizadas por `linhasDeProdutos` /
 própria origem, selecionar uma auditoria antiga e exportar gerava o arquivo com a contagem
 atual. Há teste de paridade entre os dois caminhos.
 
+**A API é empacotada num arquivo único.**
+`apps/api/build.mjs` roda o esbuild e produz `apps/api/dist/server.js` com todas as
+dependências embutidas. Em produção, rodar o Themis precisa de exatamente dois caminhos —
+esse arquivo e `apps/web/dist/` — sem `node_modules`, sem `npm install` no servidor e sem
+resolução de workspace. A hospedagem compila num diretório e copia o resultado para outro;
+quando o `node_modules` não sobrevivia à cópia, o processo morria no primeiro `import` e o
+sintoma era `503 Service Unavailable` sem nada no log, porque nem chegava a existir logger.
+
 ## Avisos do `npm audit` que ficam abertos de propósito
 
 `npm audit --omit=dev` acusa 4 (2 high). Os quatro foram avaliados e **não se aplicam** ao
