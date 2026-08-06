@@ -5,101 +5,136 @@
  * (861 KB em toda abertura do app, versão do npm sem as correções publicadas só no CDN).
  * Entra por import dinâmico: só quem importa ou exporta paga o custo.
  */
-import type { LinhaRelatorio } from '@themis/shared';
+import {
+  mapearColunas,
+  numeroDeCelula,
+  textoDeCelula,
+  type CampoPlanilha,
+  type LinhaRelatorio,
+} from '@themis/shared';
 import { entregarArquivo, nomeDeArquivo } from './arquivo.js';
+import { normalizarPacoteXlsx } from './planilha-formato.js';
 
-/** Aceita as várias grafias que já apareceram nas planilhas do ERP. */
-const COLUNAS: Record<string, string[]> = {
-  nome: ['nome', 'produto', 'nomeproduto', 'descricao', 'descrição'],
-  codigoBarras: ['codigobarras', 'codigo de barras', 'codigo', 'ean', 'gtin'],
-  idProduto: ['idproduto', 'id', 'codigoproduto', 'codigo produto'],
-  estoqueSistema: ['estoquesistema', 'estoque', 'estoqueatual', 'saldo', 'quantidade sistema'],
-};
-
-function normalizar(cabecalho: string): string {
-  return cabecalho
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .trim()
-    .toLowerCase();
+/**
+ * `exceljs` é CommonJS. O Vite achata os named exports no import dinâmico; o Node os
+ * entrega dentro de `default`. Sem isto, `new ExcelJS.Workbook()` estoura com
+ * `is not a constructor` fora do navegador — e o script que confere a leitura contra a
+ * planilha real do cliente roda no Node.
+ */
+async function carregarExcelJS() {
+  const mod = await import('exceljs');
+  const raiz = mod as unknown as { default?: unknown };
+  return (raiz.default ?? mod) as typeof mod;
 }
 
-function mapearColunas(cabecalhos: string[]): Record<string, number> {
-  const mapa: Record<string, number> = {};
-  cabecalhos.forEach((bruto, indice) => {
-    const limpo = normalizar(String(bruto ?? ''));
-    for (const [campo, aceitos] of Object.entries(COLUNAS)) {
-      if (mapa[campo] === undefined && aceitos.includes(limpo)) mapa[campo] = indice;
-    }
-  });
-  return mapa;
-}
-
+/**
+ * Uma linha aproveitada da planilha.
+ *
+ * Traz mais do que a contagem precisa de propósito: `PrecoCusto`, `PrecoVenda` e
+ * `EstoqueMinimo` **fazem parte do payload que o ERP espera** na correção de estoque. Se a
+ * importação os descartasse, toda correção mandaria `0` para produto que tem preço.
+ */
 export interface LinhaImportada {
   nome: string;
-  codigoBarras: string | null;
+  codigoBarras: string;
   IdProduto: string | null;
   estoqueSistema: number;
   temCodigoBarras: boolean;
+  CodigoInterno: string;
+  NCM: string;
+  PrecoCusto: number;
+  PrecoPJ: number;
+  PrecoVenda: number;
+  EstoqueMinimo: number;
+  Categoria: string;
+  Unidade: string;
 }
 
 export interface ResultadoImportacao {
   linhas: LinhaImportada[];
+  /** Linhas sem nome de produto. Não dá para importar produto sem nome. */
   ignoradas: number;
+  /** Vazio quando a planilha serve. Só o nome é indispensável, como no 1.x. */
   colunasFaltando: string[];
+  /**
+   * A planilha trazia coluna de saldo.
+   *
+   * Quando **não** trazia, o saldo do produto que já existe não pode ser sobrescrito com
+   * zero: a planilha simplesmente não fala sobre isso. É a mesma distinção que o 1.x fazia
+   * com `hasEstoqueAtualColumn`.
+   */
+  temColunaEstoque: boolean;
 }
 
 export async function lerPlanilha(arquivo: File): Promise<ResultadoImportacao> {
-  const ExcelJS = await import('exceljs');
+  const ExcelJS = await carregarExcelJS();
   const pasta = new ExcelJS.Workbook();
-  await pasta.xlsx.load(await arquivo.arrayBuffer());
+
+  // O ERP gera OOXML num dialeto que o `exceljs` não abre. Ver `planilha-formato.ts`.
+  await pasta.xlsx.load(await normalizarPacoteXlsx(await arquivo.arrayBuffer()));
 
   const aba = pasta.worksheets[0];
   if (!aba) throw new Error('A planilha está vazia.');
 
-  const cabecalhos = (aba.getRow(1).values as unknown[]).slice(1).map((v) => String(v ?? ''));
+  // `values` do exceljs é 1-based: a posição 0 nunca é usada.
+  const cabecalhos = ((aba.getRow(1).values as unknown[]) ?? []).slice(1);
   const mapa = mapearColunas(cabecalhos);
 
-  const faltando = ['nome', 'estoqueSistema'].filter((c) => mapa[c] === undefined);
-  if (faltando.length > 0) return { linhas: [], ignoradas: 0, colunasFaltando: faltando };
+  // Só o nome é obrigatório — mesma regra do 1.x. Sem `EstoqueAtual` o produto entra com
+  // saldo 0, que é o certo: "Buscar estoque" preenche depois a partir do ERP.
+  const temColunaEstoque = mapa.EstoqueAtual !== undefined;
+
+  if (mapa.NomeProduto === undefined) {
+    return { linhas: [], ignoradas: 0, colunasFaltando: ['nome do produto'], temColunaEstoque };
+  }
 
   const linhas: LinhaImportada[] = [];
   let ignoradas = 0;
 
   aba.eachRow((linha, numero) => {
     if (numero === 1) return;
-    const valores = (linha.values as unknown[]).slice(1);
-    const pegar = (campo: string) => {
+    const valores = ((linha.values as unknown[]) ?? []).slice(1);
+
+    const celula = (campo: CampoPlanilha): unknown => {
       const i = mapa[campo];
       return i === undefined ? undefined : valores[i];
     };
+    const texto = (campo: CampoPlanilha) => textoDeCelula(celula(campo));
+    const numero_ = (campo: CampoPlanilha) => numeroDeCelula(celula(campo));
 
-    const nome = String(pegar('nome') ?? '').trim();
+    const nome = texto('NomeProduto');
     if (!nome) {
       ignoradas++;
       return;
     }
 
-    const codigo = String(pegar('codigoBarras') ?? '').trim();
-    const sistema = Number(pegar('estoqueSistema') ?? 0);
+    const codigo = texto('CodigoBarras');
 
     linhas.push({
       nome,
-      codigoBarras: codigo || null,
-      IdProduto: String(pegar('idProduto') ?? '').trim() || null,
-      estoqueSistema: Number.isFinite(sistema) ? sistema : 0,
-      temCodigoBarras: Boolean(codigo),
+      codigoBarras: codigo,
+      IdProduto: texto('IdProduto') || null,
+      estoqueSistema: numero_('EstoqueAtual'),
+      temCodigoBarras: codigo !== '',
+      CodigoInterno: texto('CodigoInterno'),
+      NCM: texto('NCM'),
+      PrecoCusto: numero_('PrecoCusto'),
+      PrecoPJ: numero_('PrecoPJ'),
+      PrecoVenda: numero_('PrecoVenda'),
+      EstoqueMinimo: numero_('EstoqueMinimo'),
+      Categoria: texto('Categoria'),
+      Unidade: texto('Unidade'),
     });
   });
 
-  return { linhas, ignoradas, colunasFaltando: [] };
+  return { linhas, ignoradas, colunasFaltando: [], temColunaEstoque };
 }
 
 export async function exportarPlanilha(
   linhas: readonly LinhaRelatorio[],
   nomeEstoque: string,
 ): Promise<void> {
-  const ExcelJS = await import('exceljs');
+  const ExcelJS = await carregarExcelJS();
   const pasta = new ExcelJS.Workbook();
   pasta.creator = 'Themis';
   pasta.created = new Date();

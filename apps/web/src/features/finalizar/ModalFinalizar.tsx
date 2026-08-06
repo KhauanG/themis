@@ -19,7 +19,7 @@ interface Props {
 
 export function ModalFinalizar({ aberto, onFechar }: Props) {
   const { estoqueAtual, produtos, ciclo, contextoLog } = useEstoque();
-  const { usuario } = useAuth();
+  const { usuario, permissoes } = useAuth();
   const { mostrar } = useToast();
 
   const [texto, setTexto] = useState('');
@@ -118,14 +118,24 @@ export function ModalFinalizar({ aberto, onFechar }: Props) {
           <span>Não contados</span>
           <strong>{estatisticas.naoContados}</strong>
         </li>
-        <li>
-          <span>Corretos</span>
-          <strong>{estatisticas.corretos}</strong>
-        </li>
-        <li>
-          <span>Divergentes</span>
-          <strong>{estatisticas.incorretos}</strong>
-        </li>
+        {/*
+          Contagem às cegas: "corretos" e "divergentes" comparam com o saldo do sistema.
+          Quem só conta não vê — nem no fim. Saber "errei 40" no fechamento é a mesma
+          informação que a contagem às cegas existe para não dar. Contado e não contado
+          ficam: são progresso, não comparação.
+        */}
+        {permissoes.verEstoqueSistema && (
+          <>
+            <li>
+              <span>Corretos</span>
+              <strong>{estatisticas.corretos}</strong>
+            </li>
+            <li>
+              <span>Divergentes</span>
+              <strong>{estatisticas.incorretos}</strong>
+            </li>
+          </>
+        )}
       </ul>
 
       {estatisticas.naoContados > 0 && (

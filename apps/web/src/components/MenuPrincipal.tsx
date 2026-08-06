@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ROTULO_PAPEL, type Papel, type Permissoes } from '@themis/shared';
+import { COMMIT, VERSAO, dataBuildLegivel } from '../versao.js';
 import { Icone, type NomeIcone } from './Icone.js';
 
 interface ItemMenu {
@@ -233,8 +234,14 @@ export function MenuPrincipal({
           ))}
         </div>
 
+        {/*
+          A versão fica visível de propósito. Num PWA o service worker guarda o build
+          antigo no aparelho; quando alguém diz "continua com erro", este número é o que
+          responde se a correção chegou no celular dele. `title` traz o commit e a data —
+          suficiente para achar o build exato no repositório.
+        */}
         <footer className="menu__rodape">
-          <span>Themis 2.0</span>
+          <span title={`Build ${COMMIT} · ${dataBuildLegivel()}`}>Themis {VERSAO}</span>
           <span>
             {online
               ? pendentes > 0

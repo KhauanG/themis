@@ -19,9 +19,32 @@
  * versão e sem depender de nenhum arquivo vizinho.
  */
 import { build } from 'esbuild';
+import { execSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
 
 await rm('dist', { recursive: true, force: true });
+
+/**
+ * Identidade do build, gravada no bundle.
+ *
+ * A versão vem da raiz — a mesma fonte que `scripts/verificar-versao.mjs` cobra. Antes o
+ * `/api/health` devolvia `'2.0.0'` escrito à mão, que ficou parado enquanto o projeto ia
+ * para 2.6.x. Sem isso não dá para conferir por fora qual código está no ar na Hostinger.
+ */
+const versao = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')).version;
+
+function commitAtual() {
+  try {
+    return execSync('git rev-parse --short HEAD', {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+  } catch {
+    // A hospedagem compila numa cópia que pode não ser um repositório git.
+    return 'desconhecido';
+  }
+}
 
 const resultado = await build({
   entryPoints: ['src/server.ts'],
@@ -31,6 +54,11 @@ const resultado = await build({
   target: 'node20',
   format: 'esm',
   sourcemap: true,
+  define: {
+    __VERSAO__: JSON.stringify(versao),
+    __COMMIT__: JSON.stringify(commitAtual()),
+    __DATA_BUILD__: JSON.stringify(new Date().toISOString()),
+  },
   // Sem minificar: se algo quebrar em produção, o stack trace precisa ser legível.
   minify: false,
   logLevel: 'info',
@@ -51,3 +79,4 @@ const resultado = await build({
 
 const saida = resultado.metafile.outputs['dist/server.mjs'];
 console.log(`\nBundle: ${(saida.bytes / 1024).toFixed(0)} KB, zero dependências em runtime.`);
+console.log(`Versão ${versao} (${commitAtual()}) gravada em /api/versao.`);

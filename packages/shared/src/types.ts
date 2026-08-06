@@ -34,9 +34,11 @@ export interface Produto {
   nome?: string;
   NomeProduto?: string;
 
-  // Identificador no ERP: duas grafias.
+  // Identificador no ERP: três grafias.
   IdProduto?: string | number | null;
   idProduto?: string | number | null;
+  /** Não é erro de digitação: o 1.x gravava assim nos produtos que ele criava na importação. */
+  idProdut?: string | number | null;
 
   // Código de barras: duas grafias.
   codigoBarras?: string | null;

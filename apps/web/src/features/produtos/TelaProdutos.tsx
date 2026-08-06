@@ -6,7 +6,7 @@ import { Modal } from '../../components/Modal.js';
 import {
   atualizarEstoqueSistema,
   criarProduto,
-  criarProdutosEmLote,
+  importarProdutos,
   limparContagem,
 } from '../../lib/produtos-repo.js';
 import { buscarEstoqueDoErp, hashDaLoja } from '../../lib/erp.js';
@@ -38,7 +38,7 @@ export function TelaProdutos() {
     if (!estoqueAtual) return;
     setOcupado({ texto: 'Lendo planilha' });
     try {
-      const { linhas, ignoradas, colunasFaltando } = await lerPlanilha(arquivo);
+      const { linhas, ignoradas, colunasFaltando, temColunaEstoque } = await lerPlanilha(arquivo);
 
       if (colunasFaltando.length > 0) {
         mostrar(`A planilha não tem as colunas: ${colunasFaltando.join(', ')}.`, 'error');
@@ -49,28 +49,30 @@ export function TelaProdutos() {
         return;
       }
 
-      // Sem `productStatus`: "não contado" é a ausência do campo, e a regra só aceita
-      // 'ATUALIZADO' ou 'CONFERIDO'. `codigoBarras` vai como string vazia porque a
-      // regra exige `is string` e a chave é obrigatória.
-      const criados = await criarProdutosEmLote(
+      // Upsert por `IdProduto`, como no 1.x: reimportar atualiza o cadastro e **preserva a
+      // contagem em andamento**, em vez de criar uma segunda cópia de cada produto.
+      const { criados, atualizados } = await importarProdutos(
         estoqueAtual.id,
-        linhas.map((l) => ({
-          nome: l.nome,
-          NomeProduto: l.nome,
-          codigoBarras: l.codigoBarras ?? '',
-          quantidade: 0,
-          estoqueSistema: l.estoqueSistema,
-          temCodigoBarras: l.temCodigoBarras,
-          ...(l.IdProduto ? { IdProduto: l.IdProduto } : {}),
-        })),
+        linhas,
+        temColunaEstoque,
         (feitos, total) => setOcupado({ texto: 'Importando', feitos, total }),
       );
 
-      mostrar(
-        `${criados} ${criados === 1 ? 'produto importado' : 'produtos importados'}${ignoradas > 0 ? `, ${ignoradas} linha(s) ignorada(s)` : ''}.`,
-        'success',
-      );
-      if (contextoLog) void registrar('IMPORTAR_PLANILHA', contextoLog, { criados, ignoradas });
+      const partes = [
+        criados > 0 ? `${criados} ${criados === 1 ? 'novo' : 'novos'}` : null,
+        atualizados > 0 ? `${atualizados} atualizado${atualizados === 1 ? '' : 's'}` : null,
+        ignoradas > 0 ? `${ignoradas} linha${ignoradas === 1 ? '' : 's'} sem nome` : null,
+      ].filter(Boolean);
+      mostrar(`Importação concluída: ${partes.join(', ')}.`, 'success');
+
+      if (contextoLog) {
+        void registrar('IMPORTAR_PLANILHA', contextoLog, {
+          criados,
+          atualizados,
+          ignoradas,
+          linhas: linhas.length,
+        });
+      }
     } catch (erro) {
       console.error('[produtos] Importação falhou:', erro);
       mostrar('Não foi possível importar a planilha.', 'error');

@@ -6,6 +6,78 @@ Categorias: **Adicionado**, **Alterado**, **Corrigido**, **Removido**, **Seguran
 
 ---
 
+## 2.7.0 — 2026-08-06
+
+### Corrigido
+
+- **A importação não lia a planilha do ERP.** O arquivo real da empresa vem num dialeto
+  OOXML que o `exceljs` não abre: elementos com prefixo de namespace (`<x:worksheet>`) e
+  alvo absoluto nas relações (`Target="/xl/..."`). As duas formas são válidas pela
+  especificação; o parser do `exceljs` compara nome de elemento por igualdade literal e
+  devolve `undefined`, e a leitura estourava com `Cannot set properties of undefined
+  (setting 'sheetNo')` — mensagem que não diz nada sobre a causa. O 1.x lia normalmente
+  porque usava SheetJS.
+
+  `apps/web/src/lib/planilha-formato.ts` normaliza o pacote antes de entregá-lo ao
+  `exceljs`, e só reempacota quando encontra alguma das duas formas. Verificado contra o
+  arquivo do cliente: **1643 produtos, zero ignorados**.
+
+- **Reimportar duplicava o catálogo inteiro.** A importação só criava. O 1.x fazia upsert
+  por `IdProduto` e preservava a contagem em andamento; o 2.0 criaria uma segunda cópia de
+  cada um dos 1600 produtos, com a contagem dividida entre a cópia velha e a nova.
+  Agora `importarProdutos()` atualiza quem já existe, mantém `quantidade` e `productStatus`
+  de quem já foi contado, e casa por nome quando a linha não tem `IdProduto` — caso em que
+  o próprio 1.x duplicava.
+
+- **A importação descartava preço e estoque mínimo.** São campos do payload que o ERP
+  espera na correção de estoque (ver 2.6.2). Sem eles, toda correção mandaria `0` para
+  produto que tem preço cadastrado. A planilha traz `PrecoCusto`, `PrecoPJ`, `PrecoVenda` e
+  `EstoqueMinimo`, e agora eles são gravados.
+
+- **No celular, digitar num modal jogava o foco no botão de fechar a cada letra.** O efeito
+  do `Modal` tinha `onFechar` nas dependências, e quase toda chamada passa uma arrow inline
+  — identidade nova a cada render do pai. Cada tecla remontava o efeito: a limpeza devolvia
+  o foco para trás e a nova execução o mandava para o **primeiro focável**, que é o ✕ do
+  cabeçalho. O teclado virtual fechava, e era preciso tocar no campo de novo para cada
+  caractere. Atingia renomear estoque, cadastrar produto e o campo FINALIZAR.
+
+  Agora o efeito depende só de `aberto`, com `onFechar` por referência, e o foco inicial vai
+  para o primeiro **campo**, nunca para um botão.
+
+### Adicionado
+
+- **Contagem às cegas.** Quem só conta (papel `comum`) não vê mais o saldo do sistema nem a
+  diferença durante a contagem. Ver o número faz o funcionário conferir em vez de contar:
+  ele lê "sistema 12", encontra 11 e digita 12 — e o inventário deixa de medir justamente o
+  erro que existe para pegar. Admin, master e auditor continuam vendo.
+
+  Some para o papel `comum`: a diferença `+N`/`-N` e a etiqueta `ok` no card, o `sistema N`
+  do item não contado, a linha "Sistema: N · diferença" no formulário, as abas "Corrigidos
+  OK" e "Corrigidos com erro", e os totais "Corretos"/"Divergentes" ao finalizar.
+  Nova permissão `verEstoqueSistema`.
+
+  ⚠️ É desenho de processo, **não barreira de segurança**: o saldo vem no documento do
+  produto e as regras o liberam para qualquer autenticado.
+
+- **Versionamento de verdade.** A versão estava em quatro `package.json` e no changelog,
+  mantidos à mão — e divergiram: os pacotes diziam `2.0.0` enquanto o changelog ia em
+  `2.6.2`. O `/api/health` devolvia `'2.0.0'` escrito no código. Num PWA isso não é
+  organização: o service worker guarda o build antigo no aparelho, e sem número confiável
+  não dá para responder "a correção chegou no celular do funcionário?".
+
+  - `npm run versao -- patch|minor|major|X.Y.Z` sincroniza os quatro pacotes e abre a seção
+    do changelog.
+  - `npm run versao:marcar` cria a tag git, depois do commit — a tag precisa apontar para o
+    commit que **tem** o changelog escrito.
+  - `npm run verificar-versao` falha se os pacotes divergirem, se faltar seção no changelog,
+    se ela estiver vazia ou se o topo do changelog não for a versão atual. Roda dentro de
+    `npm run verificar`.
+  - Versão, commit e data do build entram no bundle (`define` do Vite e do esbuild),
+    aparecem no rodapé do menu e em **`GET /api/versao`** — dá para conferir o que está no
+    ar com um `curl`.
+
+---
+
 ## 2.6.2 — 2026-08-06
 
 Auditoria de paridade das chamadas ao ERP e ao Firestore contra o Themis 1.x. Sete

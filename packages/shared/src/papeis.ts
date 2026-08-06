@@ -48,6 +48,18 @@ export interface Permissoes {
   gerenciarUsuarios: boolean;
   /** Ver o histórico geral de ações. */
   verHistorico: boolean;
+  /**
+   * Ver o saldo do sistema e a diferença **durante a contagem**.
+   *
+   * Quem só conta, conta **às cegas**. Mostrar o número do sistema faz o funcionário
+   * conferir em vez de contar: ele vê "sistema 12", encontra 11, e digita 12. A contagem
+   * deixa de medir o estoque e passa a confirmar o que o ERP já achava — que é exatamente
+   * o erro que o inventário existe para pegar.
+   *
+   * Não é regra de segurança: o dado vem no documento do produto e as regras o liberam para
+   * qualquer autenticado. É desenho de processo, e vale enquanto a tela obedecer.
+   */
+  verEstoqueSistema: boolean;
 }
 
 export function permissoesDe(papel: Papel): Permissoes {
@@ -63,5 +75,7 @@ export function permissoesDe(papel: Papel): Permissoes {
     finalizarContagem: true,
     gerenciarUsuarios: papel === 'master',
     verHistorico: admin || papel === 'auditor',
+    // Auditor vê: o trabalho dele é justamente comparar contagem com sistema.
+    verEstoqueSistema: admin || papel === 'auditor',
   };
 }

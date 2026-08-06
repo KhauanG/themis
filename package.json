@@ -1,6 +1,6 @@
 {
   "name": "themis",
-  "version": "2.0.0",
+  "version": "2.7.0",
   "private": true,
   "description": "Themis 2.0 - PWA de contagem de estoque do Grupo Ice Beer",
   "workspaces": [
@@ -18,7 +18,10 @@
     "start": "node apps/api/dist/server.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
-    "verificar": "npm run typecheck && npm run lint && npm test && npm run build",
+    "verificar": "npm run verificar-versao && npm run typecheck && npm run lint && npm test && npm run build",
+    "versao": "node scripts/versionar.mjs",
+    "versao:marcar": "node scripts/marcar-versao.mjs",
+    "verificar-versao": "node scripts/verificar-versao.mjs",
     "lint": "eslint .",
     "typecheck": "tsc --build --pretty",
     "auditar-produtos": "npm run build --workspace @themis/shared && node --env-file=apps/web/.env scripts/auditar-produtos.mjs",

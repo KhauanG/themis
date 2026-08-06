@@ -126,12 +126,38 @@ Entrega por **Web Share** (abre a folha nativa do Android), com download como al
 
 ### Importação
 
-Aceita várias grafias de cabeçalho (`nome`/`produto`/`descrição`, `codigo de barras`/`ean`/
-`gtin`, ...). Exige ao menos **nome** e **estoque do sistema**; linha sem nome é ignorada e
-contabilizada.
+A planilha de referência é a que o ERP da Nuvem3 exporta:
+
+```
+IdProduto  NomeProduto  CodigoInterno  CodigoBarras  NCM  PrecoCusto  PrecoPJ
+PrecoVenda  EstoqueMinimo  EstoqueAtual  Categoria  Unidade
+```
+
+Aceita outras grafias (`nome`/`produto`/`descrição`, `codigo de barras`/`ean`/`gtin`,
+`quantidade`/`saldo`/`estoque`, ...) — a detecção casa primeiro por **igualdade exata** e só
+depois por aproximação, para que `CodigoInterno` não roube a coluna de `CodigoBarras`.
+
+**Só o nome é obrigatório.** Linha sem nome é ignorada e contabilizada. Sem coluna de saldo,
+o produto novo entra com `0` e o produto que já existe **mantém o saldo que tinha** — a
+planilha não falou sobre isso.
+
+**É upsert, não recriação.** Casa por `IdProduto` (por nome, quando a linha não tem id) e:
+
+- produto **novo** → criado com `quantidade: 0`;
+- produto **existente** → cadastro atualizado, e a **contagem em andamento é preservada**:
+  quem já foi contado mantém `quantidade` e `productStatus`.
+
+> Reimportar não pode dividir a contagem entre uma cópia velha e uma nova. Antes disto, a
+> importação só criava — e reimportar o catálogo duplicava 1600 produtos.
+
+Preço e estoque mínimo são gravados mesmo sem aparecer em tela: fazem parte do payload que o
+ERP espera na correção de estoque (§O contrato com o ERP).
 
 ⚠️ Em lotes de 500 (o limite do Firestore). Uma escrita por produto, com teto de 8s cada,
 tornava a importação de 2000 linhas inviável.
+
+⚠️ O arquivo do ERP vem num dialeto OOXML que o `exceljs` não abre sozinho; ele é
+normalizado antes da leitura. Ver [armadilhas.md](armadilhas.md) §Planilha.
 
 ### Corrigir estoque
 

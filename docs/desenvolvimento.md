@@ -41,8 +41,8 @@ npm start
 npm run verificar
 ```
 
-Roda typecheck, lint, testes e build, e para no primeiro erro. **É o que precisa passar
-antes de qualquer commit.**
+Roda **versionamento**, typecheck, lint, testes e build, e para no primeiro erro. **É o que
+precisa passar antes de qualquer commit.**
 
 Individualmente:
 
@@ -168,11 +168,70 @@ porque include tem precedencia sobre omit.
 | `npm run dev:api` | API em desenvolvimento |
 | `npm run build` | build completo |
 | `npm start` | roda o build de produção |
-| `npm run verificar` | typecheck + lint + testes + build |
+| `npm run verificar` | versionamento + typecheck + lint + testes + build |
 | `npm test` | testes |
+| `npm run versao -- patch` | sobe a versão e abre a seção do changelog |
+| `npm run versao:marcar` | cria a tag git da versão atual |
+| `npm run verificar-versao` | confere versão x changelog |
 | `npm run auditar-produtos` | varredura de produtos legados (só leitura) |
+| `npx tsx scripts/verificar-planilha.mts <arquivo>` | testa a leitura de uma planilha real |
 | `npm run deploy-rules` | publica as Security Rules |
 | `npm run deploy-indexes` | publica os índices |
+
+---
+
+## Versionamento
+
+**Toda alteração de comportamento sobe a versão.** Não é burocracia: o PWA guarda o build
+antigo no aparelho pelo service worker, e sem um número confiável na tela não dá para
+responder *"a correção chegou no celular do funcionário?"*. Já aconteceu de os pacotes
+dizerem `2.0.0` enquanto o changelog ia em `2.6.2` — número que não acompanha o código
+responde com confiança a pergunta errada.
+
+### Qual casa subir
+
+| | Quando | Exemplo |
+|---|---|---|
+| **patch** `2.7.0 → 2.7.1` | corrigir sem mudar o que o usuário faz | foco do modal |
+| **minor** `2.7.0 → 2.8.0` | funcionalidade nova, compatível | contagem às cegas |
+| **major** `2.7.0 → 3.0.0` | quebra de compatibilidade | formato de dado no Firestore |
+
+### O ciclo
+
+```powershell
+npm run versao -- minor      # sincroniza os 4 package.json e abre a seção no changelog
+# escreva o changelog: o que mudou, e por quê
+npm run verificar            # a trava recusa seção vazia
+git add -A
+git commit
+npm run versao:marcar        # tag, depois do commit
+git push origin desenvolvimento
+```
+
+A tag vem **depois** do commit de propósito: ela precisa apontar para o commit que já tem o
+changelog escrito. Tag movida depois é pior que tag nenhuma — quem já clonou fica com outra
+ideia do que aquela versão significa.
+
+### O que a trava cobra
+
+`npm run verificar-versao` falha se:
+
+- os quatro `package.json` divergirem;
+- faltar seção da versão atual no `docs/CHANGELOG.md`;
+- a seção estiver vazia (o esqueleto que o script abre não passa);
+- o topo do changelog não for a versão atual.
+
+### Onde a versão aparece
+
+| Onde | Como ver |
+|---|---|
+| Rodapé do menu | `Themis 2.7.0`; o `title` traz commit e data do build |
+| API | `curl https://o-dominio/api/versao` |
+| `/api/health` | campo `versao` |
+
+Versão, commit e data entram no bundle na compilação (`define` do Vite e do esbuild). Fora
+de um repositório git — a hospedagem compila numa cópia — o commit fica `desconhecido` em
+vez de quebrar o build.
 
 ## Estrutura de referência
 

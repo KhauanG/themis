@@ -1,8 +1,8 @@
 import { useCallback, useMemo, useState } from 'react';
 import {
-  FILTROS,
   contarPorFiltro,
   filtrarProdutos,
+  filtrosVisiveis,
   mensagemVazio,
   type FiltroContagem,
   type Produto,
@@ -42,6 +42,13 @@ export function TelaContagem() {
 
   const mostrados = useMemo(() => lista.slice(0, visiveis), [lista, visiveis]);
   const contagens = useMemo(() => contarPorFiltro(produtos), [produtos]);
+
+  /**
+   * Contagem às cegas: as abas "Corrigidos OK" e "Corrigidos com erro" dizem se a contagem
+   * bateu com o sistema — é a diferença dita de outro jeito. Somem para quem só conta.
+   */
+  const verSistema = permissoes.verEstoqueSistema;
+  const abas = useMemo(() => filtrosVisiveis(verSistema), [verSistema]);
 
   const alternar = useCallback((produtoId: string) => {
     setExpandido((atual) => (atual === produtoId ? null : produtoId));
@@ -124,7 +131,7 @@ export function TelaContagem() {
 
         <div className="rolagem-h">
           <nav className="segmentado" aria-label="Filtros">
-            {FILTROS.map((f) => {
+            {abas.map((f) => {
               const total = contagens[f.id];
               // Aba sem item só polui; some, exceto "Todos" e a que está selecionada.
               if (total === 0 && f.id !== filtro && f.id !== 'all') return null;
@@ -172,6 +179,7 @@ export function TelaContagem() {
                 onSalvar={salvarContagem}
                 onEditar={permissoes.gerenciarProdutos ? setEditando : undefined}
                 somenteLeitura={somenteLeitura}
+                verSistema={verSistema}
               />
             ))}
           </ul>

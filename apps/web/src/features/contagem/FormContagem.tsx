@@ -9,6 +9,8 @@ interface Props {
   onEditar?: (() => void) | undefined;
   /** Estoque travado: mostra o motivo em vez de deixar o usuário tentar e falhar. */
   somenteLeitura?: boolean;
+  /** Mostrar saldo do sistema e diferença. Falso para quem só conta. */
+  verSistema?: boolean;
 }
 
 function marcaDeTempo(p: Produto): number {
@@ -29,6 +31,7 @@ export function FormContagem({
   onSalvar,
   onEditar,
   somenteLeitura = false,
+  verSistema = false,
 }: Props) {
   const [quantidade, setQuantidade] = useState(
     produto.quantidade != null ? String(produto.quantidade) : '',
@@ -82,10 +85,21 @@ export function FormContagem({
             }}
             autoFocus
           />
+          {/*
+            Contagem às cegas: quem só conta não vê o saldo do sistema nem a diferença.
+            Ver o número faz conferir em vez de contar, e o inventário deixa de medir
+            qualquer coisa. Ver `permissoes.verEstoqueSistema`.
+          */}
           <span className="campo__ajuda">
-            Sistema: {sistema}
-            {diferenca !== null && diferenca !== 0 && (
-              <> · diferença {diferenca > 0 ? `+${diferenca}` : diferenca}</>
+            {verSistema ? (
+              <>
+                Sistema: {sistema}
+                {diferenca !== null && diferenca !== 0 && (
+                  <> · diferença {diferenca > 0 ? `+${diferenca}` : diferenca}</>
+                )}
+              </>
+            ) : (
+              'Conte o que está na prateleira'
             )}
           </span>
         </label>

@@ -17,6 +17,14 @@ export interface OpcaoFiltro {
   id: FiltroContagem;
   rotulo: string;
   vazio: string;
+  /**
+   * A aba conta ao usuário se a contagem dele bateu com o sistema.
+   *
+   * Quem conta, conta às cegas: não pode ver o saldo do sistema nem a diferença, senão
+   * "confere" o número em vez de contar. "Corrigidos com erro" é a diferença dita de outro
+   * jeito — a aba some para quem só conta.
+   */
+  revelaDivergencia?: boolean;
 }
 
 export const FILTROS: OpcaoFiltro[] = [
@@ -25,14 +33,25 @@ export const FILTROS: OpcaoFiltro[] = [
   { id: 'updated', rotulo: 'Contados', vazio: 'Nenhum item foi contado nesta rodada' },
   { id: 'no-barcode', rotulo: 'Sem código', vazio: 'Nenhum produto sem código de barras' },
   { id: 'negative', rotulo: 'Negativos', vazio: 'Nenhum produto com estoque negativo' },
-  { id: 'conferido-correto', rotulo: 'Corrigidos OK', vazio: 'Nenhum item corrigido correto' },
+  {
+    id: 'conferido-correto',
+    rotulo: 'Corrigidos OK',
+    vazio: 'Nenhum item corrigido correto',
+    revelaDivergencia: true,
+  },
   {
     id: 'conferido-incorreto',
     rotulo: 'Corrigidos com erro',
     vazio: 'Nenhum item corrigido incorreto',
+    revelaDivergencia: true,
   },
   { id: 'api-not-found', rotulo: 'Fora do ERP', vazio: 'Nenhum item não encontrado pela API' },
 ];
+
+/** As abas que um papel pode ver. `verSistema` é `permissoes.verEstoqueSistema`. */
+export function filtrosVisiveis(verSistema: boolean): OpcaoFiltro[] {
+  return verSistema ? FILTROS : FILTROS.filter((f) => !f.revelaDivergencia);
+}
 
 export function mensagemVazio(filtro: FiltroContagem): string {
   return FILTROS.find((f) => f.id === filtro)?.vazio ?? 'Nenhum produto encontrado';

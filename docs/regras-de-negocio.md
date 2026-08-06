@@ -165,6 +165,9 @@ Em lotes de 500 — o limite do Firestore.
 ⚠️ **"Contados" esconde `CONFERIDO`**: item já resolvido pelo admin sai da lista de
 trabalho do funcionário, senão ele recontaria algo decidido.
 
+⚠️ **"Corrigidos OK" e "Corrigidos com erro" não aparecem para o papel `comum`** — dizem se
+a contagem bateu com o sistema, que é a diferença por outro nome. Ver §Contagem às cegas.
+
 A aba sai de `productStatus`, que vem do servidor — não de rastreamento local. Com 5
 celulares, todos veem a mesma lista.
 
@@ -182,6 +185,7 @@ Há teste garantindo que os dois concordam.
 | Finalizar contagem | ✓ | ✓ | ✓ | ✓ |
 | Ver auditoria | | ✓ | ✓ | ✓ |
 | Ver histórico | | ✓ | ✓ | ✓ |
+| Ver estoque do sistema | | ✓ | ✓ | ✓ |
 | Conferir divergência | | | ✓ | ✓ |
 | Gerenciar produtos e estoque | | | ✓ | ✓ |
 | Gerenciar papéis | | | | ✓ |
@@ -190,3 +194,34 @@ Isto governa **só a interface**. Esconder botão não protege nada — quem dec
 Rule. Ver [seguranca.md](seguranca.md).
 
 Função: `permissoesDe(papel)` em `papeis.ts`.
+
+---
+
+## Contagem às cegas
+
+**Quem só conta não vê o saldo do sistema nem a diferença.**
+
+O motivo não é sigilo, é qualidade do dado. Mostrar o número faz o funcionário *conferir* em
+vez de *contar*: ele lê "sistema 12", encontra 11 na prateleira e digita 12. A contagem
+deixa de medir o estoque e passa a confirmar o que o ERP já achava — que é exatamente o erro
+que o inventário existe para pegar.
+
+Some para o papel `comum`:
+
+| Onde | O que some |
+|---|---|
+| Card do produto | a diferença `+N`/`-N`, a etiqueta `ok`, o `sistema N` do não contado |
+| Formulário de contagem | a linha `Sistema: N · diferença` |
+| Abas | "Corrigidos OK" e "Corrigidos com erro" |
+| Finalizar contagem | os totais "Corretos" e "Divergentes" |
+
+Fica: quantidade contada, etiqueta `contado`, `Contados`/`Não contados` no fechamento. São
+progresso, não comparação.
+
+Auditor vê tudo — comparar contagem com sistema é o trabalho dele.
+
+⚠️ **Não é barreira de segurança.** O saldo vem no documento do produto e as Security Rules
+o liberam para qualquer autenticado; um usuário determinado lê pelo console. Serve para o
+processo funcionar, e vale enquanto a tela obedecer.
+
+Permissão: `verEstoqueSistema`. Abas: `filtrosVisiveis(verSistema)` em `filtros.ts`.

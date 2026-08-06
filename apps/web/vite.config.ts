@@ -1,8 +1,35 @@
+import { execSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
+/** Versão do projeto, da raiz — a mesma que `scripts/verificar-versao.mjs` cobra. */
+const versao = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8'))
+  .version as string;
+
+/**
+ * Commit do build.
+ *
+ * Sem isso, "está na versão 2.7.0" não distingue o build que subiu do que ficou na máquina
+ * de alguém. Na Hostinger o deploy sai de um push, então o SHA responde exatamente qual
+ * código está no ar. Fora de um repositório git (a hospedagem copia arquivos), fica
+ * `desconhecido` em vez de quebrar o build.
+ */
+function commitAtual(): string {
+  try {
+    return execSync('git rev-parse --short HEAD', { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+  } catch {
+    return 'desconhecido';
+  }
+}
+
 export default defineConfig({
+  define: {
+    __VERSAO__: JSON.stringify(versao),
+    __COMMIT__: JSON.stringify(commitAtual()),
+    __DATA_BUILD__: JSON.stringify(new Date().toISOString()),
+  },
   plugins: [
     react(),
     VitePWA({

@@ -19,6 +19,11 @@ interface Props {
   /** Só admin/master recebe. */
   onEditar?: ((produto: Produto) => void) | undefined;
   somenteLeitura?: boolean;
+  /**
+   * Mostrar saldo do sistema e diferença. Falso para quem só conta — ver
+   * `permissoes.verEstoqueSistema`.
+   */
+  verSistema?: boolean;
 }
 
 /** `YYYY-MM-DD` para `DD/MM`, sem passar por `new Date`, que desloca o fuso. */
@@ -44,6 +49,7 @@ function CardProdutoBase({
   onSalvar,
   onEditar,
   somenteLeitura = false,
+  verSistema = false,
 }: Props) {
   const status = statusContagemDe(produto);
   const contado = status !== null;
@@ -100,7 +106,12 @@ function CardProdutoBase({
             {contado ? fisico : '—'}
           </span>
 
-          {contado && diferenca !== 0 && (
+          {/*
+            Contagem às cegas: sem `verSistema`, nada aqui pode dizer se o número bateu.
+            Nem a diferença, nem o "ok" — os dois entregam o saldo do sistema.
+            Para quem conta, o retorno é "contado", e isso basta.
+          */}
+          {verSistema && contado && diferenca !== 0 && (
             <span
               className={
                 Math.abs(diferenca) >= LIMITE_CRITICO
@@ -111,8 +122,11 @@ function CardProdutoBase({
               {diferenca > 0 ? `+${diferenca}` : diferenca}
             </span>
           )}
-          {contado && diferenca === 0 && <span className="etiqueta etiqueta--ok">ok</span>}
-          {!contado && <span className="card__sistema">sistema {sistema}</span>}
+          {verSistema && contado && diferenca === 0 && (
+            <span className="etiqueta etiqueta--ok">ok</span>
+          )}
+          {verSistema && !contado && <span className="card__sistema">sistema {sistema}</span>}
+          {!verSistema && contado && <span className="etiqueta etiqueta--neutra">contado</span>}
         </span>
       </button>
 
@@ -123,6 +137,7 @@ function CardProdutoBase({
           onSalvar={(quantidade, validadeNova) => onSalvar(produto, quantidade, validadeNova)}
           onEditar={onEditar ? () => onEditar(produto) : undefined}
           somenteLeitura={somenteLeitura}
+          verSistema={verSistema}
         />
       )}
     </li>

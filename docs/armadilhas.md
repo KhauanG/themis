@@ -114,6 +114,55 @@ Os dois números são um só.
 
 ---
 
+## Planilha
+
+### `Cannot set properties of undefined (setting 'sheetNo')`
+
+**Sintoma.** A importação estoura com essa mensagem. A planilha abre normalmente no Excel.
+Planilha salva pelo Excel importa sem problema; a do ERP não.
+
+**Causa.** O ERP gera OOXML em duas formas que o `exceljs` não implementa, e as duas são
+válidas pela especificação:
+
+1. **Prefixo de namespace nos elementos** — `<x:worksheet>`, `<x:row>`, `<x:c>`. O parser
+   compara nome de elemento por igualdade literal (`node.name === 'worksheet'` em
+   `worksheet-xform.js`), sem resolver namespace. Nada casa, o xform devolve `undefined`, e
+   o erro que aparece é sobre `sheetNo`.
+2. **Alvo absoluto nas relações** — `Target="/xl/worksheets/sheet1.xml"`. O `exceljs`
+   resolve o alvo relativo à pasta do `.rels`.
+
+O 1.x nunca esbarrou nisso porque usava SheetJS, que trata as duas.
+
+**Evitar.** `planilha-formato.ts` normaliza o pacote antes de entregá-lo ao `exceljs`. Se
+aparecer uma terceira forma, ela entra lá — não troque de biblioteca sem medir.
+
+Para conferir contra uma planilha de verdade, sem tocar no Firestore:
+
+```
+npx tsx scripts/verificar-planilha.mts planilhaprodutos.xlsx
+```
+
+⚠️ Planilhas do ERP são o catálogo da empresa: `.xlsx`, `.xls` e `.csv` estão no
+`.gitignore`. Não versione a do cliente para usar em teste — o teste automatizado monta um
+arquivo sintético no mesmo dialeto.
+
+### Reimportar duplica o catálogo
+
+**Causa.** Importação que só cria. O 1.x fazia upsert por `IdProduto`.
+
+**Evitar.** `importarProdutos()` atualiza quem já existe e **preserva a contagem em
+andamento**. Produto contado mantém `quantidade` e `productStatus`; a planilha atualiza o
+cadastro, não a contagem.
+
+### A importação precisa trazer preço
+
+Parece dado inútil — o Themis não mostra preço em tela nenhuma. Mas `PrecoVenda`,
+`PrecoCusto` e `EstoqueMinimo` **fazem parte do payload que o ERP espera** na correção de
+estoque. Descartá-los na importação faz toda correção mandar `0` para produto que tem preço
+cadastrado. Ver [funcionalidades.md](funcionalidades.md) §O contrato com o ERP.
+
+---
+
 ## Interface
 
 ### O campo perde o que está sendo digitado
@@ -161,6 +210,30 @@ recorte muda de verdade. Um `useRef` com a última chave carregada resolve.
 
 ⚠️ Não faça essa checagem dentro de um atualizador de estado (`setX(atual => {...})`) —
 atualizador precisa ser puro, e o StrictMode o invoca duas vezes.
+
+### No celular, cada letra digitada fecha o teclado
+
+**Sintoma.** Num modal (renomear estoque, cadastrar produto, digitar FINALIZAR), o usuário
+toca uma tecla do teclado virtual e o foco pula para o **botão de fechar**. O teclado some.
+Para escrever "Depósito" é preciso tocar no campo antes de cada letra.
+
+**Causa.** Duas, somadas:
+
+1. O `useEffect` do `Modal` tinha `onFechar` nas dependências. Quase toda chamada passa uma
+   arrow inline (`onFechar={() => setForm(null)}`), que ganha identidade nova a cada render
+   do pai. Como o valor do campo é estado do pai, **cada tecla** re-renderizava, remontava o
+   efeito, e a limpeza + reexecução mexiam no foco.
+2. O foco inicial ia para `querySelector(FOCAVEIS)` — o **primeiro focável**, que é o ✕ do
+   cabeçalho, por vir antes no DOM.
+
+**Evitar.** Duas regras, e valem para qualquer efeito:
+
+- Callback vindo de prop **não entra nas dependências** de um efeito que só deve rodar ao
+  montar. Guarde num `useRef` e chame `ref.current()`. É a mesma família do bug de
+  [objeto de listener na dependência](#a-tela-recarrega-sozinha-sem-ninguém-mexer).
+- Foco inicial vai para o primeiro **campo** (`input`/`textarea`/`select`), nunca para o
+  primeiro focável. Mandar o usuário para o botão de cancelar a própria ação é o oposto do
+  que ele quer.
 
 ### A câmera do leitor reabre sem parar
 

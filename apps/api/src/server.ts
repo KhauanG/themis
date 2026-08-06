@@ -5,6 +5,7 @@ import { config } from './config.js';
 import { registrarEstaticos } from './estaticos.js';
 import { rotasErp } from './routes/erp.js';
 import { rotasWebhook } from './routes/webhook.js';
+import { COMMIT, DATA_BUILD, VERSAO } from './versao.js';
 
 /**
  * Qualquer falha aqui deixa o servidor web sem ninguém para conversar, e o usuário vê um
@@ -51,8 +52,21 @@ const servindoPwa = await registrarEstaticos(app);
 
 app.get('/api/health', async () => ({
   ok: true,
-  versao: '2.0.0',
+  versao: VERSAO,
   pwa: servindoPwa,
+}));
+
+/**
+ * Qual build está no ar. `curl https://o-dominio/api/versao`.
+ *
+ * O deploy da Hostinger sai de um push, então o commit responde com precisão qual código
+ * está rodando — mais confiável que olhar o histórico e supor que o último subiu.
+ */
+app.get('/api/versao', async () => ({
+  versao: VERSAO,
+  commit: COMMIT,
+  build: DATA_BUILD,
+  node: process.version,
 }));
 
 try {

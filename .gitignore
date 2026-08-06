@@ -26,3 +26,10 @@ npm-debug.log*
 # Relatórios gerados pela varredura de produtos (contêm nomes de produto do cliente)
 produtos-invalidos.csv
 produtos-invalidos.json
+
+# Planilhas do ERP: são o catálogo de produtos da empresa. Ficam na máquina, não no repo.
+# Para conferir a leitura contra uma delas:
+#   npx tsx scripts/verificar-planilha.mts planilhaprodutos.xlsx
+*.xlsx
+*.xls
+*.csv

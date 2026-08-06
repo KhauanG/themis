@@ -25,8 +25,19 @@ Themis 2.0 — PWA de contagem e auditoria de estoque do Grupo Ice Beer, no ar e
 npm run verificar
 ```
 
-Typecheck, lint, testes e build. **Precisa passar.** Um comando por linha: o Windows
-PowerShell 5.1 não aceita `&&`.
+Versionamento, typecheck, lint, testes e build. **Precisa passar.** Um comando por linha: o
+Windows PowerShell 5.1 não aceita `&&`.
+
+Mudou comportamento? Suba a versão **antes** de commitar:
+
+```powershell
+npm run versao -- patch
+```
+
+`patch` corrige, `minor` acrescenta, `major` quebra compatibilidade. O script sincroniza os
+quatro `package.json` e abre a seção do changelog; escreva o que mudou e por quê — a trava
+recusa seção vazia. Detalhes em [docs/desenvolvimento.md](docs/desenvolvimento.md)
+§Versionamento.
 
 ## A regra da documentação
 
@@ -74,6 +85,19 @@ O SDK já tem cache próprio. Dois caches sobre o mesmo dado servem informação
 
 **Formato gravado precisa continuar legível pelo Themis 1.x.**
 Os dois apps convivem no mesmo banco.
+
+**Quem só conta não vê o saldo do sistema nem a diferença.**
+Ver o número faz conferir em vez de contar, e o inventário deixa de medir o erro que existe
+para pegar. Componente novo na tela de contagem recebe `verSistema` e o respeita.
+
+**Toda alteração de comportamento sobe a versão e entra no changelog.**
+O service worker guarda o build antigo no aparelho; sem número confiável não dá para saber
+se a correção chegou no celular do funcionário.
+
+**Efeito não depende de callback vindo de prop, nem de objeto de listener.**
+Os dois ganham identidade nova a cada render e remontam o efeito — um fechava o teclado
+virtual a cada letra digitada, o outro recarregava a tela sozinha. Use `useRef` para o
+callback e o **id** para o objeto.
 
 ## Convenções
 

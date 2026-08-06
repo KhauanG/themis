@@ -12,9 +12,31 @@ interface Props {
 const FOCAVEIS =
   'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])';
 
+/**
+ * O que merece o foco ao abrir: o primeiro campo de digitação.
+ *
+ * **Não** o primeiro focável — esse é o botão de fechar, que vem antes no DOM por estar no
+ * cabeçalho. Mandar o foco para ele ao abrir um modal de renomear é mandar o usuário para
+ * o botão de cancelar a própria ação.
+ */
+const CAMPOS = 'input:not([disabled]):not([type="hidden"]), textarea:not([disabled]), select:not([disabled])';
+
 export function Modal({ aberto, titulo, onFechar, children, rodape }: Props) {
   const caixa = useRef<HTMLDivElement>(null);
   const focoAnterior = useRef<HTMLElement | null>(null);
+
+  /**
+   * `onFechar` fora das dependências do efeito, por referência.
+   *
+   * Quase toda chamada passa uma arrow inline (`onFechar={() => setAberto(false)}`), que
+   * ganha identidade nova a cada render do pai. Com ela nas dependências, **cada tecla
+   * digitada** remontava o efeito: a limpeza devolvia o foco ao elemento de trás e a nova
+   * execução o jogava no primeiro focável — o botão de fechar. No celular isso fechava o
+   * teclado virtual a cada letra, e era preciso tocar no campo de novo para digitar a
+   * próxima. Ver docs/armadilhas.md.
+   */
+  const fechar = useRef(onFechar);
+  fechar.current = onFechar;
 
   useEffect(() => {
     if (!aberto) return;
@@ -25,7 +47,7 @@ export function Modal({ aberto, titulo, onFechar, children, rodape }: Props) {
 
     const aoTeclar = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        onFechar();
+        fechar.current();
         return;
       }
       // Prende o Tab dentro do modal: sem isso o foco escapa para a lista atrás,
@@ -54,15 +76,17 @@ export function Modal({ aberto, titulo, onFechar, children, rodape }: Props) {
     const overflowAnterior = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
 
-    const primeiroCampo = caixa.current?.querySelector<HTMLElement>(FOCAVEIS);
-    (primeiroCampo ?? caixa.current)?.focus();
+    // Campo primeiro; se o modal não tem nenhum, o próprio diálogo. Nunca o botão fechar.
+    const alvo = caixa.current?.querySelector<HTMLElement>(CAMPOS) ?? caixa.current;
+    alvo?.focus({ preventScroll: true });
 
     return () => {
       document.removeEventListener('keydown', aoTeclar);
       document.body.style.overflow = overflowAnterior;
-      focoAnterior.current?.focus();
+      focoAnterior.current?.focus({ preventScroll: true });
     };
-  }, [aberto, onFechar]);
+    // Só `aberto`: ver o comentário de `fechar`. Digitar não pode remontar isto.
+  }, [aberto]);
 
   if (!aberto) return null;
 
