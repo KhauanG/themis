@@ -37,6 +37,8 @@ export function Layout() {
     <div className="app">
       <header className="topo">
         <div className="topo__barra">
+          <img className="topo__logo" src="/icons/icon-192.png" alt="Themis" width={34} height={34} />
+
           <div className="topo__identidade">
             <button
               type="button"

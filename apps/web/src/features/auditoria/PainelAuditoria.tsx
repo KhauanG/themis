@@ -1,10 +1,17 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  FILTRO_PADRAO,
+  ROTULO_ORDEM,
+  ROTULO_SITUACAO,
   calcularEstatisticas,
+  filtrarLinhas,
   linhasDeProdutos,
   linhasDeSnapshot,
   type Auditoria,
+  type FiltroRelatorio,
   type LinhaRelatorio,
+  type OrdemRelatorio,
+  type SituacaoRelatorio,
   type StatusAuditoria,
 } from '@themis/shared';
 import { useEstoque } from '../../contexts/EstoqueContext.js';
@@ -33,7 +40,7 @@ export function PainelAuditoria() {
   const [fonte, setFonte] = useState('ao-vivo');
   const [salvas, setSalvas] = useState<Auditoria[]>([]);
   const [carregando, setCarregando] = useState(true);
-  const [statusFiltro, setStatusFiltro] = useState<StatusAuditoria | 'TODOS'>('TODOS');
+  const [filtro, setFiltro] = useState<FiltroRelatorio>(FILTRO_PADRAO);
   const [exportando, setExportando] = useState(false);
   const [corrigindo, setCorrigindo] = useState<string | null>(null);
 
@@ -62,47 +69,60 @@ export function PainelAuditoria() {
 
   // Uma origem só para tela e exportação: antes a tabela mostrava a auditoria salva e a
   // exportação gerava o arquivo com a contagem ao vivo.
-  const linhas: LinhaRelatorio[] = useMemo(
+  const todas: LinhaRelatorio[] = useMemo(
     () => (auditoria ? linhasDeSnapshot(auditoria.produtos) : linhasDeProdutos(produtos)),
     [auditoria, produtos],
   );
+
+  // O que a tabela mostra e o que o arquivo leva: a mesma função, o mesmo recorte.
+  const visiveis = useMemo(() => filtrarLinhas(todas, filtro), [todas, filtro]);
 
   const estatisticas = useMemo(
     () => (auditoria ? auditoria.estatisticas : calcularEstatisticas(produtos)),
     [auditoria, produtos],
   );
 
-  const visiveis = useMemo(
-    () =>
-      (statusFiltro === 'TODOS' ? linhas : linhas.filter((l) => l.status === statusFiltro)).sort(
-        (a, b) => a.nome.localeCompare(b.nome, 'pt-BR'),
-      ),
-    [linhas, statusFiltro],
-  );
-
   const contexto: ContextoRelatorio = useMemo(
     () => ({
       estoque: estoqueAtual?.nome ?? estoqueAtual?.id ?? 'estoque',
       ciclo: auditoria?.contagemCycle ?? ciclo,
+      filtro,
+      totalSemFiltro: todas.length,
       ...(auditoria ? { quando: auditoria.data } : {}),
     }),
-    [estoqueAtual, auditoria, ciclo],
+    [estoqueAtual, auditoria, ciclo, filtro, todas.length],
+  );
+
+  const ajustar = useCallback(
+    (mudanca: Partial<FiltroRelatorio>) => setFiltro((atual) => ({ ...atual, ...mudanca })),
+    [],
   );
 
   const exportar = useCallback(
     async (qual: 'contagem' | 'validade' | 'planilha') => {
       if (exportando) return;
+      if (visiveis.length === 0) {
+        mostrar('O recorte atual não tem nenhum item para exportar.', 'warning');
+        return;
+      }
       setExportando(true);
       try {
         if (qual === 'contagem') {
-          await exportarContagemPDF(linhas, contexto, estatisticas);
+          await exportarContagemPDF(visiveis, contexto, estatisticas);
         } else if (qual === 'validade') {
-          const total = await exportarValidadePDF(linhas, contexto);
-          if (total === 0) mostrar('Nenhum produto com validade preenchida.', 'info');
+          const total = await exportarValidadePDF(visiveis, contexto);
+          if (total === 0) mostrar('Nenhum item do recorte tem validade preenchida.', 'info');
         } else {
-          await exportarPlanilha(linhas, contexto.estoque);
+          await exportarPlanilha(visiveis, contexto.estoque);
         }
-        if (contextoLog) void registrar('EXPORTAR_PLANILHA', contextoLog, { tipo: qual, origem: fonte });
+        if (contextoLog) {
+          void registrar('EXPORTAR_PLANILHA', contextoLog, {
+            tipo: qual,
+            origem: fonte,
+            itens: visiveis.length,
+            de: todas.length,
+          });
+        }
       } catch (erro) {
         console.error('[auditoria] Exportação falhou:', erro);
         mostrar('Não foi possível gerar o arquivo.', 'error');
@@ -110,7 +130,7 @@ export function PainelAuditoria() {
         setExportando(false);
       }
     },
-    [exportando, linhas, contexto, estatisticas, mostrar, contextoLog, fonte],
+    [exportando, visiveis, contexto, estatisticas, mostrar, contextoLog, fonte, todas.length],
   );
 
   /** Conferência do admin: confirma ou descarta a divergência de um item. */
@@ -175,7 +195,7 @@ export function PainelAuditoria() {
         </p>
       </div>
 
-      <div className="filtros">
+      <div className="barra-filtros">
         <label className="campo">
           <span className="campo__rotulo">Contagem</span>
           <select className="campo__entrada" value={fonte} onChange={(e) => setFonte(e.target.value)}>
@@ -188,20 +208,69 @@ export function PainelAuditoria() {
           </select>
         </label>
 
+        <div className="barra-filtros__linha">
+          <label className="campo">
+            <span className="campo__rotulo">Situação</span>
+            <select
+              className="campo__entrada"
+              value={filtro.situacao}
+              onChange={(e) => ajustar({ situacao: e.target.value as SituacaoRelatorio })}
+            >
+              {(Object.keys(ROTULO_SITUACAO) as SituacaoRelatorio[]).map((s) => (
+                <option key={s} value={s}>
+                  {ROTULO_SITUACAO[s]}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="campo">
+            <span className="campo__rotulo">Status</span>
+            <select
+              className="campo__entrada"
+              value={filtro.status}
+              onChange={(e) => ajustar({ status: e.target.value as StatusAuditoria | 'TODOS' })}
+            >
+              <option value="TODOS">Todos</option>
+              <option value="CORRETO">Corretos</option>
+              <option value="ERRADO">Errados</option>
+              <option value="CRITICO">Críticos</option>
+              <option value="NÃO CONTADO">Não contados</option>
+            </select>
+          </label>
+        </div>
+
         <label className="campo">
-          <span className="campo__rotulo">Status</span>
+          <span className="campo__rotulo">Ordenar por</span>
           <select
             className="campo__entrada"
-            value={statusFiltro}
-            onChange={(e) => setStatusFiltro(e.target.value as StatusAuditoria | 'TODOS')}
+            value={filtro.ordem}
+            onChange={(e) => ajustar({ ordem: e.target.value as OrdemRelatorio })}
           >
-            <option value="TODOS">Todos</option>
-            <option value="CORRETO">Corretos</option>
-            <option value="ERRADO">Errados</option>
-            <option value="CRITICO">Críticos</option>
-            <option value="NÃO CONTADO">Não contados</option>
+            {(Object.keys(ROTULO_ORDEM) as OrdemRelatorio[]).map((o) => (
+              <option key={o} value={o}>
+                {ROTULO_ORDEM[o]}
+              </option>
+            ))}
           </select>
         </label>
+
+        <div className="barra-filtros__rodape">
+          <button
+            type="button"
+            className={filtro.somenteDivergentes ? 'alternador alternador--ligado' : 'alternador'}
+            onClick={() => ajustar({ somenteDivergentes: !filtro.somenteDivergentes })}
+            aria-pressed={filtro.somenteDivergentes}
+          >
+            <span className="alternador__marca" aria-hidden="true" />
+            Só divergências
+          </button>
+
+          <p className="barra-filtros__contagem">
+            <strong>{visiveis.length}</strong> de {todas.length} itens
+            {visiveis.length !== todas.length && ' · o arquivo sai igual'}
+          </p>
+        </div>
       </div>
 
       <ul className="metricas">
@@ -235,7 +304,7 @@ export function PainelAuditoria() {
 
       <div>
         <p className="rotulo-secao" style={{ marginBottom: 'var(--e2)' }}>
-          Exportar
+          Exportar o recorte atual
         </p>
         <div className="acoes-lista">
           <button className="acao" type="button" onClick={() => void exportar('contagem')} disabled={exportando}>
@@ -244,7 +313,9 @@ export function PainelAuditoria() {
             </span>
             <span className="acao__texto">
               <span className="acao__titulo">PDF da contagem</span>
-              <span className="acao__descricao">Todos os itens, com status e diferença</span>
+              <span className="acao__descricao">
+                {visiveis.length} {visiveis.length === 1 ? 'item' : 'itens'}, na ordem escolhida
+              </span>
             </span>
           </button>
 
@@ -270,87 +341,82 @@ export function PainelAuditoria() {
         </div>
       </div>
 
-      <div className="pilha">
-        <p className="contagem__resumo">
-          {visiveis.length} {visiveis.length === 1 ? 'item' : 'itens'}
-        </p>
-
-        {visiveis.length === 0 ? (
-          <div className="vazio">
-            <p className="vazio__titulo">Nenhum item com este status</p>
-          </div>
-        ) : (
-          <div className="tabela-caixa">
-            <div className="rolagem-h">
-              <table className="tabela">
-                <thead>
-                  <tr>
-                    <th>Produto</th>
-                    <th className="num">Sistema</th>
-                    <th className="num">Contado</th>
-                    <th className="num">Dif.</th>
-                    <th>Status</th>
-                    {podeConferir && <th>Conferência</th>}
-                  </tr>
-                </thead>
-                <tbody>
-                  {visiveis.map((l) => {
-                    const conferido = statusPorId.get(l.id) === 'CONFERIDO';
-                    return (
-                      <tr key={l.id} className={conferido ? 'linha--conferida' : undefined}>
-                        <td>{l.nome}</td>
-                        <td className="num">{l.sistema}</td>
-                        <td className="num">{l.contado ?? '—'}</td>
-                        <td className="num">{l.diferenca}</td>
+      {visiveis.length === 0 ? (
+        <div className="vazio">
+          <p className="vazio__titulo">Nenhum item neste recorte</p>
+          <p>Ajuste os filtros acima para ver mais.</p>
+        </div>
+      ) : (
+        <div className="tabela-caixa">
+          <div className="rolagem-h">
+            <table className="tabela">
+              <thead>
+                <tr>
+                  <th>Produto</th>
+                  <th className="num">Sistema</th>
+                  <th className="num">Contado</th>
+                  <th className="num">Dif.</th>
+                  <th>Status</th>
+                  {podeConferir && <th>Conferência</th>}
+                </tr>
+              </thead>
+              <tbody>
+                {visiveis.map((l) => {
+                  const conferido = statusPorId.get(l.id) === 'CONFERIDO';
+                  return (
+                    <tr key={l.id} className={conferido ? 'linha--conferida' : undefined}>
+                      <td>{l.nome}</td>
+                      <td className="num">{l.sistema}</td>
+                      <td className="num">{l.contado ?? '—'}</td>
+                      <td className="num">{l.diferenca}</td>
+                      <td>
+                        <span className={CLASSE_STATUS[l.status]}>{l.status}</span>
+                      </td>
+                      {podeConferir && (
                         <td>
-                          <span className={CLASSE_STATUS[l.status]}>{l.status}</span>
-                        </td>
-                        {podeConferir && (
-                          <td>
-                            {conferido ? (
+                          {conferido ? (
+                            <button
+                              className="botao botao--secundario botao--mini"
+                              type="button"
+                              onClick={() => void desfazer(l.id)}
+                              disabled={corrigindo === l.id}
+                            >
+                              Desfazer
+                            </button>
+                          ) : l.status === 'CORRETO' || l.status === 'NÃO CONTADO' ? (
+                            <span className="suave">—</span>
+                          ) : (
+                            <span className="acoes-linha">
                               <button
                                 className="botao botao--secundario botao--mini"
                                 type="button"
-                                onClick={() => void desfazer(l.id)}
+                                onClick={() => void conferir(l.id, false)}
                                 disabled={corrigindo === l.id}
+                                title="A contagem estava certa; a divergência não se confirmou"
                               >
-                                Desfazer
+                                OK
                               </button>
-                            ) : l.status === 'CORRETO' || l.status === 'NÃO CONTADO' ? (
-                              <span className="suave">—</span>
-                            ) : (
-                              <span className="acoes-linha">
-                                <button
-                                  className="botao botao--secundario botao--mini"
-                                  type="button"
-                                  onClick={() => void conferir(l.id, false)}
-                                  disabled={corrigindo === l.id}
-                                  title="A contagem estava certa; a divergência não se confirmou"
-                                >
-                                  OK
-                                </button>
-                                <button
-                                  className="botao botao--perigo botao--mini"
-                                  type="button"
-                                  onClick={() => void conferir(l.id, true)}
-                                  disabled={corrigindo === l.id}
-                                  title="A divergência se confirmou na conferência física"
-                                >
-                                  Divergiu
-                                </button>
-                              </span>
-                            )}
-                          </td>
-                        )}
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                              <button
+                                className="botao botao--perigo botao--mini"
+                                type="button"
+                                onClick={() => void conferir(l.id, true)}
+                                disabled={corrigindo === l.id}
+                                title="A divergência se confirmou na conferência física"
+                              >
+                                Divergiu
+                              </button>
+                            </span>
+                          )}
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </section>
   );
 }

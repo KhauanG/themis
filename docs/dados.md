@@ -102,13 +102,22 @@ Na escrita, o 2.0 grava as duas grafias de `nome` para o 1.x continuar lendo.
 
 | Campo | Tipo | Observação |
 |---|---|---|
-| `nome` | string | exibido no seletor |
-| `descricao` | string | |
+| `name` | string | **em inglês** — exigido por `validInventoryData`, 1 a 100 caracteres |
+| `description` | string | **em inglês** |
 | `contagemCycle` | number | ciclo corrente, começa em 1 |
 | `lastFinalizedCycle` | number | último ciclo fechado |
 | `lastFinalizedAt` | timestamp | |
 | `createdAt` | timestamp | **nunca regenerar** — ver abaixo |
 | `updatedAt` | timestamp | |
+
+⚠️ **`name` e `description` são em inglês**, herdado do 1.x. O domínio usa `nome`/
+`descricao`, e a tradução acontece em `estoques-repo.ts`, na fronteira. Ler `nome` direto
+do documento devolve `undefined` — o app passa a mostrar o ID no lugar do nome, e é
+exatamente o bug que produzia "estoques com nome genérico e números".
+
+⚠️ **Excluir o documento não apaga a subcoleção.** `estoques/{id}/produtos` sobrevive ao
+`inventories/{id}` e vira lixo invisível, cobrado na fatura. `excluirEstoque()` apaga os
+produtos em lotes **antes** do documento.
 
 ⚠️ **Usuário comum só pode alterar os campos de ciclo**
 (`contagemCycle`, `lastFinalizedCycle`, `lastFinalizedAt`, `updatedAt`). Qualquer campo a

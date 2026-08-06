@@ -6,6 +6,45 @@ Categorias: **Adicionado**, **Alterado**, **Corrigido**, **Removido**, **Seguran
 
 ---
 
+## 2.2.0 — 2026-08-06
+
+### Corrigido
+
+- **O nome do estoque aparecia como o ID.** No banco os campos são `name` e `description`,
+  em inglês — herdado do 1.x, e é o que `validInventoryData` exige. O repositório lia
+  `nome`/`descricao`, caía no fallback e mostrava o identificador gerado. Era a origem dos
+  "nomes genéricos com números".
+
+### Adicionado
+
+- **Filtros da auditoria no cabeçalho**: situação (todos / contados / não contados),
+  status, ordenação (nome, maior diferença, menor diferença, gravidade) e um interruptor
+  de "só divergências".
+- **A exportação leva o recorte da tela.** PDF e planilha saem com os mesmos itens, na
+  mesma ordem. O PDF **declara o recorte** no cabeçalho, em faixa azul gelo, com "40 de
+  2000 itens" — sem isso, quem recebe um relatório parcial conclui que o estoque tem 40
+  itens.
+- **Corrigir estoque** (`TelaProdutos`), porte do fluxo do 1.x: envia ao ERP **só os itens
+  divergentes** e depois fecha a conferência de **todos** os contados, marcando
+  `CONFERIDO` com `corrigidoIncorreto` e `corrigidoCritico`. Substitui "Enviar contagem ao
+  ERP", que só fazia a primeira metade e mandava tudo — 2000 requisições para resolver 40
+  problemas.
+- **Tela de estoques**: criar, renomear e excluir. Exclusão apaga os produtos em lote
+  antes do documento — o Firestore não remove subcoleções junto com o pai, e apagar só o
+  estoque deixaria milhares de produtos órfãos, invisíveis e cobrados para sempre. Exige
+  digitar o nome, é só para master, e não permite excluir o estoque aberto.
+- 20 testes do filtro de relatório.
+
+### Alterado
+
+- **Paleta da marca**: azul escuro, azul gelo e amarelo, nos dois temas. O amarelo é o
+  alerta — encaixa no significado em vez de ser decoração. Nunca como texto sobre branco:
+  fica como preenchimento, com âmbar escuro por cima.
+- Logo do Themis no cabeçalho.
+- PDF com faixa da marca no topo e paleta acompanhando os tokens.
+
+---
+
 ## 2.1.0 — 2026-08-06
 
 Reconstrução visual completa. Identidade empresarial, referência nas interfaces da Apple.

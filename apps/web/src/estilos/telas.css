@@ -21,6 +21,14 @@
   padding: var(--e3) var(--e4);
 }
 
+.topo__logo {
+  width: 2.125rem;
+  height: 2.125rem;
+  flex: 0 0 auto;
+  border-radius: var(--raio-p);
+  box-shadow: var(--sombra-1);
+}
+
 .topo__identidade {
   min-width: 0;
   flex: 1;
@@ -587,15 +595,81 @@
 
 /* ================= Auditoria ================= */
 
-.filtros {
+/* Barra de filtros da auditoria: fica no topo, agrupada, com fundo azul gelo para
+   separar "o que eu escolho" de "o que o sistema mostra". */
+.barra-filtros {
+  background: var(--gelo);
+  border: 1px solid var(--borda-suave);
+  border-radius: var(--raio);
+  padding: var(--e4);
   display: grid;
   gap: var(--e3);
 }
 
-@media (width >= 30rem) {
-  .filtros {
-    grid-template-columns: 1.6fr 1fr;
+@media (width >= 34rem) {
+  .barra-filtros__linha {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--e3);
   }
+}
+
+.barra-filtros__rodape {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--e3);
+  padding-top: var(--e3);
+  border-top: 1px solid var(--borda);
+}
+
+.barra-filtros__contagem {
+  font-size: var(--t-menor);
+  color: var(--texto-2);
+}
+
+.barra-filtros__contagem strong {
+  color: var(--texto);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Interruptor de "só divergências" — a opção mais usada, então ganha destaque próprio. */
+.alternador {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--e3);
+  min-height: var(--toque);
+  padding: 0 var(--e4) 0 var(--e3);
+  border: 1px solid var(--borda);
+  border-radius: var(--raio-total);
+  background: var(--superficie);
+  font-size: var(--t-menor);
+  font-weight: var(--peso-medio);
+  transition: background var(--transicao), border-color var(--transicao), color var(--transicao);
+}
+
+.alternador--ligado {
+  background: var(--marca);
+  border-color: var(--marca);
+  color: var(--texto-invertido);
+}
+
+.alternador__marca {
+  display: grid;
+  place-items: center;
+  width: 1.125rem;
+  height: 1.125rem;
+  flex: 0 0 auto;
+  border: 1.5px solid currentcolor;
+  border-radius: 0.3125rem;
+  opacity: 0.45;
+}
+
+.alternador--ligado .alternador__marca {
+  opacity: 1;
+  background: currentcolor;
+  color: var(--marca);
 }
 
 .metricas {

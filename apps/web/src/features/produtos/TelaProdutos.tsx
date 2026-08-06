@@ -1,10 +1,15 @@
 import { useRef, useState } from 'react';
-import { fisicoDe, isItemContado, nomeDe, type Produto } from '@themis/shared';
+import { fisicoDe, nomeDe, sistemaDe, type Produto } from '@themis/shared';
 import { useEstoque } from '../../contexts/EstoqueContext.js';
 import { useToast } from '../../contexts/ToastContext.js';
 import { Icone } from '../../components/Icone.js';
 import { Modal } from '../../components/Modal.js';
-import { criarProduto, criarProdutosEmLote, limparContagem } from '../../lib/produtos-repo.js';
+import {
+  criarProduto,
+  criarProdutosEmLote,
+  fecharConferencia,
+  limparContagem,
+} from '../../lib/produtos-repo.js';
 import { lerPlanilha } from '../../lib/planilha.js';
 import { enviarAoErp, hashDaLoja } from '../../lib/erp.js';
 import { registrar } from '../../lib/historico.js';
@@ -113,47 +118,81 @@ export function TelaProdutos() {
     }
   }
 
-  /** Envia ao ERP só o que foi contado. Item sem contagem não tem o que corrigir. */
-  async function enviarContagemAoErp() {
+  /**
+   * Corrigir estoque — porte do fluxo homônimo do 1.x.
+   *
+   * Duas etapas, nesta ordem:
+   *  1. Envia ao ERP **só os itens divergentes**. Item que bateu não tem o que corrigir;
+   *     mandar todos seriam 2000 requisições para resolver 40 problemas.
+   *  2. Fecha a conferência de **todos** os contados, marcando `CONFERIDO` com
+   *     `corrigidoIncorreto` conforme o caso. Sem esse fechamento os itens continuariam
+   *     na lista de trabalho do funcionário e seriam recontados.
+   *
+   * A etapa 2 roda mesmo se o ERP falhar: o usuário já confirmou que quer fechar, e a
+   * conferência é registro do que foi verificado, não do que o ERP aceitou.
+   */
+  async function corrigirEstoque() {
     if (!estoqueAtual) return;
-    const contados = produtos.filter((p: Produto) => isItemContado(p) && p.IdProduto);
 
+    const contados = produtos.filter((p: Produto) => p.productStatus === 'ATUALIZADO');
     if (contados.length === 0) {
-      mostrar('Nenhum item contado para enviar.', 'info');
+      mostrar('Nenhum item contado para corrigir.', 'info');
       return;
     }
 
-    setOcupado({ texto: 'Consultando configuração da loja' });
-    const hash = await hashDaLoja(estoqueAtual.id);
-    if (!hash) {
-      mostrar('Nenhum HashLoja configurado para este estoque.', 'error');
-      setOcupado(null);
-      return;
-    }
+    const divergentes = contados.filter((p) => fisicoDe(p) !== sistemaDe(p));
+    const idsDivergentes = new Set(divergentes.map((p) => p.id));
+    const paraOErp = divergentes.filter((p) => p.IdProduto);
 
     let enviados = 0;
     const falhas: string[] = [];
 
-    for (const [indice, p] of contados.entries()) {
-      setOcupado({ texto: 'Enviando ao ERP', feitos: indice + 1, total: contados.length });
-      const resultado = await enviarAoErp({
-        IdProduto: String(p.IdProduto),
-        HashLoja: hash,
-        Quantidade: fisicoDe(p),
-        CodigoBarras: String(p.codigoBarras ?? p.CodigoBarras ?? ''),
-      });
-      if (resultado.ok) enviados++;
-      else falhas.push(nomeDe(p));
+    if (paraOErp.length > 0) {
+      setOcupado({ texto: 'Consultando configuração da loja' });
+      const hash = await hashDaLoja(estoqueAtual.id);
+      if (!hash) {
+        mostrar('Nenhum HashLoja configurado para este estoque.', 'error');
+        setOcupado(null);
+        return;
+      }
+
+      for (const [indice, p] of paraOErp.entries()) {
+        setOcupado({ texto: 'Enviando divergências ao ERP', feitos: indice + 1, total: paraOErp.length });
+        const resultado = await enviarAoErp({
+          IdProduto: String(p.IdProduto),
+          HashLoja: hash,
+          Quantidade: fisicoDe(p),
+          CodigoBarras: String(p.codigoBarras ?? p.CodigoBarras ?? ''),
+        });
+        if (resultado.ok) enviados++;
+        else falhas.push(nomeDe(p));
+      }
     }
 
-    setOcupado(null);
-    mostrar(
-      falhas.length === 0
-        ? `${enviados} ${enviados === 1 ? 'item enviado' : 'itens enviados'} ao ERP.`
-        : `${enviados} enviados, ${falhas.length} com falha. Tente de novo os que faltaram.`,
-      falhas.length === 0 ? 'success' : 'warning',
-    );
-    if (contextoLog) void registrar('CORRIGIR_ESTOQUE', contextoLog, { enviados, falhas: falhas.length });
+    setOcupado({ texto: 'Fechando a conferência' });
+    try {
+      const fechados = await fecharConferencia(estoqueAtual.id, contados, idsDivergentes);
+      mostrar(
+        falhas.length === 0
+          ? `${fechados.divergentes + fechados.corretos} itens conferidos · ${enviados} enviados ao ERP.`
+          : `Conferência fechada. ${enviados} enviados ao ERP, ${falhas.length} com falha — reenvie depois.`,
+        falhas.length === 0 ? 'success' : 'warning',
+      );
+      if (contextoLog) {
+        void registrar('CORRIGIR_ESTOQUE', contextoLog, {
+          conferidos: fechados.divergentes + fechados.corretos,
+          divergentes: fechados.divergentes,
+          enviadosAoErp: enviados,
+          falhasNoErp: falhas.length,
+          ciclo,
+        });
+      }
+    } catch (erro) {
+      console.error('[produtos] Fechamento da conferência falhou:', erro);
+      mostrar('As divergências foram enviadas, mas a conferência não fechou. Tente de novo.', 'error');
+    } finally {
+      setOcupado(null);
+    }
   }
 
   const pct = ocupado?.total ? Math.round(((ocupado.feitos ?? 0) / ocupado.total) * 100) : null;
@@ -232,13 +271,15 @@ export function TelaProdutos() {
           Integração
         </p>
         <div className="acoes-lista">
-          <button className="acao" type="button" onClick={() => void enviarContagemAoErp()} disabled={bloqueado}>
+          <button className="acao" type="button" onClick={() => void corrigirEstoque()} disabled={bloqueado}>
             <span className="acao__icone">
               <Icone nome="trocar" />
             </span>
             <span className="acao__texto">
-              <span className="acao__titulo">Enviar contagem ao ERP</span>
-              <span className="acao__descricao">Só os itens contados que têm código no ERP</span>
+              <span className="acao__titulo">Corrigir estoque</span>
+              <span className="acao__descricao">
+                Envia as divergências ao ERP e fecha a conferência de tudo que foi contado
+              </span>
             </span>
           </button>
         </div>

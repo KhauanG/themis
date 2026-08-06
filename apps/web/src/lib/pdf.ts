@@ -12,21 +12,29 @@
  * Recebem `LinhaRelatorio[]`, não produtos: assim a contagem ao vivo e a auditoria salva
  * passam pelo mesmo caminho e não há como exportar uma achando que é a outra.
  */
-import { ordenarPorNome, type EstatisticasAuditoria, type LinhaRelatorio } from '@themis/shared';
+import {
+  descreverFiltro,
+  filtroEstaAtivo,
+  type EstatisticasAuditoria,
+  type FiltroRelatorio,
+  type LinhaRelatorio,
+} from '@themis/shared';
 import { entregarArquivo, nomeDeArquivo } from './arquivo.js';
 
 const DIAS_ALERTA = 30;
 
 /** Paleta espelhada de `estilos/tokens.css`. Se lá mudar, aqui muda junto. */
 const COR = {
-  texto: [29, 29, 31] as [number, number, number],
-  suave: [110, 110, 115] as [number, number, number],
-  fraco: [150, 150, 155] as [number, number, number],
-  regua: [210, 210, 215] as [number, number, number],
-  faixa: [248, 248, 250] as [number, number, number],
-  ok: [0, 135, 90] as [number, number, number],
-  alerta: [164, 91, 0] as [number, number, number],
-  critico: [201, 37, 45] as [number, number, number],
+  marca: [11, 37, 69] as [number, number, number], // azul escuro
+  gelo: [231, 241, 249] as [number, number, number], // azul gelo
+  texto: [15, 31, 51] as [number, number, number],
+  suave: [90, 107, 125] as [number, number, number],
+  fraco: [132, 150, 168] as [number, number, number],
+  regua: [201, 214, 226] as [number, number, number],
+  faixa: [238, 243, 248] as [number, number, number],
+  ok: [10, 125, 85] as [number, number, number],
+  alerta: [138, 97, 0] as [number, number, number], // âmbar escuro, legível no papel
+  critico: [179, 38, 30] as [number, number, number],
 };
 
 const MARGEM = 16;
@@ -47,6 +55,14 @@ export interface ContextoRelatorio {
   ciclo: number;
   /** Data da auditoria salva; ausente na contagem ao vivo. */
   quando?: Date;
+  /**
+   * Recorte aplicado na tela. As linhas já chegam filtradas; isto serve para o relatório
+   * **declarar** que é parcial. Sem essa declaração, quem recebe um PDF filtrado conclui
+   * que o estoque tem 40 itens quando tem 2000.
+   */
+  filtro?: FiltroRelatorio;
+  /** Total antes do recorte, para mostrar "40 de 2000". */
+  totalSemFiltro?: number;
 }
 
 async function carregarJsPdf() {
@@ -67,14 +83,23 @@ type Documento = Awaited<ReturnType<typeof carregarJsPdf>>['jsPDF'] extends new 
  * Cabeçalho do relatório: título grande, contexto em cinza, régua fina.
  * Devolve a altura ocupada, para a tabela saber onde começar.
  */
-function desenharCabecalho(doc: Documento, titulo: string, contexto: ContextoRelatorio): number {
+function desenharCabecalho(
+  doc: Documento,
+  titulo: string,
+  contexto: ContextoRelatorio,
+  mostrados: number,
+): number {
   const largura = doc.internal.pageSize.getWidth();
   const quando = (contexto.quando ?? new Date()).toLocaleString('pt-BR');
   const origem = contexto.quando ? 'Auditoria salva' : 'Contagem ao vivo';
 
+  // Faixa da marca no topo: identifica o documento antes de qualquer leitura.
+  doc.setFillColor(...COR.marca);
+  doc.rect(0, 0, largura, 3, 'F');
+
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(18);
-  doc.setTextColor(...COR.texto);
+  doc.setTextColor(...COR.marca);
   doc.text(titulo, MARGEM, 20);
 
   doc.setFont('helvetica', 'normal');
@@ -87,11 +112,36 @@ function desenharCabecalho(doc: Documento, titulo: string, contexto: ContextoRel
   doc.setTextColor(...COR.fraco);
   doc.text(`${origem} · ${quando}`, largura - MARGEM, 26.5, { align: 'right' });
 
+  let y = 31;
+
+  // Recorte declarado. Um relatório parcial que não se anuncia é pior que nenhum.
+  if (contexto.filtro && filtroEstaAtivo(contexto.filtro)) {
+    doc.setFillColor(...COR.gelo);
+    doc.roundedRect(MARGEM, y, largura - MARGEM * 2, 8, 1.5, 1.5, 'F');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.setTextColor(...COR.marca);
+    doc.text(`RECORTE: ${descreverFiltro(contexto.filtro).toUpperCase()}`, MARGEM + 3, y + 5.3);
+
+    if (contexto.totalSemFiltro !== undefined) {
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(...COR.suave);
+      doc.text(
+        `${mostrados} de ${contexto.totalSemFiltro} itens`,
+        largura - MARGEM - 3,
+        y + 5.3,
+        { align: 'right' },
+      );
+    }
+    y += 12;
+  }
+
   doc.setDrawColor(...COR.regua);
   doc.setLineWidth(0.3);
-  doc.line(MARGEM, 31, largura - MARGEM, 31);
+  doc.line(MARGEM, y, largura - MARGEM, y);
 
-  return 38;
+  return y + 7;
 }
 
 /** Rodapé com paginação, aplicado depois que o total de páginas é conhecido. */
@@ -140,7 +190,7 @@ export async function exportarContagemPDF(
   const { jsPDF, autoTable } = await carregarJsPdf();
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' }) as Documento;
 
-  const inicio = desenharCabecalho(doc, 'Relatório de contagem', contexto);
+  const inicio = desenharCabecalho(doc, 'Relatório de contagem', contexto, linhas.length);
 
   // Resumo em blocos de rótulo e número, como as métricas do painel.
   const largura = doc.internal.pageSize.getWidth();
@@ -174,7 +224,8 @@ export async function exportarContagemPDF(
     ...ESTILO_TABELA,
     startY: inicio + 18,
     head: [['Produto', 'Sistema', 'Contado', 'Dif.', 'Status']],
-    body: ordenarPorNome(linhas).map((l) => [
+    // A ordem vem da tela: o arquivo sai exatamente como o usuário estava vendo.
+    body: linhas.map((l) => [
       l.nome,
       String(l.sistema),
       l.contado === null ? '—' : String(l.contado),
@@ -235,7 +286,7 @@ export async function exportarValidadePDF(
   const { jsPDF, autoTable } = await carregarJsPdf();
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' }) as Documento;
 
-  const inicio = desenharCabecalho(doc, 'Relatório de validade', contexto);
+  const inicio = desenharCabecalho(doc, 'Relatório de validade', contexto, comValidade.length);
   const largura = doc.internal.pageSize.getWidth();
 
   // Só o que exige ação aparece no resumo. Total de itens é detalhe, não decisão.

@@ -143,9 +143,18 @@ export function MenuPrincipal({
     gestao.push({
       id: 'produtos',
       icone: 'produtos',
-      titulo: 'Produtos e estoque',
-      descricao: 'Cadastro, planilha, ERP e limpeza',
+      titulo: 'Produtos',
+      descricao: 'Cadastro, planilha, corrigir estoque e limpeza',
       rota: '/produtos',
+    });
+  }
+  if (permissoes.gerenciarEstoque) {
+    gestao.push({
+      id: 'estoques',
+      icone: 'trocar',
+      titulo: 'Estoques',
+      descricao: 'Criar, renomear e excluir depósitos e lojas',
+      rota: '/estoques',
     });
   }
   if (permissoes.gerenciarUsuarios) {

@@ -18,7 +18,7 @@ import {
   type DocumentData,
   type QueryDocumentSnapshot,
 } from 'firebase/firestore';
-import type { Produto } from '@themis/shared';
+import { LIMITE_CRITICO, fisicoDe, sistemaDe, type Produto } from '@themis/shared';
 import { db } from './firebase.js';
 import { deviceId } from './dispositivo.js';
 import { runTransactionWithTimeout, withWriteTimeout } from './firestore-write.js';
@@ -299,6 +299,59 @@ export async function marcarConferido(
     }),
     { label: 'marcar conferido' },
   );
+}
+
+export interface ResultadoConferencia {
+  /** Itens divergentes marcados como conferidos com a divergência confirmada. */
+  divergentes: number;
+  /** Itens que bateram e foram apenas fechados. */
+  corretos: number;
+}
+
+/**
+ * Fecha a conferência de todos os itens contados, em lote.
+ *
+ * É a segunda metade do "Corrigir Estoque" do 1.x: depois de mandar as divergências ao
+ * ERP, **todo** item `ATUALIZADO` vira `CONFERIDO`, com `corrigidoIncorreto` dizendo se a
+ * divergência existia. Sem esse fechamento, os itens continuariam na lista de trabalho do
+ * funcionário e seriam recontados.
+ *
+ * `corrigidoCritico` acompanha, para paridade com o 1.x: diferença de 10 ou mais.
+ */
+export async function fecharConferencia(
+  inventoryId: string,
+  produtos: readonly Produto[],
+  idsDivergentes: ReadonlySet<string>,
+): Promise<ResultadoConferencia> {
+  const alvos = produtos.filter((p) => p.productStatus === 'ATUALIZADO');
+  const agora = new Date();
+  const autor = deviceId();
+  let divergentes = 0;
+  let corretos = 0;
+
+  for (let i = 0; i < alvos.length; i += LIMITE_BATCH) {
+    const lote = writeBatch(db);
+
+    for (const p of alvos.slice(i, i + LIMITE_BATCH)) {
+      const incorreto = idsDivergentes.has(p.id);
+      const diferenca = fisicoDe(p) - sistemaDe(p);
+
+      lote.update(doc(colecaoProdutos(inventoryId), p.id), {
+        productStatus: 'CONFERIDO',
+        corrigidoIncorreto: incorreto,
+        corrigidoCritico: incorreto && Math.abs(diferenca) >= LIMITE_CRITICO,
+        lastModified: agora,
+        modifiedBy: autor,
+      });
+
+      if (incorreto) divergentes++;
+      else corretos++;
+    }
+
+    await withWriteTimeout(lote.commit(), { ms: 20_000, label: 'fechar conferência' });
+  }
+
+  return { divergentes, corretos };
 }
 
 /** Desfaz a conferência: volta o item para a lista de trabalho. */

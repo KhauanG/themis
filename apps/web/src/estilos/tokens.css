@@ -1,16 +1,23 @@
 /**
  * Sistema de design do Themis.
  *
- * Referência: interfaces empresariais da Apple. Três princípios, e todo o resto decorre:
+ * Paleta da marca: azul escuro, azul gelo e amarelo. Estrutura e ritmo seguem interfaces
+ * empresariais da Apple. Três princípios, e todo o resto decorre:
  *
- * 1. COR SÓ COM SIGNIFICADO. Cinzas carregam a interface; cor aparece quando comunica
- *    estado (correto, divergente, crítico) ou ação primária. Um card colorido "porque
- *    fica bonito" rouba a atenção de um card que está avisando de divergência.
+ * 1. COR SÓ COM SIGNIFICADO. Cinzas e o azul gelo carregam a interface; cor saturada
+ *    aparece quando comunica estado (correto, divergente, crítico) ou ação primária. Um
+ *    card colorido "porque fica bonito" rouba a atenção de um card que está avisando de
+ *    divergência.
  *
  * 2. HIERARQUIA POR PESO E ESPAÇO, não por caixa. Antes de desenhar uma borda ou um
  *    fundo, tente resolver com tamanho, peso da fonte e respiro.
  *
- * 3. LINHAS DE CABELO. Separadores de 1px em cinza claro, não blocos de fundo.
+ * 3. LINHAS DE CABELO. Separadores de 1px, não blocos de fundo.
+ *
+ * O amarelo da marca é o alerta: divergência que precisa de olhar humano. Encaixa no
+ * significado em vez de ser decoração — e é o que aparece na tela de contagem quando um
+ * item não bate. Nunca como texto sobre branco: contraste insuficiente. Fica como
+ * preenchimento, com texto em âmbar escuro por cima.
  *
  * Claro é o padrão: depósito é ambiente iluminado. Escuro é suportado de verdade, não
  * como inversão automática — as cores de estado são recalibradas para contraste em fundo
@@ -20,33 +27,44 @@
 :root {
   color-scheme: light dark;
 
-  /* ---------- Neutros ---------- */
-  --fundo: #f5f5f7;
-  --superficie: #ffffff;
-  --superficie-2: #fbfbfd;
-  --superficie-3: #f0f0f3;
-  --borda: #d2d2d7;
-  --borda-suave: #e8e8ed;
+  /* ---------- Marca ---------- */
+  --marca: #0b2545; /* azul escuro — ação primária, cabeçalho, seleção */
+  --marca-forte: #133a6b; /* estado de toque */
+  --marca-clara: #1b4d8c;
+  --gelo: #e7f1f9; /* azul gelo — superfícies de destaque */
+  --gelo-forte: #cfe3f2;
+  --amarelo: #f2b705; /* marca — usado como alerta */
+  --amarelo-claro: #fdf3d7;
+  --amarelo-escuro: #8a6100; /* texto legível sobre amarelo claro */
 
-  --texto: #1d1d1f;
-  --texto-2: #6e6e73;
-  --texto-3: #86868b;
+  /* ---------- Neutros ---------- */
+  --fundo: #f4f7fa;
+  --superficie: #ffffff;
+  --superficie-2: #fafcfe;
+  --superficie-3: #eef3f8;
+  --borda: #c9d6e2;
+  --borda-suave: #e3ebf3;
+
+  --texto: #0f1f33;
+  --texto-2: #5a6b7d;
+  --texto-3: #8496a8;
   --texto-invertido: #ffffff;
 
-  /* ---------- Acento ---------- */
-  --acento: #0071e3;
-  --acento-forte: #0058b9;
-  --acento-fundo: #ebf5ff;
+  /* ---------- Acento (aponta para a marca) ---------- */
+  --acento: var(--marca);
+  --acento-forte: var(--marca-forte);
+  --acento-fundo: var(--gelo);
 
   /* ---------- Estado ---------- */
-  --ok: #00875a;
-  --ok-fundo: #e6f5ef;
-  --alerta: #a45b00;
-  --alerta-fundo: #fdf1e3;
-  --critico: #c9252d;
-  --critico-fundo: #fdecec;
-  --neutro-estado: #6e6e73;
-  --neutro-estado-fundo: #f0f0f3;
+  --ok: #0a7d55;
+  --ok-fundo: #e2f4ec;
+  --alerta: var(--amarelo-escuro);
+  --alerta-fundo: var(--amarelo-claro);
+  --alerta-marca: var(--amarelo); /* preenchimento sólido, sem texto por cima */
+  --critico: #b3261e;
+  --critico-fundo: #fbe9e7;
+  --neutro-estado: #5a6b7d;
+  --neutro-estado-fundo: #eef3f8;
 
   /* ---------- Tipografia ---------- */
   --fonte: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto,
@@ -82,10 +100,10 @@
   --raio-g: 1rem;
   --raio-total: 999px;
 
-  /* Sombras discretas. Elevação é sugerida, não anunciada. */
-  --sombra-1: 0 1px 2px rgb(0 0 0 / 4%), 0 1px 1px rgb(0 0 0 / 3%);
-  --sombra-2: 0 4px 12px rgb(0 0 0 / 8%);
-  --sombra-3: 0 12px 32px rgb(0 0 0 / 14%);
+  /* Sombras discretas, com tinta azul em vez de preto puro. */
+  --sombra-1: 0 1px 2px rgb(11 37 69 / 6%), 0 1px 1px rgb(11 37 69 / 4%);
+  --sombra-2: 0 4px 12px rgb(11 37 69 / 10%);
+  --sombra-3: 0 12px 32px rgb(11 37 69 / 18%);
 
   /* Alvo de toque. Contagem é feita com o polegar, às vezes com luva. */
   --toque: 2.75rem;
@@ -97,35 +115,41 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --fundo: #000000;
-    --superficie: #1c1c1e;
-    --superficie-2: #2c2c2e;
-    --superficie-3: #3a3a3c;
-    --borda: #38383a;
-    --borda-suave: #2c2c2e;
+    /* O azul escuro da marca vira o próprio fundo. */
+    --marca: #4d9fe8;
+    --marca-forte: #7bbaf0;
+    --marca-clara: #4d9fe8;
+    --gelo: #12283f;
+    --gelo-forte: #1a3a58;
+    --amarelo: #ffc72c;
+    --amarelo-claro: #3a2f0d;
+    --amarelo-escuro: #ffd66b;
 
-    --texto: #f5f5f7;
-    --texto-2: #aeaeb2;
-    --texto-3: #8e8e93;
-    --texto-invertido: #ffffff;
+    --fundo: #05101d;
+    --superficie: #0e1c2c;
+    --superficie-2: #142438;
+    --superficie-3: #1c3047;
+    --borda: #26405c;
+    --borda-suave: #1a2c41;
 
-    --acento: #0a84ff;
-    --acento-forte: #409cff;
-    --acento-fundo: #0a2540;
+    --texto: #eaf2f9;
+    --texto-2: #9fb3c7;
+    --texto-3: #71879c;
+    --texto-invertido: #05101d;
 
     /* Recalibrados: os tons do modo claro não têm contraste suficiente aqui. */
-    --ok: #30d158;
-    --ok-fundo: #0e2e1c;
-    --alerta: #ff9f0a;
-    --alerta-fundo: #33240a;
-    --critico: #ff453a;
-    --critico-fundo: #3a1512;
-    --neutro-estado: #aeaeb2;
-    --neutro-estado-fundo: #2c2c2e;
+    --ok: #34d399;
+    --ok-fundo: #0c2f24;
+    --alerta: #ffd66b;
+    --alerta-fundo: #3a2f0d;
+    --critico: #ff6b5e;
+    --critico-fundo: #3d1714;
+    --neutro-estado: #9fb3c7;
+    --neutro-estado-fundo: #1c3047;
 
-    --sombra-1: 0 1px 2px rgb(0 0 0 / 40%);
-    --sombra-2: 0 4px 12px rgb(0 0 0 / 50%);
-    --sombra-3: 0 12px 32px rgb(0 0 0 / 60%);
+    --sombra-1: 0 1px 2px rgb(0 0 0 / 45%);
+    --sombra-2: 0 4px 12px rgb(0 0 0 / 55%);
+    --sombra-3: 0 12px 32px rgb(0 0 0 / 65%);
   }
 }
 

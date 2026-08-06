@@ -5,7 +5,7 @@
  * (861 KB em toda abertura do app, versão do npm sem as correções publicadas só no CDN).
  * Entra por import dinâmico: só quem importa ou exporta paga o custo.
  */
-import { ordenarPorNome, type LinhaRelatorio } from '@themis/shared';
+import type { LinhaRelatorio } from '@themis/shared';
 import { entregarArquivo, nomeDeArquivo } from './arquivo.js';
 
 /** Aceita as várias grafias que já apareceram nas planilhas do ERP. */
@@ -115,7 +115,8 @@ export async function exportarPlanilha(
   ];
   aba.getRow(1).font = { bold: true };
 
-  for (const l of ordenarPorNome(linhas)) {
+  // Sem reordenar: as linhas já chegam no recorte e na ordem escolhidos na tela.
+  for (const l of linhas) {
     aba.addRow({
       nome: l.nome,
       sistema: l.sistema,

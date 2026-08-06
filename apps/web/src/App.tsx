@@ -11,6 +11,7 @@ import { PainelAuditoria } from './features/auditoria/PainelAuditoria.js';
 import { TelaProdutos } from './features/produtos/TelaProdutos.js';
 import { TelaHistorico } from './features/historico/TelaHistorico.js';
 import { TelaUsuarios } from './features/usuarios/TelaUsuarios.js';
+import { TelaEstoques } from './features/estoques/TelaEstoques.js';
 import { LimiteDeErro } from './components/LimiteDeErro.js';
 
 /** Bloqueia a rota quando a permissão não existe. A regra do Firestore é a defesa real. */
@@ -52,6 +53,14 @@ function Rotas() {
               element={
                 <Protegida permitido={permissoes.verHistorico}>
                   <TelaHistorico />
+                </Protegida>
+              }
+            />
+            <Route
+              path="estoques"
+              element={
+                <Protegida permitido={permissoes.gerenciarEstoque}>
+                  <TelaEstoques />
                 </Protegida>
               }
             />
