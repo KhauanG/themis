@@ -146,8 +146,10 @@ O endereço do ERP fica só no servidor, fora do bundle.
 `Permissions-Policy: camera=(self)` estão no `.htaccess`, que **só vale se houver Apache na
 frente** — na configuração atual (Node servindo direto) eles não são aplicados.
 
-> **Pendência conhecida.** Mover esses cabeçalhos para o Fastify. Não é bloqueador: o app
-> é de rede interna, autenticado, e não incorpora conteúdo de terceiros.
+> **Pendência conhecida**, com o plano de execução e as armadilhas do CSP em
+> [pendencias.md](pendencias.md#2-cabeçalhos-de-segurança-no-fastify). Não é bloqueador: o
+> app é de rede interna, autenticado, e não incorpora conteúdo de terceiros. O ganho
+> concreto mais próximo é `frame-ancestors`, contra clickjacking.
 
 ---
 

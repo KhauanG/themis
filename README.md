@@ -152,11 +152,11 @@ Portado e verificado (typecheck + lint + 56 testes + build):
 - [x] Validado em celular Android real: câmera, instalação, rota de SPA, offline e
       drenagem da fila (2026-08-06)
 
-Falta:
-- [ ] Migração dos usuários do APK para o PWA — ver [DEPLOY.md](DEPLOY.md) §Passo 8
-- [ ] Criar e excluir usuário pelo app (hoje só pelo Console do Firebase)
-- [ ] Mover os cabeçalhos de segurança do `.htaccess` para o Fastify — ver
-      [docs/seguranca.md](docs/seguranca.md) §Cabeçalhos
+Pendências, com o contexto para retomar: [docs/pendencias.md](docs/pendencias.md)
+
+1. Migrar a equipe do APK para o PWA — **é o que fecha o projeto**
+2. Cabeçalhos de segurança no Fastify
+3. Criar e excluir usuário pelo app
 
 ## Deploy
 

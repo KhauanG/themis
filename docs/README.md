@@ -36,6 +36,7 @@ Mapa do projeto. Comece por aqui.
 | [desenvolvimento.md](desenvolvimento.md) | Rodar, testar, convenções de código |
 | [decisoes.md](decisoes.md) | Registro das escolhas e do motivo de cada uma |
 | [armadilhas.md](armadilhas.md) | O que já custou caro. Leia antes de mexer |
+| [pendencias.md](pendencias.md) | O que ficou de fora, e o contexto para retomar |
 | [CHANGELOG.md](CHANGELOG.md) | Histórico de alterações |
 | [../DEPLOY.md](../DEPLOY.md) | Publicar em produção |
 

@@ -16,6 +16,8 @@ Themis 2.0 — PWA de contagem e auditoria de estoque do Grupo Ice Beer, no ar e
 2. Leia [docs/armadilhas.md](docs/armadilhas.md) — cada item ali custou tempo real
 3. Se for mexer em dados: [docs/dados.md](docs/dados.md) §Regras de tipo
 4. Se for mexer em gravação: [docs/offline.md](docs/offline.md)
+5. Se a tarefa for uma pendência conhecida: [docs/pendencias.md](docs/pendencias.md) já traz
+   o plano e as armadilhas
 
 ## Depois de escrever código
 
