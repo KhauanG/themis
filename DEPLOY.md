@@ -4,12 +4,12 @@ Passo a passo do zero até o app no ar, com deploy automático a cada `push` na 
 
 Faça na ordem. Cada passo assume o anterior concluído.
 
-> **Qual terminal.** Os comandos locais são para o **PowerShell do Windows**, um por
-> linha. O Windows PowerShell 5.1 **não aceita `&&`** — colar uma linha com `&&` devolve
-> `O token '&&' não é um separador de instruções válido nesta versão`. Onde precisa
-> encadear, existe um script npm (`&&` funciona dentro deles, porque o npm usa o
-> `cmd.exe`). Os blocos marcados como "no servidor" rodam em bash, depois do `ssh`, e aí
-> `&&` e heredoc funcionam normalmente.
+> **Qual terminal.** Blocos marcados `powershell` rodam no seu PC, **uma linha por vez**.
+> O Windows PowerShell 5.1 **não aceita `&&`** — colar uma linha com `&&` devolve
+> `O token '&&' não é um separador de instruções válido nesta versão`. Onde é preciso
+> encadear, existe um script npm (dentro deles o `&&` funciona, porque o npm executa via
+> `cmd.exe`). Blocos marcados `bash` rodam **no servidor**, depois do `ssh` — lá `&&` e
+> heredoc funcionam normalmente.
 
 ---
 
@@ -37,18 +37,18 @@ Se falhar, **pare** — não publique.
 
 ## Passo 1 — Repositório no GitHub
 
-O repositório local já existe, com dois commits. Falta o remoto.
+O repositório local já existe, com o histórico completo. Falta o remoto.
 
 **1.1** Crie o repositório em <https://github.com/new>:
 
 - Nome: `themis` (ou `themis-2`)
 - Visibilidade: **Private**
 - **Não** marque "Add a README", "Add .gitignore" nem licença — o repositório local já
-  tem tudo e um commit inicial do GitHub causaria conflito
+  tem tudo, e um commit inicial do GitHub causaria conflito no primeiro push
 
 **1.2** Ligue o local ao remoto e envie:
 
-```bash
+```powershell
 cd "C:\Projetos\Themis 2.0"
 git remote add origin https://github.com/SEU-USUARIO/themis.git
 git push -u origin main
@@ -56,7 +56,7 @@ git push -u origin main
 
 **1.3** Confirme que nenhum segredo subiu:
 
-```bash
+```powershell
 git ls-files | Select-String "\.env$"
 ```
 
@@ -64,13 +64,13 @@ Não pode retornar nada. Os `.env.example` sobem; os `.env` reais, não.
 
 **1.4** Crie a branch de trabalho — a `main` passa a ser só o que está publicado:
 
-```bash
+```powershell
 git checkout -b desenvolvimento
 git push -u origin desenvolvimento
 ```
 
-Sugestão de proteção da `main` (Settings → Branches → Add rule): exigir pull request e
-exigir que o job `verificar` do CI passe.
+Proteja a `main` (Settings → Branches → Add rule): exigir pull request e exigir que o job
+`verificar` do CI passe.
 
 ---
 
@@ -80,7 +80,7 @@ O banco é o mesmo do Themis 1.x. **Nenhuma migração de dados.**
 
 **2.1** Instale e autentique a CLI:
 
-```bash
+```powershell
 npm install -g firebase-tools
 firebase login
 ```
@@ -96,7 +96,7 @@ firebase login
 
 **2.3** Publique os índices (adicionar índice é operação aditiva e segura):
 
-```bash
+```powershell
 cd "C:\Projetos\Themis 2.0"
 firebase deploy --only firestore:indexes
 ```
@@ -104,9 +104,9 @@ firebase deploy --only firestore:indexes
 A construção leva de minutos a algumas horas conforme o volume. Acompanhe em
 Firestore → Índices. Só teste o Histórico depois que ficarem "Ativado".
 
-**2.4** As regras, só se realmente divergirem:
+**2.4** As regras, **só se realmente divergirem**:
 
-```bash
+```powershell
 firebase deploy --only firestore:rules
 ```
 
@@ -122,7 +122,7 @@ receber permission-denied ao contar, mesmo sem encostar nesse campo. O sintoma e
 
 O script é **somente leitura** — não altera nada:
 
-```bash
+```powershell
 npm run auditar-produtos
 ```
 
@@ -134,12 +134,11 @@ não precisa de service account). Ao final:
   de cada caso
 
 Se a saída for "Nenhum documento violaria as regras", siga em frente. Se listar produtos,
-me mostre o CSV — o conserto depende do que aparecer, e é escrita em produção, então
-prefiro combinar antes de mexer.
+o conserto é escrita em produção — combine antes de aplicar.
 
 > O CSV tem nomes de produto e está no `.gitignore` de propósito. Não versione.
 
-**2.6** Verifique se o domínio novo está autorizado no Auth:
+**2.6** Autorize o domínio novo no Auth:
 Firebase Console → Authentication → Settings → Authorized domains → adicione
 `themis.grupoicebeer.com.br`. **Sem isso o login não funciona no domínio novo.**
 
@@ -160,6 +159,7 @@ gratuito e ative "Forçar HTTPS".
 Gere um par **só para o deploy** — não reaproveite sua chave pessoal:
 
 ```powershell
+cd "C:\Projetos\Themis 2.0"
 ssh-keygen -t ed25519 -C "github-actions-themis" -f themis_deploy -N '""'
 ```
 
@@ -172,13 +172,19 @@ Gera `themis_deploy` (privada) e `themis_deploy.pub` (pública).
 No hPanel: Avançado → Acesso SSH → cole o conteúdo de **`themis_deploy.pub`**.
 Anote host, usuário e porta que a tela mostra.
 
-Teste:
+Teste a conexão e a versão do Node do servidor:
 
-```bash
+```powershell
 ssh -p PORTA -i themis_deploy USUARIO@HOST "echo ok; node -v"
 ```
 
 Precisa responder `ok` e uma versão do Node **20 ou maior**.
+
+Guarde também o fingerprint do servidor — vira secret no passo 4:
+
+```powershell
+ssh-keyscan -p PORTA HOST
+```
 
 **3.3 Pastas no servidor**
 
@@ -188,10 +194,12 @@ Conecte e rode lá dentro (daqui em diante é bash, não PowerShell):
 ssh -p PORTA -i themis_deploy USUARIO@HOST
 mkdir -p ~/themis-api/dist
 ls -d ~/domains/*/public_html
+pwd
 exit
 ```
 
-Anote o caminho do `public_html` do subdomínio — é o `HOSTINGER_WEB_DIR`.
+Anote o caminho do `public_html` do subdomínio — é o `HOSTINGER_WEB_DIR`. O `pwd` mostra
+o seu diretório home, que compõe o `HOSTINGER_API_DIR`.
 
 **3.4 App Node no hPanel**
 
@@ -210,7 +218,7 @@ o passo 4 trata disso.
 
 Gere o segredo do webhook na sua máquina:
 
-```bash
+```powershell
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ```
 
@@ -227,6 +235,7 @@ ERP_TIMEOUT_MS=10000
 WEBHOOK_SECRET=cole-o-segredo-gerado-aqui
 FIM
 chmod 600 ~/themis-api/.env
+exit
 ```
 
 Ajuste `PORT` para a porta que o hPanel atribuiu e `CORS_ORIGINS` para o seu domínio real.
@@ -240,6 +249,7 @@ que outros processos podem enxergar.
 ssh -p PORTA -i themis_deploy USUARIO@HOST
 npm install -g pm2
 pm2 startup   # rode o comando que ele imprimir, para a API voltar sozinha após reboot
+exit
 ```
 
 O workflow inicia o processo com `--node-args='--env-file=.env'`. Isso é obrigatório: o
@@ -269,7 +279,7 @@ Settings → Secrets and variables → Actions → New repository secret.
 | `HOSTINGER_SSH_USER` | usuário do passo 3.2 |
 | `HOSTINGER_SSH_PORT` | porta do passo 3.2 |
 | `HOSTINGER_SSH_KEY` | conteúdo **inteiro** de `themis_deploy`, com as linhas BEGIN/END |
-| `HOSTINGER_KNOWN_HOSTS` | saída de `ssh-keyscan -p PORTA HOST` |
+| `HOSTINGER_KNOWN_HOSTS` | saída do `ssh-keyscan` do passo 3.2 |
 | `HOSTINGER_WEB_DIR` | caminho do `public_html` do subdomínio |
 | `HOSTINGER_API_DIR` | `/home/USUARIO/themis-api` |
 | `URL_HEALTHCHECK` | `https://themis.grupoicebeer.com.br/api/health` |
@@ -293,17 +303,25 @@ Depois apague `themis_deploy` da sua máquina — ela já está no GitHub e no s
 
 ## Passo 5 — Primeiro deploy
 
-```bash
+```powershell
 git checkout main
 git push origin main
 ```
 
-Acompanhe em Actions. O workflow: build → envia o PWA → envia a API → `npm install` e
-restart → confere `/api/health`.
+Acompanhe em Actions. O workflow faz, nesta ordem:
+
+1. `npm ci`
+2. typecheck, lint e testes — publicar sem verificar não acontece
+3. build do PWA e da API
+4. confere que `index.html`, `sw.js`, `.htaccess` e `server.js` existem
+5. valida o `HOSTINGER_WEB_DIR` antes do `rsync --delete`
+6. envia o PWA e a API
+7. `npm install --omit=dev` e restart do pm2 no servidor
+8. chama `/api/health` em laço, até ~30s
 
 Se o healthcheck falhar, veja o log no servidor:
 
-```bash
+```powershell
 ssh -p PORTA -i themis_deploy USUARIO@HOST "pm2 logs themis-api --lines 50"
 ```
 
@@ -343,20 +361,20 @@ Não desative o app antigo antes de um ciclo de contagem inteiro fechado pelo PW
 
 ## Deploys seguintes
 
-```bash
+```powershell
 git checkout desenvolvimento
 # trabalhar, commitar
 git push origin desenvolvimento
-# abrir pull request para main; o CI roda sozinho
-# ao aprovar e mesclar, o deploy acontece
 ```
+
+Abra pull request para `main`. O CI roda sozinho; ao aprovar e mesclar, o deploy acontece.
 
 O usuário recebe a versão nova no próximo carregamento do app — sem loja, sem revisão,
 sem esperar aprovação.
 
 ## Voltar atrás
 
-```bash
+```powershell
 git revert HASH-DO-COMMIT-RUIM
 git push origin main
 ```
