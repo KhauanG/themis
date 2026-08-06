@@ -424,6 +424,49 @@ export async function desfazerConferido(inventoryId: string, produtoId: string):
   );
 }
 
+export interface CadastroProduto {
+  nome: string;
+  codigoBarras: string;
+  estoqueSistema: number;
+  idProduto: string;
+}
+
+/**
+ * Altera o cadastro do produto — nome, código de barras, saldo do sistema e código do ERP.
+ *
+ * Não toca em `quantidade` nem em `productStatus`: cadastro e contagem são coisas
+ * diferentes, e misturá-las faria uma correção de nome apagar o trabalho do funcionário.
+ *
+ * `NomeProduto` acompanha `nome` porque o Themis 1.x lê a grafia antiga — enquanto os dois
+ * apps convivem, gravar só uma faria o produto aparecer sem nome no app velho.
+ *
+ * `IdProduto` vazio é **removido**, não gravado como string vazia: a regra aceita string,
+ * mas um identificador vazio faria o produto casar errado com a listagem do ERP.
+ */
+export async function atualizarCadastroProduto(
+  inventoryId: string,
+  produtoId: string,
+  cadastro: CadastroProduto,
+): Promise<void> {
+  const codigo = cadastro.codigoBarras.trim();
+  const idErp = cadastro.idProduto.trim();
+
+  const dados: Record<string, unknown> = {
+    nome: cadastro.nome.trim(),
+    NomeProduto: cadastro.nome.trim(),
+    codigoBarras: codigo,
+    temCodigoBarras: codigo !== '',
+    estoqueSistema: cadastro.estoqueSistema,
+    IdProduto: idErp === '' ? deleteField() : idErp,
+    lastModified: new Date(),
+    modifiedBy: deviceId(),
+  };
+
+  await withWriteTimeout(updateDoc(doc(colecaoProdutos(inventoryId), produtoId), dados), {
+    label: 'editar produto',
+  });
+}
+
 export async function excluirProduto(inventoryId: string, produtoId: string): Promise<void> {
   await withWriteTimeout(deleteDoc(doc(colecaoProdutos(inventoryId), produtoId)), {
     label: 'excluir produto',

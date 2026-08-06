@@ -188,7 +188,23 @@ acidente.
 
 ---
 
-## 15. Papéis toleram flag em três formatos
+## 15. Auditoria de múltiplos estoques não será portada
+
+**Contexto.** O painel do auditor do 1.x tem `toggleMultiploEstoquesBtn`, que consolida
+vários estoques numa auditoria só.
+
+**Decisão.** Não portar.
+
+**Por quê.** O usuário confirmou que **nunca foi usado**. Portar custaria mudar o formato
+da auditoria salva, que hoje tem um `inventoryId` só — e todo o cálculo de estatísticas
+assume um estoque.
+
+**Quando reconsiderar.** Se a operação passar a contar depósito e lojas como um inventário
+único. Aí vale rever o modelo de `auditorias` antes de qualquer código.
+
+---
+
+## 16. Papéis toleram flag em três formatos
 
 **Contexto.** Documentos antigos gravaram `isAuditor` como boolean, string `"true"` e
 número `1`.

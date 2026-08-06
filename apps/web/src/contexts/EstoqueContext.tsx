@@ -22,6 +22,12 @@ import {
 import { monitorarConexao } from '../lib/conectividade.js';
 import { CHAVES, gravar, ler, solicitarArmazenamentoPersistente } from '../lib/armazenamento.js';
 import { registrarUltimoEstoque } from '../lib/usuarios-repo.js';
+import {
+  CONFIGURACOES_PADRAO,
+  ouvirConfiguracoes,
+  salvarConfiguracoes,
+  type Configuracoes,
+} from '../lib/configuracoes-repo.js';
 import { useAuth } from './AuthContext.js';
 import { useToast } from './ToastContext.js';
 
@@ -37,6 +43,11 @@ interface EstoqueAPI {
   pendentes: number;
   salvarContagem: (produto: Produto, quantidade: number, validade: string) => Promise<boolean>;
   sincronizar: () => Promise<void>;
+  /** Configurações globais, em tempo real. */
+  configuracoes: Configuracoes;
+  /** `true` quando o estoque aberto está travado para contagem. */
+  somenteLeitura: boolean;
+  alterarConfiguracoes: (mudanca: Partial<Configuracoes>) => Promise<void>;
   /** Contexto pronto para `registrar()`. `null` enquanto não há usuário ou estoque. */
   contextoLog: {
     userId: string;
@@ -59,6 +70,7 @@ export function EstoqueProvider({ children }: { children: ReactNode }) {
   const [carregandoProdutos, setCarregandoProdutos] = useState(false);
   const [online, setOnline] = useState(navigator.onLine);
   const [fila, setFila] = useState<AlteracaoPendente[]>(() => carregarFila());
+  const [configuracoes, setConfiguracoes] = useState<Configuracoes>(CONFIGURACOES_PADRAO);
 
   const sincronizando = useRef(false);
 
@@ -83,6 +95,32 @@ export function EstoqueProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     void solicitarArmazenamentoPersistente();
   }, []);
+
+  // Em tempo real: ligar o modo contagem no escritório precisa refletir no celular do
+  // depósito sem ninguém recarregar nada.
+  useEffect(() => {
+    if (!usuario) return;
+    return ouvirConfiguracoes(setConfiguracoes);
+  }, [usuario]);
+
+  const somenteLeitura = Boolean(estoqueId && configuracoes.somenteLeitura.includes(estoqueId));
+
+  const alterarConfiguracoes = useCallback(
+    async (mudanca: Partial<Configuracoes>) => {
+      const novo = { ...configuracoes, ...mudanca };
+      // Estado otimista: o listener confirma em seguida, mas o interruptor precisa
+      // responder na hora ao toque.
+      setConfiguracoes(novo);
+      try {
+        await salvarConfiguracoes(novo);
+      } catch (erro) {
+        console.error('[configuracoes] Falha ao salvar:', erro);
+        setConfiguracoes(configuracoes);
+        mostrar('Não foi possível salvar. Só admin ou master pode alterar isto.', 'error');
+      }
+    },
+    [configuracoes, mostrar],
+  );
 
   useEffect(() => {
     if (!usuario) {
@@ -197,6 +235,11 @@ export function EstoqueProvider({ children }: { children: ReactNode }) {
     async (produto: Produto, quantidade: number, validade: string): Promise<boolean> => {
       if (!estoqueId) return false;
 
+      if (somenteLeitura) {
+        mostrar('Este estoque está em modo somente leitura. Não é possível contar.', 'warning');
+        return false;
+      }
+
       const dados: Record<string, unknown> = {
         quantidade,
         productStatus: 'ATUALIZADO',
@@ -243,7 +286,7 @@ export function EstoqueProvider({ children }: { children: ReactNode }) {
         return false;
       }
     },
-    [estoqueId, ciclo, mostrar, contextoLog],
+    [estoqueId, ciclo, mostrar, contextoLog, somenteLeitura],
   );
 
   const valor = useMemo<EstoqueAPI>(
@@ -260,6 +303,9 @@ export function EstoqueProvider({ children }: { children: ReactNode }) {
       salvarContagem,
       sincronizar,
       contextoLog,
+      configuracoes,
+      somenteLeitura,
+      alterarConfiguracoes,
     }),
     [
       estoques,
@@ -274,6 +320,9 @@ export function EstoqueProvider({ children }: { children: ReactNode }) {
       salvarContagem,
       sincronizar,
       contextoLog,
+      configuracoes,
+      somenteLeitura,
+      alterarConfiguracoes,
     ],
   );
 

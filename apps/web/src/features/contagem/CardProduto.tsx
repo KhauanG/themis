@@ -16,6 +16,9 @@ interface Props {
   /** Recebe o id para que a lista possa passar um callback estável e o `memo` valer. */
   onAlternar: (produtoId: string) => void;
   onSalvar: (produto: Produto, quantidade: number, validade: string) => Promise<boolean>;
+  /** Só admin/master recebe. */
+  onEditar?: ((produto: Produto) => void) | undefined;
+  somenteLeitura?: boolean;
 }
 
 /** `YYYY-MM-DD` para `DD/MM`, sem passar por `new Date`, que desloca o fuso. */
@@ -34,7 +37,14 @@ function diasAte(iso: string): number {
 
 const LIMITE_CRITICO = 10;
 
-function CardProdutoBase({ produto, expandido, onAlternar, onSalvar }: Props) {
+function CardProdutoBase({
+  produto,
+  expandido,
+  onAlternar,
+  onSalvar,
+  onEditar,
+  somenteLeitura = false,
+}: Props) {
   const status = statusContagemDe(produto);
   const contado = status !== null;
   const conferido = status === 'CONFERIDO';
@@ -111,6 +121,8 @@ function CardProdutoBase({ produto, expandido, onAlternar, onSalvar }: Props) {
           produto={produto}
           onCancelar={() => onAlternar(produto.id)}
           onSalvar={(quantidade, validadeNova) => onSalvar(produto, quantidade, validadeNova)}
+          onEditar={onEditar ? () => onEditar(produto) : undefined}
+          somenteLeitura={somenteLeitura}
         />
       )}
     </li>

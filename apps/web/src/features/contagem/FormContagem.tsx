@@ -5,6 +5,10 @@ interface Props {
   produto: Produto;
   onCancelar: () => void;
   onSalvar: (quantidade: number, validade: string) => Promise<boolean>;
+  /** Só admin/master recebe; abre a edição de cadastro. */
+  onEditar?: (() => void) | undefined;
+  /** Estoque travado: mostra o motivo em vez de deixar o usuário tentar e falhar. */
+  somenteLeitura?: boolean;
 }
 
 function marcaDeTempo(p: Produto): number {
@@ -19,7 +23,13 @@ function marcaDeTempo(p: Produto): number {
  * `produto` nas dependências, qualquer gravação de outro aparelho trocava a identidade do
  * objeto e apagava o que o funcionário estava digitando.
  */
-export function FormContagem({ produto, onCancelar, onSalvar }: Props) {
+export function FormContagem({
+  produto,
+  onCancelar,
+  onSalvar,
+  onEditar,
+  somenteLeitura = false,
+}: Props) {
   const [quantidade, setQuantidade] = useState(
     produto.quantidade != null ? String(produto.quantidade) : '',
   );
@@ -92,7 +102,18 @@ export function FormContagem({ produto, onCancelar, onSalvar }: Props) {
         </label>
       </div>
 
+      {somenteLeitura && (
+        <p className="aviso" role="status" style={{ marginBottom: 'var(--e4)' }}>
+          Este estoque está em modo somente leitura. A contagem está travada.
+        </p>
+      )}
+
       <div className="card__acoes">
+        {onEditar && (
+          <button className="botao botao--secundario" type="button" onClick={onEditar}>
+            Editar
+          </button>
+        )}
         <button className="botao botao--secundario" type="button" onClick={onCancelar}>
           Cancelar
         </button>
@@ -100,7 +121,7 @@ export function FormContagem({ produto, onCancelar, onSalvar }: Props) {
           className="botao botao--primario"
           type="button"
           onClick={() => void salvar()}
-          disabled={!valido || salvando}
+          disabled={!valido || salvando || somenteLeitura}
         >
           {salvando ? 'Salvando…' : 'Salvar'}
         </button>

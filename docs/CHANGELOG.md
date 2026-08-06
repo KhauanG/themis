@@ -6,6 +6,36 @@ Categorias: **Adicionado**, **Alterado**, **Corrigido**, **Removido**, **Seguran
 
 ---
 
+## 2.4.0 — 2026-08-06
+
+### Corrigido
+
+- **`hashConfigs` era lido no formato errado.** No banco é **um documento só**
+  (`hashConfigs/inventoryHashes`) com um mapa `{ inventoryId: hash }`; o código procurava
+  documentos soltos com campo `hashLoja`. Nunca achava nada, e "Corrigir estoque" falhava
+  sempre com "Nenhum HashLoja configurado", mesmo com tudo certo no banco.
+
+### Adicionado
+
+- **HashLoja na tela de estoques**, com botão de testar. Hash errado devolve lista vazia
+  em vez de erro, então o teste só passa se o ERP devolver ao menos um produto. A lista
+  mostra `ERP ligado` ou `sem HashLoja` em cada estoque. ⚠️ Editar o hash exige **master** —
+  é o que a regra do Firestore permite.
+- **Buscar estoque** como ação própria: lê o saldo do ERP e grava em `estoqueSistema`, sem
+  enviar nada. É a primeira fase do Corrigir estoque, isolada — serve para conferir a
+  divergência antes de decidir corrigir.
+- **Editar e excluir produto**, pelo card da contagem (admin) e exclusão só para master.
+  Altera nome, código de barras, saldo do sistema e código do ERP. Não toca em
+  `quantidade` nem `productStatus`: corrigir um nome não pode apagar o trabalho do
+  funcionário.
+- **Modo contagem** (`appSettings/global`): bloqueia importar planilha e limpar contagem
+  **mesmo para admin**, para ninguém apagar a contagem no meio da operação. Em tempo real —
+  ligar no escritório reflete no celular do depósito sem recarregar.
+- **Estoques somente leitura**: trava a contagem por estoque, com etiqueta na lista e
+  aviso no card.
+
+---
+
 ## 2.3.0 — 2026-08-06
 
 ### Adicionado

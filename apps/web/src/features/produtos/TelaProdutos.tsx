@@ -3,7 +3,13 @@ import { useEstoque } from '../../contexts/EstoqueContext.js';
 import { useToast } from '../../contexts/ToastContext.js';
 import { Icone } from '../../components/Icone.js';
 import { Modal } from '../../components/Modal.js';
-import { criarProduto, criarProdutosEmLote, limparContagem } from '../../lib/produtos-repo.js';
+import {
+  atualizarEstoqueSistema,
+  criarProduto,
+  criarProdutosEmLote,
+  limparContagem,
+} from '../../lib/produtos-repo.js';
+import { buscarEstoqueDoErp, hashDaLoja } from '../../lib/erp.js';
 import { lerPlanilha } from '../../lib/planilha.js';
 import { registrar } from '../../lib/historico.js';
 import { ModalCorrigirEstoque } from './ModalCorrigirEstoque.js';
@@ -15,7 +21,8 @@ interface Ocupado {
 }
 
 export function TelaProdutos() {
-  const { estoqueAtual, produtos, ciclo, contextoLog, progresso } = useEstoque();
+  const { estoqueAtual, produtos, ciclo, contextoLog, progresso, configuracoes, somenteLeitura } =
+    useEstoque();
   const { mostrar } = useToast();
 
   const entradaArquivo = useRef<HTMLInputElement>(null);
@@ -113,6 +120,56 @@ export function TelaProdutos() {
     }
   }
 
+  /**
+   * Buscar estoque — lê o saldo do ERP e grava em `estoqueSistema`, sem corrigir nada.
+   *
+   * É a primeira fase do Corrigir estoque, isolada. Serve para conferir a divergência
+   * antes de decidir corrigir, e para atualizar o saldo depois de movimentação no ERP.
+   */
+  async function buscarEstoque() {
+    if (!estoqueAtual) return;
+    setOcupado({ texto: 'Consultando a configuração da loja' });
+    try {
+      const hash = await hashDaLoja(estoqueAtual.id);
+      if (!hash) {
+        mostrar('Nenhum HashLoja configurado. Configure em Estoques.', 'error');
+        return;
+      }
+
+      setOcupado({ texto: 'Buscando o estoque no ERP' });
+      const leitura = await buscarEstoqueDoErp(hash);
+      if (!leitura.ok) {
+        mostrar(leitura.erro ?? 'Não foi possível ler o estoque do ERP.', 'error');
+        return;
+      }
+
+      setOcupado({ texto: 'Gravando os saldos' });
+      const r = await atualizarEstoqueSistema(estoqueAtual.id, produtos, leitura.estoque);
+
+      mostrar(
+        r.atualizados === 0
+          ? 'Tudo já estava igual ao ERP.'
+          : `${r.atualizados} ${r.atualizados === 1 ? 'saldo atualizado' : 'saldos atualizados'}.${
+              r.semCorrespondencia > 0 ? ` ${r.semCorrespondencia} sem correspondência no ERP.` : ''
+            }`,
+        'success',
+      );
+
+      if (contextoLog) {
+        void registrar('BUSCAR_ESTOQUE', contextoLog, {
+          recebidosDoErp: leitura.estoque.size,
+          atualizados: r.atualizados,
+          semCorrespondencia: r.semCorrespondencia,
+        });
+      }
+    } catch (erro) {
+      console.error('[produtos] Buscar estoque falhou:', erro);
+      mostrar('Não foi possível buscar o estoque.', 'error');
+    } finally {
+      setOcupado(null);
+    }
+  }
+
   const pct = ocupado?.total ? Math.round(((ocupado.feitos ?? 0) / ocupado.total) * 100) : null;
 
   return (
@@ -142,7 +199,20 @@ export function TelaProdutos() {
         </div>
       )}
 
-      <div>
+      {configuracoes.modoContagem && (
+        <p className="aviso">
+          Modo contagem ligado. Importar planilha e limpar contagem ficam bloqueados até
+          alguém desligar em Estoques — é o que impede apagar a contagem no meio da operação.
+        </p>
+      )}
+
+      {somenteLeitura && (
+        <p className="aviso">
+          Este estoque está em modo somente leitura. Ninguém consegue contar nele.
+        </p>
+      )}
+
+      <div hidden={configuracoes.modoContagem}>
         <p className="rotulo-secao" style={{ marginBottom: 'var(--e2)' }}>
           Cadastro
         </p>
@@ -189,6 +259,18 @@ export function TelaProdutos() {
           Integração
         </p>
         <div className="acoes-lista">
+          <button className="acao" type="button" onClick={() => void buscarEstoque()} disabled={bloqueado}>
+            <span className="acao__icone">
+              <Icone nome="baixar" />
+            </span>
+            <span className="acao__texto">
+              <span className="acao__titulo">Buscar estoque</span>
+              <span className="acao__descricao">
+                Só atualiza o saldo do sistema com o do ERP. Não envia nada
+              </span>
+            </span>
+          </button>
+
           <button className="acao" type="button" onClick={() => setCorrigindo(true)} disabled={bloqueado}>
             <span className="acao__icone">
               <Icone nome="trocar" />
@@ -203,7 +285,7 @@ export function TelaProdutos() {
         </div>
       </div>
 
-      <div>
+      <div hidden={configuracoes.modoContagem}>
         <p className="rotulo-secao" style={{ marginBottom: 'var(--e2)' }}>
           Zona de risco
         </p>

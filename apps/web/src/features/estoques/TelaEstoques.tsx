@@ -15,7 +15,8 @@ const VAZIO: Formulario = { id: null, nome: '', descricao: '', hashLoja: '' };
 
 export function TelaEstoques() {
   const { permissoes } = useAuth();
-  const { estoques, estoqueAtual, trocarEstoque, contextoLog } = useEstoque();
+  const { estoques, estoqueAtual, trocarEstoque, contextoLog, configuracoes, alterarConfiguracoes } =
+    useEstoque();
   const { mostrar } = useToast();
 
   const [form, setForm] = useState<Formulario | null>(null);
@@ -46,6 +47,15 @@ export function TelaEstoques() {
     else novo.set(inventoryId, hash.trim());
     await salvarHashes(novo);
     setHashes(novo);
+  }
+
+  /** Travar ou destravar a contagem de um estoque. Reflete em todos os aparelhos. */
+  async function alternarSomenteLeitura(inventoryId: string) {
+    const atual = configuracoes.somenteLeitura;
+    const novo = atual.includes(inventoryId)
+      ? atual.filter((id) => id !== inventoryId)
+      : [...atual, inventoryId];
+    await alterarConfiguracoes({ somenteLeitura: novo });
   }
 
   async function testar() {
@@ -125,6 +135,30 @@ export function TelaEstoques() {
         </p>
       )}
 
+      <div className="cartao">
+        <div className="cartao__corpo pilha">
+          <p className="rotulo-secao">Configurações globais</p>
+
+          <button
+            type="button"
+            className={configuracoes.modoContagem ? 'alternador alternador--ligado' : 'alternador'}
+            onClick={() =>
+              void alterarConfiguracoes({ modoContagem: !configuracoes.modoContagem })
+            }
+            aria-pressed={configuracoes.modoContagem}
+          >
+            <span className="alternador__marca" aria-hidden="true" />
+            Modo contagem
+          </button>
+
+          <p className="campo__ajuda">
+            Ligado, bloqueia importar planilha e limpar contagem — <strong>mesmo para
+            admin</strong>. Serve para ninguém apagar a contagem no meio da operação. Vale
+            para todos os aparelhos, na hora.
+          </p>
+        </div>
+      </div>
+
       <button
         className="botao botao--primario botao--largo"
         type="button"
@@ -137,6 +171,7 @@ export function TelaEstoques() {
       <ul className="acoes-lista">
         {estoques.map((e) => {
           const atual = e.id === estoqueAtual?.id;
+          const travado = configuracoes.somenteLeitura.includes(e.id);
           return (
             <li key={e.id} className="acao" style={{ cursor: 'default' }}>
               <span className="acao__icone">
@@ -160,10 +195,34 @@ export function TelaEstoques() {
                   ) : (
                     <span className="etiqueta etiqueta--alerta">sem HashLoja</span>
                   )}
+                  {travado && (
+                    <>
+                      {' '}
+                      <span className="etiqueta etiqueta--critico">somente leitura</span>
+                    </>
+                  )}
                 </span>
               </span>
 
               <span className="acoes-linha">
+                <button
+                  className={
+                    travado
+                      ? 'botao botao--perigo botao--mini'
+                      : 'botao botao--secundario botao--mini'
+                  }
+                  type="button"
+                  onClick={() => void alternarSomenteLeitura(e.id)}
+                  disabled={Boolean(ocupado)}
+                  title={
+                    travado
+                      ? 'Destravar: a equipe volta a poder contar'
+                      : 'Travar: ninguém consegue contar neste estoque'
+                  }
+                >
+                  {travado ? 'Travado' : 'Travar'}
+                </button>
+
                 <button
                   className="botao botao--secundario botao--mini"
                   type="button"

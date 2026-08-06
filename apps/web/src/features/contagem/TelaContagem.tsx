@@ -5,10 +5,13 @@ import {
   filtrarProdutos,
   mensagemVazio,
   type FiltroContagem,
+  type Produto,
 } from '@themis/shared';
 import { useEstoque } from '../../contexts/EstoqueContext.js';
+import { useAuth } from '../../contexts/AuthContext.js';
 import { Esqueleto } from '../../components/Esqueleto.js';
 import { Icone } from '../../components/Icone.js';
+import { ModalEditarProduto } from '../produtos/ModalEditarProduto.js';
 import { CardProduto } from './CardProduto.js';
 import { LeitorCodigo } from './LeitorCodigo.js';
 
@@ -16,13 +19,15 @@ import { LeitorCodigo } from './LeitorCodigo.js';
 const PAGINA = 40;
 
 export function TelaContagem() {
-  const { produtos, carregandoProdutos, salvarContagem, progresso } = useEstoque();
+  const { produtos, carregandoProdutos, salvarContagem, progresso, somenteLeitura } = useEstoque();
+  const { permissoes } = useAuth();
 
   const [filtro, setFiltro] = useState<FiltroContagem>('all');
   const [busca, setBusca] = useState('');
   const [expandido, setExpandido] = useState<string | null>(null);
   const [visiveis, setVisiveis] = useState(PAGINA);
   const [lendoCodigo, setLendoCodigo] = useState(false);
+  const [editando, setEditando] = useState<Produto | null>(null);
 
   const lista = useMemo(
     () =>
@@ -165,6 +170,8 @@ export function TelaContagem() {
                 expandido={expandido === p.id}
                 onAlternar={alternar}
                 onSalvar={salvarContagem}
+                onEditar={permissoes.gerenciarProdutos ? setEditando : undefined}
+                somenteLeitura={somenteLeitura}
               />
             ))}
           </ul>
@@ -182,6 +189,8 @@ export function TelaContagem() {
       )}
 
       {lendoCodigo && <LeitorCodigo onLer={aoLerCodigo} onFechar={fecharLeitor} />}
+
+      <ModalEditarProduto produto={editando} onFechar={() => setEditando(null)} />
     </section>
   );
 }
