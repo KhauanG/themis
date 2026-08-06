@@ -1,10 +1,12 @@
-name: Deploy Hostinger
+name: Deploy Hostinger (SSH — desativado)
 
-# Push na main publica o site. É o que substitui o ciclo de build do AAB +
-# revisão da Play Store do Themis 1.x.
+# DESATIVADO. A Hostinger publica o app Node direto do GitHub: ela mesma faz o build e
+# reinicia o processo a cada push na main. Se este workflow também disparasse no push,
+# os dois deploys correriam juntos e deixariam o servidor num estado misto.
+#
+# Fica aqui, só com disparo manual, como plano B caso a integração da Hostinger falhe ou
+# o app precise sair para um VPS. Nesse caso, reative o gatilho `push` abaixo.
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 concurrency:
