@@ -15,7 +15,7 @@
     "dev:api": "npm run dev --workspace @themis/api",
     "build": "npm run build --workspace @themis/shared && npm run build --workspace @themis/web && npm run build --workspace @themis/api",
     "build:hostinger": "npm ci --include=dev && npm run build",
-    "start": "node apps/api/dist/server.js",
+    "start": "node apps/api/dist/server.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "verificar": "npm run typecheck && npm run lint && npm test && npm run build",

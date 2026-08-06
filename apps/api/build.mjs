@@ -7,10 +7,16 @@
  * nada no log, porque nem chega a existir logger.
  *
  * Com tudo embutido, rodar a API precisa de exatamente dois caminhos:
- *   apps/api/dist/server.js   (este bundle)
+ *   apps/api/dist/server.mjs  (este bundle)
  *   apps/web/dist/            (o PWA que ele serve)
  *
  * Sem `node_modules`, sem `npm install` no servidor, sem resolução de workspace.
+ *
+ * A extensão `.mjs` não é detalhe: o bundle é ESM, e num arquivo `.js` o Node decide o
+ * formato pelo `package.json` mais próximo. Se a cópia da hospedagem não levar esse
+ * arquivo junto, o Node 20 assume CommonJS e morre com `Cannot use import statement
+ * outside a module` — de novo, 503 sem log. `.mjs` é ESM por especificação, em qualquer
+ * versão e sem depender de nenhum arquivo vizinho.
  */
 import { build } from 'esbuild';
 import { rm } from 'node:fs/promises';
@@ -19,7 +25,7 @@ await rm('dist', { recursive: true, force: true });
 
 const resultado = await build({
   entryPoints: ['src/server.ts'],
-  outfile: 'dist/server.js',
+  outfile: 'dist/server.mjs',
   bundle: true,
   platform: 'node',
   target: 'node20',
@@ -43,5 +49,5 @@ const resultado = await build({
   metafile: true,
 });
 
-const saida = resultado.metafile.outputs['dist/server.js'];
+const saida = resultado.metafile.outputs['dist/server.mjs'];
 console.log(`\nBundle: ${(saida.bytes / 1024).toFixed(0)} KB, zero dependências em runtime.`);
