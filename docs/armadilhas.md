@@ -63,6 +63,57 @@ traga-o para o arquivo.
 
 ---
 
+## ERP
+
+### O payload do ERP não é negociável
+
+**Sintoma.** O envio falha com 400, ou é aceito e não reflete no sistema.
+
+**Causa.** O contrato tem **oito campos** e o `IdProduto` é **inteiro**. O porte inicial
+mandava quatro campos e o id em texto. API .NET recusa `"123"` num campo `int` por padrão,
+e campo omitido pode significar "não mexe" ou "zera" — a diferença entre os dois é o preço
+do produto no sistema.
+
+**Evitar.** Montar sempre com `montarEnvio()` de `@themis/shared`. Nunca escrever o objeto
+à mão. A referência é o `sendToERP` do 1.x, que rodou anos em produção — é a única prova
+que temos do que a Nuvem3 aceita, e não dá para descobrir o resto testando contra o estoque
+real da empresa.
+
+### Produto some da correção sem aparecer em lugar nenhum
+
+**Sintoma.** Um item divergente não é enviado ao ERP e não aparece como erro. Some. O
+contador de "sem correspondência no ERP" está alto sem explicação.
+
+**Causa.** `"007"`, `"7"` e `7` são o mesmo produto. O mapa da leitura estava indexado por
+uma grafia só, então `chavesDeIdProduto(7)` (que é `["7"]`) nunca alcançava a entrada
+`"007"`. O 1.x indexava por **todas** as grafias no `buildApiStockMap`.
+
+**Evitar.** Consultar o mapa do ERP **só** por `saldoNoErp()`. `estoque.get(String(id))` é
+o bug. E o mapa tem mais entradas do que produtos: para contar, use `leitura.itens`, nunca
+`estoque.size`.
+
+### HTTP 200 do ERP não quer dizer que ele aceitou
+
+**Causa.** Ele responde `200` com `{ success: false }` ou `{ erro: "..." }` quando recusa
+por regra de negócio.
+
+**Evitar.** `erroDeNegocio()` inspeciona o corpo antes de declarar sucesso. Conservador de
+propósito: só acusa quando o corpo sinaliza explicitamente, porque falso positivo faria o
+app reenviar item que o ERP já gravou.
+
+### O teto do navegador precisa cobrir o retry do servidor
+
+**Sintoma.** Itens entram como falha de envio, mas aparecem corretos no ERP depois.
+
+**Causa.** O retry mora na API (4 tentativas × 10s + pausas ≈ 43s). Com o teto de 15s no
+navegador, o `fetch` abortava no meio da segunda tentativa — o servidor seguia trabalhando
+e o app já tinha contado como erro.
+
+**Evitar.** Mexeu no orçamento de retry da API? Ajuste `TIMEOUT_MS` em `lib/erp.ts` junto.
+Os dois números são um só.
+
+---
+
 ## Interface
 
 ### O campo perde o que está sendo digitado

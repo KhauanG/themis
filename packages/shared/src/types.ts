@@ -65,6 +65,18 @@ export interface Produto {
   /** O ERP não reconheceu o produto no envio. */
   apiNotFound?: boolean;
 
+  /**
+   * Preços, quando o cadastro os traz. Duas grafias, como o resto dos campos legados.
+   *
+   * O Themis não usa preço para nada na tela — ele existe só porque **o payload que o ERP
+   * espera inclui `PrecoVenda` e `PrecoCusto`**, e o 1.x sempre os enviou. Descartá-los
+   * aqui faria a correção de estoque mandar `0` para produto que tem preço cadastrado.
+   */
+  PrecoVenda?: number | string | null;
+  precoVenda?: number | string | null;
+  PrecoCusto?: number | string | null;
+  precoCusto?: number | string | null;
+
   /** Controle de concorrência: quem gravou por último e quando. */
   lastModified?: Date | null;
   modifiedBy?: string;

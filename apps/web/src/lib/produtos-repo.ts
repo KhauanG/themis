@@ -18,14 +18,7 @@ import {
   type DocumentData,
   type QueryDocumentSnapshot,
 } from 'firebase/firestore';
-import {
-  LIMITE_CRITICO,
-  chavesDeIdProduto,
-  fisicoDe,
-  idProdutoDe,
-  sistemaDe,
-  type Produto,
-} from '@themis/shared';
+import { LIMITE_CRITICO, fisicoDe, saldoNoErp, sistemaDe, type Produto } from '@themis/shared';
 import { db } from './firebase.js';
 import { deviceId } from './dispositivo.js';
 import { runTransactionWithTimeout, withWriteTimeout } from './firestore-write.js';
@@ -309,7 +302,9 @@ export async function marcarConferido(
 }
 
 export interface ResultadoSincronia {
+  /** Produtos cujo `estoqueSistema` mudou. É o número que a tela mostra. */
   atualizados: number;
+  /** Produtos que o ERP não conhece. Ficam marcados com `apiNotFound`. */
   semCorrespondencia: number;
 }
 
@@ -321,23 +316,38 @@ export interface ResultadoSincronia {
  *
  * ⚠️ Não toca em `quantidade` nem em `productStatus` — o saldo do ERP é o lado "sistema"
  * da comparação, nunca a contagem do funcionário.
+ *
+ * Também marca `apiNotFound`, como o `buscarEstoqueSemConfirmacao` do 1.x. A aba
+ * "Não encontrados na API" lê exatamente esse campo: sem gravá-lo, ela ficava vazia para
+ * sempre e ninguém descobria que um produto do catálogo não existe no ERP.
  */
 export async function atualizarEstoqueSistema(
   inventoryId: string,
   produtos: readonly Produto[],
   estoqueErp: ReadonlyMap<string, number>,
 ): Promise<ResultadoSincronia> {
-  const mudancas: Array<{ id: string; valor: number }> = [];
+  const mudancas: Array<{ id: string; dados: Record<string, unknown> }> = [];
+  let atualizados = 0;
   let semCorrespondencia = 0;
 
   for (const p of produtos) {
-    const chave = chavesDeIdProduto(idProdutoDe(p)).find((c) => estoqueErp.has(c));
-    if (chave === undefined) {
+    const saldo = saldoNoErp(estoqueErp, p);
+    const dados: Record<string, unknown> = {};
+
+    if (saldo === undefined) {
       semCorrespondencia++;
-      continue;
+      if (p.apiNotFound !== true) dados['apiNotFound'] = true;
+    } else {
+      if (sistemaDe(p) !== saldo) {
+        dados['estoqueSistema'] = saldo;
+        atualizados++;
+      }
+      if (p.apiNotFound === true) dados['apiNotFound'] = false;
     }
-    const valor = estoqueErp.get(chave)!;
-    if (sistemaDe(p) !== valor) mudancas.push({ id: p.id, valor });
+
+    // Nada mudou: não escreve. Reescrever 2000 produtos com o mesmo valor gasta cota e
+    // embaralha o `lastModified` de todo mundo.
+    if (Object.keys(dados).length > 0) mudancas.push({ id: p.id, dados });
   }
 
   const agora = new Date();
@@ -347,7 +357,7 @@ export async function atualizarEstoqueSistema(
     const lote = writeBatch(db);
     for (const m of mudancas.slice(i, i + LIMITE_BATCH)) {
       lote.update(doc(colecaoProdutos(inventoryId), m.id), {
-        estoqueSistema: m.valor,
+        ...m.dados,
         lastModified: agora,
         modifiedBy: autor,
       });
@@ -355,7 +365,7 @@ export async function atualizarEstoqueSistema(
     await withWriteTimeout(lote.commit(), { ms: 20_000, label: 'sincronizar estoque do ERP' });
   }
 
-  return { atualizados: mudancas.length, semCorrespondencia };
+  return { atualizados, semCorrespondencia };
 }
 
 export interface ResultadoConferencia {

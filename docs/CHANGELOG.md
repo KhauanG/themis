@@ -6,6 +6,51 @@ Categorias: **Adicionado**, **Alterado**, **Corrigido**, **Removido**, **Seguran
 
 ---
 
+## 2.6.2 — 2026-08-06
+
+Auditoria de paridade das chamadas ao ERP e ao Firestore contra o Themis 1.x. Sete
+divergências, todas no caminho de "Buscar estoque" e "Corrigir estoque".
+
+### Corrigido
+
+- **O payload enviado ao ERP tinha metade dos campos.** O 1.x manda oito
+  (`IdProduto`, `HashLoja`, `Quantidade`, `CodigoBarras`, `NomeProduto`, `EstoqueMinimo`,
+  `PrecoVenda`, `PrecoCusto`); o 2.0 mandava quatro. Pior: `IdProduto` ia como **texto**,
+  e o 1.x sempre enviou inteiro — API .NET recusa `"123"` num campo `int` por padrão.
+  Agora existe `montarEnvio()` em `@themis/shared`, com 15 testes, e é o único caminho.
+
+- **Produto sumia da correção por causa da grafia do id.** O mapa da leitura do ERP era
+  indexado por uma grafia só. Um produto cadastrado com `IdProduto: 7` nunca alcançava a
+  entrada `"007"` que o ERP devolveu — entrava como "sem correspondência", em silêncio.
+  O 1.x indexava por todas as grafias (`buildApiStockMap`); agora o 2.0 também, e a
+  consulta passa por `saldoNoErp()`.
+
+- **Sem retry no envio.** O `sendStockUpdateSync` do 1.x tentava quatro vezes com 1s de
+  intervalo. O 2.0 desistia na primeira. O retry agora mora na API, não no celular — é
+  seguro repetir porque a chamada grava quantidade absoluta, não incremento. O teto do
+  navegador subiu de 15s para 60s para cobrir o orçamento inteiro; com 15s ele abortava no
+  meio da segunda tentativa e marcava como falha um item que o ERP ainda estava gravando.
+
+- **HTTP 200 era tratado como aceite.** O ERP responde 200 com `{ success: false }` quando
+  recusa por regra dele. O 1.x inspecionava o corpo (`extractBusinessError`); o porte tinha
+  esquecido. Agora `erroDeNegocio()` na API, com 9 testes.
+
+- **`apiNotFound` nunca era gravado.** A aba "Não encontrados na API" existe e lê esse
+  campo — ficava permanentemente vazia. Volta a ser marcada em cada busca de estoque.
+
+- **Saldo fracionário do ERP não era arredondado.** O `parseQuantidade` do 1.x arredondava.
+  Sem isso, um saldo `4.5` nunca bateria com contagem inteira e viraria divergência eterna.
+
+- **`CodigoBarras` vazio era recusado pelo nosso próprio schema.** Produto sem código de
+  barras existe no cadastro e o 1.x o enviava normalmente.
+
+### Alterado
+
+- `ResultadoBusca` ganhou `itens` (produtos distintos). `estoque.size` deixou de servir
+  como contagem — o mapa indexa cada produto por mais de uma chave.
+
+---
+
 ## 2.6.1 — 2026-08-06
 
 ### Corrigido

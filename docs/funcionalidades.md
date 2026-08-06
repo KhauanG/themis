@@ -162,8 +162,31 @@ Perguntar antes mostraria dados velhos.
 
 Exige conexão: offline os lotes do Firestore ficariam pendentes para sempre.
 
-O `HashLoja` vem de `hashConfigs`. Produtos que o ERP não conhece são contabilizados e
-avisados — não dá para corrigir o que ele não tem.
+O `HashLoja` vem de `hashConfigs`. Produtos que o ERP não conhece são contabilizados,
+avisados e marcados com `apiNotFound` — que alimenta a aba "Não encontrados na API" na tela
+de contagem. Não dá para corrigir o que o ERP não tem.
+
+#### O contrato com o ERP
+
+`POST /api/erp/estoque` leva **oito campos**, montados por `montarEnvio()` de
+`@themis/shared` — nunca à mão:
+
+| Campo | Tipo | Observação |
+|---|---|---|
+| `IdProduto` | inteiro | **Não é texto.** API .NET recusa `"123"` num campo `int`. |
+| `HashLoja` | texto | Vem de `hashConfigs/inventoryHashes`. |
+| `Quantidade` | inteiro ≥ 0 | Arredondada; negativo é grampeado em zero. |
+| `CodigoBarras` | texto | Pode ser vazio — produto sem código existe. |
+| `NomeProduto` | texto | |
+| `EstoqueMinimo` | inteiro | Sempre `0`. O Themis não gerencia mínimo. |
+| `PrecoVenda` | número | Duas casas. `0` quando o cadastro não tem. |
+| `PrecoCusto` | número | Idem. |
+
+A referência é o `sendToERP` do 1.x. Ele rodou anos em produção e é a única prova do que a
+Nuvem3 aceita — não dá para descobrir o resto testando contra o estoque real da empresa.
+
+A API repete o envio até **4 vezes**, com 1s entre tentativas, e trata `200` com
+`{ success: false }` no corpo como recusa. Ambos vêm do 1.x.
 
 ---
 

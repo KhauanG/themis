@@ -20,7 +20,15 @@
  *
  * Exige conexão. Offline, os lotes do Firestore ficariam pendentes para sempre.
  */
-import { fisicoDe, nomeDe, sistemaDe, type Produto } from '@themis/shared';
+import {
+  fisicoDe,
+  idProdutoDe,
+  montarEnvio,
+  nomeDe,
+  saldoNoErp,
+  sistemaDe,
+  type Produto,
+} from '@themis/shared';
 import { atualizarEstoqueSistema, fecharConferencia } from '../../lib/produtos-repo.js';
 import { buscarEstoqueDoErp, enviarAoErp, hashDaLoja } from '../../lib/erp.js';
 
@@ -86,7 +94,7 @@ export async function diagnosticar(
   // Reaplica o saldo lido na cópia em memória: o listener do Firestore ainda não trouxe
   // a gravação, e o diagnóstico precisa dos números novos agora.
   const frescos = produtos.map((p) => {
-    const atualizado = leitura.estoque.get(String(p.IdProduto ?? p.idProduto ?? ''));
+    const atualizado = saldoNoErp(leitura.estoque, p);
     return atualizado === undefined ? p : { ...p, estoqueSistema: atualizado };
   });
 
@@ -108,7 +116,7 @@ export async function executarCorrecao(
   aoProgredir: (texto: string, feitos?: number, total?: number) => void,
 ): Promise<ResultadoCorrecao> {
   const { contados, divergentes, hashLoja } = diagnostico;
-  const paraOErp = divergentes.filter((p) => p.IdProduto ?? p.idProduto);
+  const paraOErp = divergentes.filter((p) => idProdutoDe(p) != null);
 
   let enviados = 0;
   const falhasNoEnvio: string[] = [];
@@ -117,12 +125,9 @@ export async function executarCorrecao(
   for (const [indice, p] of paraOErp.entries()) {
     aoProgredir('Enviando divergências ao ERP', indice + 1, paraOErp.length);
 
-    const resultado = await enviarAoErp({
-      IdProduto: String(p.IdProduto ?? p.idProduto),
-      HashLoja: hashLoja,
-      Quantidade: fisicoDe(p),
-      CodigoBarras: String(p.codigoBarras ?? p.CodigoBarras ?? ''),
-    });
+    // `montarEnvio` monta os oito campos que o ERP espera. Não montar o objeto aqui:
+    // foi assim que o payload acabou com metade dos campos e o id em texto.
+    const resultado = await enviarAoErp(montarEnvio(p, hashLoja));
 
     if (resultado.ok) enviados++;
     else falhasNoEnvio.push(nomeDe(p));
@@ -147,8 +152,10 @@ export async function executarCorrecao(
       verificacaoIndisponivel = true;
     } else {
       for (const p of paraOErp) {
-        const enviado = fisicoDe(p);
-        const noSistema = releitura.estoque.get(String(p.IdProduto ?? p.idProduto));
+        // O valor **como foi enviado** (inteiro, nunca negativo), não o físico cru: é ele
+        // que o ERP recebeu, e é contra ele que a comparação faz sentido.
+        const enviado = montarEnvio(p, hashLoja).Quantidade;
+        const noSistema = saldoNoErp(releitura.estoque, p);
 
         if (noSistema === undefined) {
           pendentes.push({ nome: nomeDe(p), enviado, noSistema: NaN });
@@ -195,13 +202,8 @@ export async function reenviarPendentes(
     const p = porNome.get(pendencia.nome);
     if (!p) continue;
 
-    const resultado = await enviarAoErp({
-      IdProduto: String(p.IdProduto ?? p.idProduto),
-      HashLoja: hashLoja,
-      // A quantidade enviada da primeira vez, não a atual: é ela que precisa entrar.
-      Quantidade: pendencia.enviado,
-      CodigoBarras: String(p.codigoBarras ?? p.CodigoBarras ?? ''),
-    });
+    // A quantidade enviada da primeira vez, não a atual: é ela que precisa entrar.
+    const resultado = await enviarAoErp(montarEnvio(p, hashLoja, pendencia.enviado));
 
     if (resultado.ok) reenviados++;
     if (indice < pendentes.length - 1) await pausa(PAUSA_ENTRE_ENVIOS_MS);

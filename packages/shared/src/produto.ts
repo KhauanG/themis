@@ -43,6 +43,24 @@ export function chavesDeIdProduto(valor: unknown): string[] {
 }
 
 /**
+ * Saldo do produto na leitura do ERP, ou `undefined` se o ERP não o conhece.
+ *
+ * **Única forma correta de consultar o mapa do ERP.** `estoque.get(String(id))` erra:
+ * `String(7)` é `"7"` e não alcança a entrada `"007"`, e o produto vira "sem
+ * correspondência" — desaparece da correção sem que ninguém veja.
+ */
+export function saldoNoErp(
+  estoqueErp: ReadonlyMap<string, number>,
+  p: Produto,
+): number | undefined {
+  for (const chave of chavesDeIdProduto(idProdutoDe(p))) {
+    const valor = estoqueErp.get(chave);
+    if (valor !== undefined) return valor;
+  }
+  return undefined;
+}
+
+/**
  * Estoque físico: o que o funcionário contou.
  * `quantidade` tem precedência; `estoqueFisico` é o campo legado.
  * Atenção: `quantidade: 0` é contagem válida — só cai no fallback se for null/undefined.

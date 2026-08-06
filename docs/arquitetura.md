@@ -115,8 +115,11 @@ sincronização da fila e a gravação de contagem. Ele expõe `contextoLog`, pr
 
 Três motivos para existir:
 
-1. **Proxy do ERP** — tira o endereço do ERP do bundle e põe timeout e tratamento de erro
-   do lado do servidor
+1. **Proxy do ERP** — tira o endereço do ERP do bundle e põe timeout, **retry** e
+   tratamento de erro do lado do servidor. O retry (4 tentativas, 1s entre elas) é o mesmo
+   orçamento do `sendStockUpdateSync` do 1.x, só que agora quem segura as quatro tentativas
+   é o servidor, não o celular do funcionário no depósito. Repetir é seguro: a chamada grava
+   quantidade absoluta, não incremento.
 2. **Webhook** — recebe eventos do ERP; substitui o `webhook-server.js` do 1.x, que
    declarava um servidor HTTP mas rodava no navegador e nunca recebeu requisição
 3. **Servir o PWA** — na Hostinger não há Apache na frente, então rota de SPA e cabeçalhos

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { chavesDeIdProduto, fisicoDe, sistemaDe, validadeDe } from './produto.js';
+import { chavesDeIdProduto, fisicoDe, saldoNoErp, sistemaDe, validadeDe } from './produto.js';
 
 /**
  * O casamento do produto com a listagem do ERP passa por aqui. Se falhar, o app conclui
@@ -67,5 +67,47 @@ describe('validadeDe', () => {
 
   it('descarta ausente', () => {
     expect(validadeDe({ id: 'a' })).toBeNull();
+  });
+});
+
+/**
+ * Esta é a regressão que fazia produto sumir da correção: o mapa do ERP indexado por uma
+ * grafia só, consultado com outra. O produto virava "sem correspondência" em silêncio.
+ */
+describe('saldoNoErp', () => {
+  it('casa a grafia crua', () => {
+    const erp = new Map([['42', 10]]);
+    expect(saldoNoErp(erp, { id: 'a', IdProduto: '42' })).toBe(10);
+  });
+
+  it('casa id numérico com chave numérica', () => {
+    const erp = new Map([['42', 10]]);
+    expect(saldoNoErp(erp, { id: 'a', IdProduto: 42 })).toBe(10);
+  });
+
+  // O caso que quebrava: cadastro com 7, ERP indexado em "007".
+  it('casa id numérico com chave que tem zeros à esquerda', () => {
+    const erp = new Map([
+      ['007', 3],
+      ['7', 3],
+    ]);
+    expect(saldoNoErp(erp, { id: 'a', IdProduto: 7 })).toBe(3);
+  });
+
+  it('aceita a grafia minúscula do campo', () => {
+    const erp = new Map([['99', 1]]);
+    expect(saldoNoErp(erp, { id: 'a', idProduto: '99' })).toBe(1);
+  });
+
+  // Saldo zero é resposta válida; `undefined` significa "o ERP não conhece".
+  it('distingue saldo zero de ausência', () => {
+    const erp = new Map([['5', 0]]);
+    expect(saldoNoErp(erp, { id: 'a', IdProduto: '5' })).toBe(0);
+    expect(saldoNoErp(erp, { id: 'b', IdProduto: '6' })).toBeUndefined();
+  });
+
+  it('produto sem IdProduto não casa com nada', () => {
+    const erp = new Map([['5', 9]]);
+    expect(saldoNoErp(erp, { id: 'a' })).toBeUndefined();
   });
 });

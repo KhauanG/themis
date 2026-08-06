@@ -5,29 +5,63 @@
  * ganhamos: o endereço do ERP some do bundle, o timeout e o retry ficam do lado do
  * servidor (celular do funcionário não precisa segurar a requisição), e a validação do
  * payload acontece antes de sair da nossa rede.
+ *
+ * ⚠️ O **contrato com o ERP é o do 1.x, campo por campo**. Ele rodou anos em produção; é a
+ * única prova que temos do que a Nuvem3 aceita. Qualquer campo a menos, ou com tipo
+ * diferente, é uma aposta que não temos como testar sem mexer no estoque real da empresa.
  */
 import type { FastifyInstance } from 'fastify';
 import { config } from '../config.js';
 
-/** Payload esperado pelo ERP na atualização — mesmo contrato do Themis 1.x. */
+/**
+ * Payload da atualização — **os oito campos do Themis 1.x**, com os mesmos tipos.
+ *
+ * `IdProduto` é inteiro, não texto: o 1.x fazia `parseInt` antes de enviar. API .NET com
+ * `System.Text.Json` recusa `"123"` num campo `int` por padrão, então mandar string era
+ * arriscar um 400 que só apareceria em produção.
+ *
+ * `NomeProduto`, `EstoqueMinimo`, `PrecoVenda` e `PrecoCusto` não são decorativos: são
+ * parte da especificação que o 1.x seguia. Omitir campo que o ERP espera pode significar
+ * "não mexe" ou "zera", e a diferença entre os dois é o preço do produto no sistema.
+ */
 interface AtualizacaoEstoque {
-  IdProduto: string;
+  IdProduto: number;
   HashLoja: string;
   Quantidade: number;
   CodigoBarras: string;
+  NomeProduto: string;
+  EstoqueMinimo: number;
+  PrecoVenda: number;
+  PrecoCusto: number;
 }
 
 const schemaAtualizacao = {
   body: {
     type: 'object',
-    required: ['IdProduto', 'HashLoja', 'Quantidade', 'CodigoBarras'],
+    required: [
+      'IdProduto',
+      'HashLoja',
+      'Quantidade',
+      'CodigoBarras',
+      'NomeProduto',
+      'EstoqueMinimo',
+      'PrecoVenda',
+      'PrecoCusto',
+    ],
     additionalProperties: false,
     properties: {
-      IdProduto: { type: 'string', minLength: 1 },
+      // `> 0` como no `validateProductData` do 1.x: id zero nunca identifica produto.
+      IdProduto: { type: 'integer', minimum: 1 },
       HashLoja: { type: 'string', minLength: 1 },
       // Quantidade negativa nunca é contagem válida e o ERP a rejeita silenciosamente.
       Quantidade: { type: 'number', minimum: 0 },
-      CodigoBarras: { type: 'string', minLength: 1 },
+      // Vazio é permitido: o 1.x só exigia que o campo existisse, e produto sem código de
+      // barras é comum no cadastro. Exigir `minLength: 1` bloquearia envio que o 1.x fazia.
+      CodigoBarras: { type: 'string' },
+      NomeProduto: { type: 'string' },
+      EstoqueMinimo: { type: 'integer', minimum: 0 },
+      PrecoVenda: { type: 'number', minimum: 0 },
+      PrecoCusto: { type: 'number', minimum: 0 },
     },
   },
 } as const;
@@ -37,6 +71,14 @@ interface ItemEstoqueErp {
   idproduto?: unknown;
   quantidade?: unknown;
 }
+
+/** Tentativas totais de envio, contando a primeira. Mesmo orçamento do 1.x (1 + 3). */
+const TENTATIVAS = 4;
+
+/** Pausa entre tentativas. Mesmo valor do 1.x (`retryDelay`). */
+const PAUSA_ENTRE_TENTATIVAS_MS = 1000;
+
+const pausa = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 async function comTempoLimite<T>(
   ms: number,
@@ -51,46 +93,139 @@ async function comTempoLimite<T>(
   }
 }
 
+/**
+ * Procura erro de negócio no corpo da resposta.
+ *
+ * **HTTP 200 não significa que o ERP aceitou.** Ele responde 200 com `{ success: false }`
+ * ou `{ erro: "..." }` quando recusa a atualização por regra dele. O 1.x inspecionava isso
+ * (`extractBusinessError`); sem a checagem, o app contaria como enviado um item que o ERP
+ * descartou, e só a releitura da fase 3 perceberia — quando percebesse.
+ *
+ * Conservador de propósito: só acusa erro quando o corpo sinaliza explicitamente. Resposta
+ * em formato desconhecido é tratada como sucesso, porque o 200 já é um sinal.
+ */
+export function erroDeNegocio(corpo: unknown): string | null {
+  if (!corpo || typeof corpo !== 'object') return null;
+  const dados = corpo as Record<string, unknown>;
+
+  const texto = (...campos: string[]): string | null => {
+    for (const campo of campos) {
+      const valor = dados[campo];
+      if (typeof valor === 'string' && valor.trim() !== '') return valor;
+    }
+    return null;
+  };
+
+  for (const bandeira of ['success', 'Success', 'sucesso', 'Sucesso']) {
+    if (dados[bandeira] === false) {
+      return (
+        texto('error', 'erro', 'message', 'mensagem', 'Mensagem') ?? `campo "${bandeira}" = false`
+      );
+    }
+  }
+
+  const explicito = texto('error', 'erro', 'Error', 'Erro');
+  if (explicito) return explicito;
+
+  if (dados['status'] === 'error' || dados['Status'] === 'error') {
+    return texto('message', 'mensagem') ?? 'status = error';
+  }
+
+  return null;
+}
+
+interface TentativaEnvio {
+  ok: boolean;
+  /** Motivo da falha, já legível. Ausente quando `ok`. */
+  erro?: string;
+  /** Status HTTP do ERP, quando houve resposta. */
+  statusErp?: number;
+  corpo?: string;
+}
+
+async function enviarUmaVez(dados: AtualizacaoEstoque): Promise<TentativaEnvio> {
+  try {
+    const resposta = await comTempoLimite(config.erp.timeoutMs, (signal) =>
+      fetch(config.erp.urlAtualizar, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify(dados),
+        signal,
+      }),
+    );
+
+    const corpo = await resposta.text();
+
+    if (!resposta.ok) {
+      return { ok: false, erro: `HTTP ${resposta.status}`, statusErp: resposta.status, corpo };
+    }
+
+    // Corpo vazio com 200 é aceite: o ERP nem sempre devolve JSON.
+    if (corpo.trim() === '') return { ok: true, statusErp: resposta.status, corpo };
+
+    let json: unknown;
+    try {
+      json = JSON.parse(corpo);
+    } catch {
+      return { ok: false, erro: 'Resposta do ERP não é JSON', statusErp: resposta.status, corpo };
+    }
+
+    const recusa = erroDeNegocio(json);
+    if (recusa) {
+      return { ok: false, erro: `ERP recusou: ${recusa}`, statusErp: resposta.status, corpo };
+    }
+
+    return { ok: true, statusErp: resposta.status, corpo };
+  } catch (erro) {
+    const abortou = erro instanceof Error && erro.name === 'AbortError';
+    return { ok: false, erro: abortou ? 'Tempo esgotado ao contatar o ERP' : 'Falha de rede' };
+  }
+}
+
 export async function rotasErp(app: FastifyInstance): Promise<void> {
-  /** Envia a quantidade contada de um produto. */
+  /**
+   * Envia a quantidade contada de um produto.
+   *
+   * Repete até `TENTATIVAS` vezes, como o `sendStockUpdateSync` do 1.x. É seguro repetir:
+   * a chamada grava uma quantidade absoluta, não um incremento — reenviar o mesmo valor dá
+   * no mesmo. O retry mora aqui, e não no celular, porque quem está no depósito com wifi
+   * ruim é justamente quem não deveria segurar quatro tentativas na mão.
+   */
   app.post<{ Body: AtualizacaoEstoque }>(
     '/api/erp/estoque',
     { schema: schemaAtualizacao },
     async (req, reply) => {
-      try {
-        const resposta = await comTempoLimite(config.erp.timeoutMs, (signal) =>
-          fetch(config.erp.urlAtualizar, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-            body: JSON.stringify(req.body),
-            signal,
-          }),
-        );
+      let ultima: TentativaEnvio = { ok: false, erro: 'Nenhuma tentativa executada' };
 
-        const corpo = await resposta.text();
-
-        if (!resposta.ok) {
-          req.log.warn(
-            { status: resposta.status, idProduto: req.body.IdProduto },
-            'ERP recusou a atualização',
-          );
-          // 502: o erro é do ERP, não do cliente. O app trata como "reenviar depois".
-          return reply.status(502).send({
-            ok: false,
-            erro: 'ERP recusou a atualização',
-            statusErp: resposta.status,
-          });
+      for (let tentativa = 1; tentativa <= TENTATIVAS; tentativa++) {
+        ultima = await enviarUmaVez(req.body);
+        if (ultima.ok) {
+          if (tentativa > 1) {
+            req.log.info({ tentativa, idProduto: req.body.IdProduto }, 'ERP aceitou após retry');
+          }
+          return reply.send({ ok: true, resposta: ultima.corpo ?? '', tentativas: tentativa });
         }
 
-        return reply.send({ ok: true, resposta: corpo });
-      } catch (erro) {
-        const abortou = erro instanceof Error && erro.name === 'AbortError';
-        req.log.error({ erro, idProduto: req.body.IdProduto }, 'Falha ao contatar o ERP');
-        return reply.status(504).send({
-          ok: false,
-          erro: abortou ? 'Tempo esgotado ao contatar o ERP' : 'Falha ao contatar o ERP',
-        });
+        req.log.warn(
+          { tentativa, erro: ultima.erro, statusErp: ultima.statusErp, idProduto: req.body.IdProduto },
+          'Tentativa de envio ao ERP falhou',
+        );
+
+        if (tentativa < TENTATIVAS) await pausa(PAUSA_ENTRE_TENTATIVAS_MS);
       }
+
+      req.log.error(
+        { idProduto: req.body.IdProduto, erro: ultima.erro },
+        `ERP não aceitou a atualização após ${TENTATIVAS} tentativas`,
+      );
+
+      // 502: o erro é do ERP, não do cliente. O app trata como "reenviar depois".
+      return reply.status(502).send({
+        ok: false,
+        erro: ultima.erro ?? 'ERP recusou a atualização',
+        ...(ultima.statusErp === undefined ? {} : { statusErp: ultima.statusErp }),
+        tentativas: TENTATIVAS,
+      });
     },
   );
 
@@ -146,8 +281,19 @@ export async function rotasErp(app: FastifyInstance): Promise<void> {
         }
 
         const estoque = (itens as ItemEstoqueErp[])
-          .map((i) => ({ idProduto: String(i.idproduto ?? '').trim(), quantidade: Number(i.quantidade) }))
-          .filter((i) => i.idProduto !== '' && Number.isFinite(i.quantidade));
+          .map((i) => ({
+            idProduto: String(i.idproduto ?? '').trim(),
+            // Arredondado como no `parseQuantidade` do 1.x. Saldo fracionário viria a ser
+            // comparado com contagem inteira e nunca bateria, virando divergência eterna.
+            quantidade: Math.round(Number(i.quantidade)),
+          }))
+          .filter(
+            (i) =>
+              i.idProduto !== '' &&
+              i.idProduto !== 'null' &&
+              i.idProduto !== 'undefined' &&
+              Number.isFinite(i.quantidade),
+          );
 
         return reply.send({ ok: true, itens: estoque, recebidos: itens.length });
       } catch (erro) {

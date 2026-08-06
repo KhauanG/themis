@@ -8,18 +8,19 @@
  * no ERP.
  */
 import { doc, getDoc, setDoc, type DocumentData } from 'firebase/firestore';
+import { chavesDeIdProduto, type EnvioEstoque } from '@themis/shared';
 import { db } from './firebase.js';
 import { urlApi } from './api.js';
 import { withWriteTimeout } from './firestore-write.js';
 
-const TIMEOUT_MS = 15_000;
-
-export interface EnvioEstoque {
-  IdProduto: string;
-  HashLoja: string;
-  Quantidade: number;
-  CodigoBarras: string;
-}
+/**
+ * Teto do envio, do lado do navegador.
+ *
+ * Precisa cobrir o **orçamento inteiro de retry do servidor** (4 tentativas de 10s mais as
+ * pausas de 1s entre elas ≈ 43s). Com o teto antigo de 15s o navegador abortava no meio da
+ * segunda tentativa e o item entrava como falha enquanto o ERP ainda estava respondendo.
+ */
+const TIMEOUT_MS = 60_000;
 
 export interface ResultadoEnvio {
   ok: boolean;
@@ -56,8 +57,15 @@ const TIMEOUT_LISTAR_MS = 60_000;
 
 export interface ResultadoBusca {
   ok: boolean;
-  /** `idProduto` → quantidade no ERP. */
+  /**
+   * `idProduto` → quantidade no ERP, indexado por **todas as grafias** da chave.
+   *
+   * Use `chavesDeIdProduto` para consultar, nunca `String(id)` cru. E não use `.size` como
+   * contagem de itens — um produto ocupa mais de uma entrada. Para isso existe `itens`.
+   */
   estoque: Map<string, number>;
+  /** Produtos distintos recebidos do ERP. É este o número que se mostra ao usuário. */
+  itens: number;
   erro?: string;
 }
 
@@ -83,19 +91,41 @@ export async function buscarEstoqueDoErp(hashLoja: string): Promise<ResultadoBus
       | null;
 
     if (!resposta.ok || !corpo?.ok || !Array.isArray(corpo.itens)) {
-      return { ok: false, estoque: new Map(), erro: corpo?.erro ?? `Falha ${resposta.status}` };
+      return {
+        ok: false,
+        estoque: new Map(),
+        itens: 0,
+        erro: corpo?.erro ?? `Falha ${resposta.status}`,
+      };
     }
 
-    // Última ocorrência vence, como no 1.x: o ERP às vezes repete o mesmo produto.
+    /**
+     * Indexa por **todas** as grafias da chave, como o `buildApiStockMap` do 1.x.
+     *
+     * O ERP manda `"007"` onde o catálogo tem `7`, e vice-versa. Normalizar só do lado da
+     * consulta não resolve: `chavesDeIdProduto(7)` é `["7"]` e nunca alcança a entrada
+     * `"007"`. O resultado era o produto entrar como "sem correspondência no ERP" — some
+     * da correção sem avisar, e o saldo fica errado.
+     *
+     * Última ocorrência vence, também como no 1.x: o ERP às vezes repete o mesmo produto.
+     */
     const estoque = new Map<string, number>();
-    for (const item of corpo.itens) estoque.set(String(item.idProduto), item.quantidade);
+    let itens = 0;
 
-    return { ok: true, estoque };
+    for (const item of corpo.itens) {
+      const chaves = chavesDeIdProduto(item.idProduto);
+      if (chaves.length === 0) continue;
+      for (const chave of chaves) estoque.set(chave, item.quantidade);
+      itens++;
+    }
+
+    return { ok: true, estoque, itens };
   } catch (erro) {
     const abortou = (erro as { name?: string } | null)?.name === 'AbortError';
     return {
       ok: false,
       estoque: new Map(),
+      itens: 0,
       erro: abortou ? 'Tempo esgotado ao buscar o estoque' : 'Sem resposta do servidor',
     };
   } finally {
@@ -165,5 +195,5 @@ export async function salvarHashes(hashes: ReadonlyMap<string, string>): Promise
 export async function testarHash(hash: string): Promise<{ ok: boolean; itens: number; erro?: string }> {
   const leitura = await buscarEstoqueDoErp(hash);
   if (!leitura.ok) return { ok: false, itens: 0, erro: leitura.erro ?? 'Falha na consulta' };
-  return { ok: leitura.estoque.size > 0, itens: leitura.estoque.size };
+  return { ok: leitura.itens > 0, itens: leitura.itens };
 }

@@ -165,7 +165,8 @@ export function TelaProdutos() {
 
       if (contextoLog) {
         void registrar('BUSCAR_ESTOQUE', contextoLog, {
-          recebidosDoErp: leitura.estoque.size,
+          // `itens`, não `estoque.size`: o mapa indexa cada produto por várias grafias.
+          recebidosDoErp: leitura.itens,
           atualizados: r.atualizados,
           semCorrespondencia: r.semCorrespondencia,
         });
