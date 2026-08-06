@@ -246,7 +246,8 @@ das chaves do primeiro item, nunca o conteúdo). **Zero produtos casados é erro
 já estava igual" — nesse caso o saldo na tela é o da última importação, e "Corrigir estoque"
 aborta em vez de mandar correções calculadas sobre dado velho.
 
-Para investigar fora do app: `node scripts/diagnosticar-erp.mjs <hashLoja> [idProduto...]`.
+Para investigar fora do app: `npx tsx scripts/diagnosticar-erp.mts <hashLoja> [idProduto...]`,
+ou com `--planilha <arquivo>` para cruzar o catálogo inteiro contra a listagem.
 Ver [armadilhas.md](armadilhas.md) §"Buscar estoque" traz saldo diferente do Nuvem3.
 
 ---

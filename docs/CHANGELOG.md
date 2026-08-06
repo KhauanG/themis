@@ -6,6 +6,34 @@ Categorias: **Adicionado**, **Alterado**, **Corrigido**, **Removido**, **Seguran
 
 ---
 
+## 2.7.3 — 2026-08-06
+
+### Adicionado
+
+- **Cruzamento do catálogo com a listagem do ERP** no script de diagnóstico:
+
+  ```
+  npx tsx scripts/diagnosticar-erp.mts <hashLoja> --planilha planilhaprodutos.xlsx
+  ```
+
+  Um produto ausente não diz nada; **o conjunto dos ausentes diz**. O cruzamento mostra
+  quantos produtos do catálogo não estão na listagem e qual saldo a planilha registrava para
+  eles. Se todos estavam zerados, o ERP filtra zerados. Se há ausentes com saldo positivo, o
+  motivo é outro — produto de outra loja, inativado no ERP, ou `IdProduto` divergente.
+
+  O script virou `.mts` para reaproveitar o leitor de planilha do app em vez de reimplementar
+  a leitura do dialeto OOXML do ERP.
+
+### Nota sobre a 2.7.2
+
+Medição em campo mostrou que **a listagem desta loja traz produtos com saldo zero**. Logo
+`omiteZerados` fica falso e o comportamento anterior é mantido: ausente continua marcado
+como "fora do ERP". A regra da 2.7.2 não estava errada — ela é condicional à resposta e se
+desligou sozinha, como projetado. Mas ela **não explica** o produto ausente que motivou a
+investigação; a causa é outra, e o cruzamento acima é o que vai apontá-la.
+
+---
+
 ## 2.7.2 — 2026-08-06
 
 ### Corrigido

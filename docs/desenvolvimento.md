@@ -175,7 +175,7 @@ porque include tem precedencia sobre omit.
 | `npm run verificar-versao` | confere versão x changelog |
 | `npm run auditar-produtos` | varredura de produtos legados (só leitura) |
 | `npx tsx scripts/verificar-planilha.mts <arquivo>` | testa a leitura de uma planilha real |
-| `node scripts/diagnosticar-erp.mjs <hashLoja>` | mostra a resposta crua do ERP (só leitura) |
+| `npx tsx scripts/diagnosticar-erp.mts <hashLoja>` | mostra a resposta crua do ERP (só leitura) |
 | `npm run deploy-rules` | publica as Security Rules |
 | `npm run deploy-indexes` | publica os índices |
 

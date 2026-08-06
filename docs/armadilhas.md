@@ -96,11 +96,16 @@ diferença — que é real, só que a culpa não é do ERP.
 **Evitar.** Ver a resposta crua antes de teorizar:
 
 ```
-node scripts/diagnosticar-erp.mjs <hashLoja> 30289733
+npx tsx scripts/diagnosticar-erp.mts <hashLoja> 30289733
+npx tsx scripts/diagnosticar-erp.mts <hashLoja> --planilha planilhaprodutos.xlsx
 ```
 
-Ele mostra quantos itens vieram, **quais campos** existem, quantos ficaram sem identificador,
-e a quantidade dos produtos consultados. O HashLoja está na tela Estoques.
+A primeira forma mostra quantos itens vieram, **quais campos** existem, quantos ficaram sem
+identificador, e a quantidade dos produtos consultados. O HashLoja está na tela Estoques.
+
+A segunda cruza o catálogo inteiro: **um produto ausente não diz nada; o conjunto dos
+ausentes diz.** Se todos estavam zerados na planilha, o ERP filtra zerados. Se há ausentes
+com saldo positivo, o motivo é outro.
 
 Outras causas que o script separa:
 
