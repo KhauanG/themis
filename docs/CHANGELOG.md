@@ -6,6 +6,49 @@ Categorias: **Adicionado**, **Alterado**, **Corrigido**, **Removido**, **Seguran
 
 ---
 
+## 2.10.0 — 2026-08-07
+
+### Adicionado
+
+- **Cabeçalhos da auditoria ordenam ao ser clicados.** Produto, Sistema, Contado, Dif. e
+  Status. O primeiro clique aplica a ordem principal da coluna; clicar de novo inverte;
+  clicar em outra coluna recomeça pela principal — herdar a direção da anterior surpreende
+  quem clica em "Contado" esperando "maior primeiro".
+
+  A seta indica a coluna ativa e `aria-sort` no `<th>` faz o leitor de tela anunciar a
+  direção. O botão ocupa a célula inteira: no celular, mirar num texto de 11px é sorte, não
+  interação.
+
+  É o **mesmo** `filtro.ordem` do seletor, não uma segunda fonte de verdade — clicar no
+  cabeçalho muda o seletor e vice-versa, e o PDF sai na ordem que está na tela.
+
+- Ordenação por **Sistema** e por **Contado**, que não existiam, e o sentido invertido de
+  nome e gravidade. `ROTULO_ORDEM` passou de 4 para 10 opções.
+
+  ⚠️ Valor ausente (`sistema` de produto fora do ERP, `contado` de item não contado) vai
+  **sempre para o fim**, nos dois sentidos. Ordenar crescente e receber 400 traços antes do
+  primeiro número esconde exatamente o dado que se foi buscar.
+
+  Toda ordenação desempata por nome: sem isso, duas linhas com o mesmo número trocam de
+  lugar entre renderizações e a tabela treme sozinha.
+
+### Corrigido
+
+- **`npm run versao` quebrava em arquivo com CRLF.** Ele procurava `'
+---
+
+## '` literal;
+  no Windows o changelog vive com `
+`, nada casava e o script morria dizendo que o
+  formato tinha mudado — enquanto o formato estava certo. Pior: a versão dos pacotes já
+  tinha subido nesse ponto, então o projeto ficava em 2.10.0 com o changelog em 2.9.1.
+  Quem percebeu foi a trava de `verificar-versao`, que existe para isso.
+
+- O script também morria ao ser rodado de novo depois dessa falha, porque tratava "o pacote
+  já está na versão alvo" como erro — justamente quando é preciso repetir.
+
+---
+
 ## 2.9.1 — 2026-08-07
 
 ### Adicionado

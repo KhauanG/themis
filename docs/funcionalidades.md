@@ -101,6 +101,19 @@ Cada item divergente ganha dois botões:
 Os dois marcam `productStatus: 'CONFERIDO'`, o que tira o item da lista de trabalho do
 funcionário. **Desfazer** devolve para `ATUALIZADO`.
 
+### Ordenar pela tabela
+
+Os cabeçalhos **Produto, Sistema, Contado, Dif. e Status** ordenam ao ser clicados. Primeiro
+clique aplica a ordem principal da coluna (A–Z no nome, maior primeiro nas numéricas);
+clicar de novo inverte; clicar em outra coluna recomeça pela principal.
+
+É o **mesmo** `filtro.ordem` do seletor "Ordenar por" — não há duas fontes de verdade, e o
+PDF sai na ordem que está na tela.
+
+⚠️ Valor ausente (`sistema` de produto fora do ERP, `contado` de item não contado) vai
+sempre para o **fim**, nos dois sentidos. E toda ordenação desempata por nome, senão linhas
+com o mesmo número trocam de lugar a cada renderização.
+
 ### Exportações
 
 PDF da contagem, PDF de validade, planilha. As três saem da **mesma** `LinhaRelatorio[]`

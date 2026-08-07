@@ -73,23 +73,43 @@ export function hojeISO(agora = new Date()) {
  * O changelog é "mais recente primeiro", e o ponto de inserção é a primeira linha `---`
  * que vem antes da primeira versão. Se o formato mudar, o script avisa em vez de escrever
  * no lugar errado.
+ *
+ * ⚠️ **Insensível a CRLF.** No Windows o arquivo vive com `\r\n`; procurar `'\n---\n\n## '`
+ * literal não achava nada e o script morria com "o formato do arquivo mudou?" — enquanto o
+ * formato estava certo. Foi assim que a versão dos pacotes subiu para 2.10.0 sem a seção
+ * correspondente no changelog, e só a trava de `verificar-versao` percebeu.
  */
 export function abrirSecao(changelog, versao, data) {
-  if (changelog.includes(`\n## ${versao} `)) {
+  if (new RegExp(`^## ${versao.replace(/\./g, '\\.')} `, 'm').test(changelog)) {
     return { texto: changelog, jaExistia: true };
   }
 
-  const marca = '\n---\n\n## ';
-  const corte = changelog.indexOf(marca);
-  if (corte === -1) {
+  // O `\r?` em cada quebra é o que faz funcionar nos dois finais de linha.
+  const marca = /\r?\n---\r?\n\r?\n## /;
+  const achado = marca.exec(changelog);
+  if (!achado) {
     throw new Error(`Não achei onde inserir em ${CHANGELOG}. O formato do arquivo mudou?`);
   }
 
-  const secao =
-    `\n---\n\n## ${versao} — ${data}\n\n` +
-    `### Adicionado\n\n- \n\n` +
-    `### Corrigido\n\n- \n`;
+  // Escreve com a mesma quebra do arquivo, para não deixar o texto misturado.
+  const eol = changelog.includes('\r\n') ? '\r\n' : '\n';
+  const secao = [
+    '',
+    '---',
+    '',
+    `## ${versao} — ${data}`,
+    '',
+    '### Adicionado',
+    '',
+    '- ',
+    '',
+    '### Corrigido',
+    '',
+    '- ',
+    '',
+  ].join(eol);
 
+  const corte = achado.index;
   return {
     texto: changelog.slice(0, corte) + secao + changelog.slice(corte),
     jaExistia: false,
@@ -110,9 +130,13 @@ function principal() {
     const texto = ler(caminho);
     // Substituição na primeira ocorrência de `"version"`, que é sempre a do próprio
     // pacote — as das dependências vêm depois e não têm essa chave no topo.
-    const novo = texto.replace(/"version":\s*"[^"]+"/, `"version": "${nova}"`);
-    if (novo === texto) throw new Error(`Não achei "version" em ${caminho}.`);
-    escrever(caminho, novo);
+    if (!/"version":\s*"[^"]+"/.test(texto)) {
+      throw new Error(`Não achei "version" em ${caminho}.`);
+    }
+    // Sem comparar com o texto anterior: o pacote já pode estar na versão alvo, e isso não
+    // é erro. Comparar fazia o script morrer ao ser rodado de novo depois de uma falha no
+    // meio — justamente quando é preciso repetir.
+    escrever(caminho, texto.replace(/"version":\s*"[^"]+"/, `"version": "${nova}"`));
   }
 
   const { texto, jaExistia } = abrirSecao(ler(CHANGELOG), nova, hojeISO());

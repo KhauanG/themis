@@ -3,6 +3,8 @@ import {
   FILTRO_PADRAO,
   ROTULO_ORDEM,
   ROTULO_SITUACAO,
+  direcaoDaColuna,
+  ordemAoClicar,
   calcularEstatisticas,
   filtrarLinhas,
   linhasDeProdutos,
@@ -10,6 +12,7 @@ import {
   type Auditoria,
   type FiltroRelatorio,
   type LinhaRelatorio,
+  type ColunaOrdenavel,
   type OrdemRelatorio,
   type SituacaoRelatorio,
   type StatusAuditoria,
@@ -24,6 +27,48 @@ import { desfazerConferido, marcarConferido } from '../../lib/produtos-repo.js';
 import { exportarContagemPDF, exportarValidadePDF, type ContextoRelatorio } from '../../lib/pdf.js';
 import { exportarPlanilha } from '../../lib/planilha.js';
 import { registrar } from '../../lib/historico.js';
+
+interface PropsTh {
+  coluna: ColunaOrdenavel;
+  rotulo: string;
+  /** Alinha à direita, como o resto da coluna numérica. */
+  numerica?: boolean;
+  ordem: OrdemRelatorio;
+  aoOrdenar: (coluna: ColunaOrdenavel) => void;
+}
+
+/**
+ * Cabeçalho que ordena ao ser clicado.
+ *
+ * `aria-sort` no `<th>` é o que faz o leitor de tela anunciar "coluna ordenada em ordem
+ * crescente" — sem ele, o usuário cego ouve um botão que aparentemente não faz nada. A
+ * seta é redundante de propósito: quem enxerga não deveria precisar clicar para descobrir
+ * qual coluna manda na ordem.
+ */
+function ThOrdenavel({ coluna, rotulo, numerica = false, ordem, aoOrdenar }: PropsTh) {
+  const direcao = direcaoDaColuna(coluna, ordem);
+  const seta = direcao === 'ascending' ? '▲' : direcao === 'descending' ? '▼' : '';
+
+  return (
+    <th
+      className={numerica ? 'num' : undefined}
+      aria-sort={direcao ?? 'none'}
+      scope="col"
+    >
+      <button
+        type="button"
+        className={direcao ? 'th-ordem th-ordem--ativa' : 'th-ordem'}
+        onClick={() => aoOrdenar(coluna)}
+        title={`Ordenar por ${rotulo.toLowerCase()}`}
+      >
+        {rotulo}
+        <span className="th-ordem__seta" aria-hidden="true">
+          {seta}
+        </span>
+      </button>
+    </th>
+  );
+}
 
 const CLASSE_STATUS: Record<StatusAuditoria, string> = {
   CORRETO: 'etiqueta etiqueta--ok',
@@ -121,6 +166,19 @@ export function PainelAuditoria() {
 
   const ajustar = useCallback(
     (mudanca: Partial<FiltroRelatorio>) => setFiltro((atual) => ({ ...atual, ...mudanca })),
+    [],
+  );
+
+  /**
+   * Clique no cabeçalho: aplica a ordem da coluna, e inverte se já era ela.
+   *
+   * Mexe no mesmo `filtro.ordem` que o seletor — não há duas fontes de verdade. Clicar no
+   * cabeçalho muda o seletor, e vice-versa.
+   */
+  const ordenarPor = useCallback(
+    (coluna: ColunaOrdenavel) => {
+      setFiltro((atual) => ({ ...atual, ordem: ordemAoClicar(coluna, atual.ordem) }));
+    },
     [],
   );
 
@@ -397,11 +455,11 @@ export function PainelAuditoria() {
             <table className="tabela">
               <thead>
                 <tr>
-                  <th>Produto</th>
-                  <th className="num">Sistema</th>
-                  <th className="num">Contado</th>
-                  <th className="num">Dif.</th>
-                  <th>Status</th>
+                  <ThOrdenavel coluna="nome" rotulo="Produto" ordem={filtro.ordem} aoOrdenar={ordenarPor} />
+                  <ThOrdenavel coluna="sistema" rotulo="Sistema" numerica ordem={filtro.ordem} aoOrdenar={ordenarPor} />
+                  <ThOrdenavel coluna="contado" rotulo="Contado" numerica ordem={filtro.ordem} aoOrdenar={ordenarPor} />
+                  <ThOrdenavel coluna="diferenca" rotulo="Dif." numerica ordem={filtro.ordem} aoOrdenar={ordenarPor} />
+                  <ThOrdenavel coluna="status" rotulo="Status" ordem={filtro.ordem} aoOrdenar={ordenarPor} />
                   {podeConferir && <th>Conferência</th>}
                 </tr>
               </thead>

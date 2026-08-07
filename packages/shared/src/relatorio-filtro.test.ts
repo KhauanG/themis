@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest';
 import {
   FILTRO_PADRAO,
   descreverFiltro,
+  direcaoDaColuna,
   filtrarLinhas,
   filtroEstaAtivo,
+  ordemAoClicar,
   type FiltroRelatorio,
   type LinhaRelatorio,
 } from './relatorio.js';
@@ -164,5 +166,105 @@ describe('filtroEstaAtivo', () => {
     expect(filtroEstaAtivo(com({ situacao: 'contados' }))).toBe(true);
     expect(filtroEstaAtivo(com({ status: 'ERRADO' }))).toBe(true);
     expect(filtroEstaAtivo(com({ somenteDivergentes: true }))).toBe(true);
+  });
+});
+
+/**
+ * Ordenação pelo clique no cabeçalho.
+ *
+ * O ponto delicado é o valor ausente: `sistema` é `'-'` em produto fora do ERP e `contado`
+ * é `null` em item não contado. Ordenar crescente e receber 400 traços antes do primeiro
+ * número esconde exatamente o dado que se foi buscar.
+ */
+describe('ordenação por coluna', () => {
+  const linhas: LinhaRelatorio[] = [
+    linha({ id: 'a', nome: 'Antarctica', sistema: 5, contado: 9, diferenca: 4, status: 'ERRADO' }),
+    linha({ id: 'b', nome: 'Brahma', sistema: 50, contado: 20, diferenca: -30, status: 'CRITICO' }),
+    linha({ id: 'c', nome: 'Corona', sistema: 1, contado: 1, diferenca: 0, status: 'CORRETO' }),
+  ];
+
+  const ordenar = (ordem: FiltroRelatorio['ordem'], lista = linhas) =>
+    filtrarLinhas(lista, { ...FILTRO_PADRAO, ordem }).map((l) => l.id);
+
+  it('nome nos dois sentidos', () => {
+    expect(ordenar('nome')).toEqual(['a', 'b', 'c']);
+    expect(ordenar('nome-desc')).toEqual(['c', 'b', 'a']);
+  });
+
+  it('sistema nos dois sentidos', () => {
+    expect(ordenar('maior-sistema')).toEqual(['b', 'a', 'c']);
+    expect(ordenar('menor-sistema')).toEqual(['c', 'a', 'b']);
+  });
+
+  it('contado nos dois sentidos', () => {
+    expect(ordenar('maior-contado')).toEqual(['b', 'a', 'c']);
+    expect(ordenar('menor-contado')).toEqual(['c', 'a', 'b']);
+  });
+
+  it('gravidade nos dois sentidos', () => {
+    expect(ordenar('status')).toEqual(['b', 'a', 'c']);
+    expect(ordenar('status-desc')).toEqual(['c', 'a', 'b']);
+  });
+
+  // A regra que importa: ausente vai para o fim SEMPRE, nos dois sentidos.
+  it('sistema ausente fica por último em qualquer direção', () => {
+    const com = [...linhas, linha({ id: 'z', nome: 'Zz', sistema: '-', contado: null })];
+    expect(ordenar('maior-sistema', com).at(-1)).toBe('z');
+    expect(ordenar('menor-sistema', com).at(-1)).toBe('z');
+  });
+
+  it('contagem ausente fica por último em qualquer direção', () => {
+    const com = [...linhas, linha({ id: 'z', nome: 'Aa', contado: null })];
+    expect(ordenar('maior-contado', com).at(-1)).toBe('z');
+    expect(ordenar('menor-contado', com).at(-1)).toBe('z');
+  });
+
+  // Sem desempate, duas linhas com o mesmo número trocam de lugar entre renderizações.
+  it('empate desempata por nome', () => {
+    const iguais = [
+      linha({ id: 'z', nome: 'Zebra', sistema: 7 }),
+      linha({ id: 'a', nome: 'Abelha', sistema: 7 }),
+    ];
+    expect(ordenar('maior-sistema', iguais)).toEqual(['a', 'z']);
+    expect(ordenar('menor-sistema', iguais)).toEqual(['a', 'z']);
+  });
+
+  it('não muta a lista recebida', () => {
+    const original = [...linhas];
+    ordenar('maior-sistema');
+    expect(linhas).toEqual(original);
+  });
+});
+
+describe('ordemAoClicar e direcaoDaColuna', () => {
+  it('primeiro clique aplica a ordem principal da coluna', () => {
+    expect(ordemAoClicar('sistema', 'nome')).toBe('maior-sistema');
+    expect(ordemAoClicar('diferenca', 'nome')).toBe('maior-diferenca');
+  });
+
+  it('clicar de novo na mesma coluna inverte', () => {
+    expect(ordemAoClicar('sistema', 'maior-sistema')).toBe('menor-sistema');
+  });
+
+  // Herdar a direção da coluna anterior surpreende: o usuário clica em "Contado" esperando
+  // "maior primeiro" e recebe "menor" porque a coluna de antes estava invertida.
+  it('clicar em outra coluna recomeça pela principal', () => {
+    expect(ordemAoClicar('contado', 'menor-sistema')).toBe('maior-contado');
+  });
+
+  it('terceiro clique volta ao início do par', () => {
+    expect(ordemAoClicar('sistema', 'menor-sistema')).toBe('maior-sistema');
+  });
+
+  it('nome começa em A–Z; coluna numérica começa em maior', () => {
+    expect(direcaoDaColuna('nome', 'nome')).toBe('ascending');
+    expect(direcaoDaColuna('nome', 'nome-desc')).toBe('descending');
+    expect(direcaoDaColuna('sistema', 'maior-sistema')).toBe('descending');
+    expect(direcaoDaColuna('sistema', 'menor-sistema')).toBe('ascending');
+  });
+
+  it('coluna que não está ordenando não tem direção', () => {
+    expect(direcaoDaColuna('sistema', 'nome')).toBeNull();
+    expect(direcaoDaColuna('status', 'maior-diferenca')).toBeNull();
   });
 });

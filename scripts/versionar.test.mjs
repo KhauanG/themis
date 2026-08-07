@@ -74,3 +74,34 @@ describe('abrirSecao', () => {
     expect(() => abrirSecao('# Só isso\n', '2.7.0', '2026-08-06')).toThrow(/formato do arquivo/);
   });
 });
+
+/**
+ * O arquivo real vive com CRLF no Windows. Procurar `'\n---\n\n## '` literal não achava
+ * nada e o script morria dizendo que o formato tinha mudado — enquanto o formato estava
+ * certo. A versão dos pacotes já tinha subido nesse ponto, e o changelog ficou sem a seção;
+ * só a trava de `verificar-versao` percebeu.
+ */
+describe('abrirSecao com CRLF', () => {
+  const crlf = CABECALHO.replace(/\n/g, '\r\n');
+
+  it('acha o ponto de inserção mesmo com CRLF', () => {
+    const { texto, jaExistia } = abrirSecao(crlf, '2.7.0', '2026-08-06');
+    expect(jaExistia).toBe(false);
+    expect(texto).toContain('## 2.7.0 — 2026-08-06');
+  });
+
+  it('escreve na mesma quebra de linha do arquivo', () => {
+    const { texto } = abrirSecao(crlf, '2.7.0', '2026-08-06');
+    // Nenhum \n solto: todos precedidos de \r.
+    expect(/[^\r]\n/.test(texto)).toBe(false);
+  });
+
+  it('mantém LF em arquivo com LF', () => {
+    const { texto } = abrirSecao(CABECALHO, '2.7.0', '2026-08-06');
+    expect(texto).not.toContain('\r');
+  });
+
+  it('reconhece seção existente com CRLF', () => {
+    expect(abrirSecao(crlf, '2.6.2', '2026-08-06').jaExistia).toBe(true);
+  });
+});
