@@ -154,7 +154,7 @@ Em lotes de 500 — o limite do Firestore.
 | Aba | Critério |
 |---|---|
 | Todos | tudo |
-| A contar | `productStatus == null` |
+| A contar | `productStatus == null` e **não** `apiNotFound` |
 | Contados | `productStatus == 'ATUALIZADO'` |
 | Sem código | `!temCodigoBarras` |
 | Negativos | `físico < 0` |
@@ -167,6 +167,10 @@ trabalho do funcionário, senão ele recontaria algo decidido.
 
 ⚠️ **"Corrigidos OK" e "Corrigidos com erro" não aparecem para o papel `comum`** — dizem se
 a contagem bateu com o sistema, que é a diferença por outro nome. Ver §Contagem às cegas.
+
+⚠️ **"A contar" exclui os fora do ERP.** Eles não são contáveis; mantê-los ali manda a
+equipe procurar na prateleira o que precisa ser resolvido no cadastro, e a aba nunca zera.
+Ver §Produto fora do ERP.
 
 A aba sai de `productStatus`, que vem do servidor — não de rastreamento local. Com 5
 celulares, todos veem a mesma lista.
@@ -225,3 +229,44 @@ o liberam para qualquer autenticado; um usuário determinado lê pelo console. S
 processo funcionar, e vale enquanto a tela obedecer.
 
 Permissão: `verEstoqueSistema`. Abas: `filtrosVisiveis(verSistema)` em `filtros.ts`.
+
+---
+
+## Produto fora do ERP
+
+**`apiNotFound == true`.** Marcado a cada "Buscar estoque" para o produto que não aparece na
+listagem da loja. Causas: cadastrado em outra loja, inativado no ERP, ou `IdProduto`
+divergente. Todas se resolvem no Nuvem3, não no Themis.
+
+Enquanto vale, o `estoqueSistema` guardado é o da **última importação** — número que o ERP
+não confirmou. Por isso o produto sai da contagem inteira:
+
+| Onde | Comportamento |
+|---|---|
+| Card | não abre; etiqueta `fora do ERP` e explicação no lugar do formulário |
+| Números do card | `—`; sem diferença, sem `ok`, sem `sistema N` |
+| Aba "A contar" | não entra |
+| Barra de progresso | fora do total |
+| `statusDe()` | `FORA DO ERP`, antes de qualquer outro status |
+| `diferencaDe()` | `'-'` |
+| Relatório e PDF | `sistema —`, `contado —`, `diferença —` |
+| Corrigir estoque | conferido, **não enviado**, listado por nome |
+| Estatísticas | `foraDoErp` à parte; fora de `total` e de `naoContados` |
+
+**Por que não simplesmente esconder o produto.** Ele some, o problema fica. O cadastro
+errado no Nuvem3 continua lá, e ninguém descobre. O card aparece justamente para ser
+perguntado.
+
+**Por que não gravar `estoqueSistema: 0`.** Seria afirmar que o ERP tem zero. Não sabemos:
+se a causa é `IdProduto` divergente, o ERP tem o produto com saldo real, sob outro
+identificador. Zerar transformaria um problema de cadastro em correção de saldo errada.
+
+**Por que a trava está em três lugares** (card, leitor de código de barras e
+`salvarContagem`): o card é o caminho normal, não o único.
+
+A trava é de interface, não de banco: as Security Rules aceitam a gravação. Vale enquanto a
+tela obedecer.
+
+⚠️ Contagem feita **antes** de o produto ser marcado permanece gravada. Apagá-la seria
+destruir trabalho real — alguém contou aquela prateleira — a partir de uma operação de
+leitura. Ela aparece no relatório com status `FORA DO ERP`, sem diferença calculada.

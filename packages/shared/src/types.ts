@@ -20,8 +20,16 @@ export type ProductStatus =
   | 'ATUALIZADO' // contado pelo funcionário
   | 'CONFERIDO'; // corrigido pelo admin/master após auditoria
 
-/** Status calculado (nunca persistido no produto; vai no snapshot da auditoria). */
-export type StatusAuditoria = 'CORRETO' | 'ERRADO' | 'CRITICO' | 'NÃO CONTADO';
+/**
+ * Status calculado (nunca persistido no produto; vai no snapshot da auditoria).
+ *
+ * `FORA DO ERP` não é um grau de divergência — é a **ausência de base de comparação**. O
+ * produto não está na listagem da loja, então o `estoqueSistema` guardado é o da última
+ * importação e ninguém confirmou. Chamar isso de `ERRADO` inventaria uma divergência contra
+ * um número que o ERP nunca devolveu, e o relatório impresso pediria correção de saldo
+ * quando o que falta é cadastro.
+ */
+export type StatusAuditoria = 'CORRETO' | 'ERRADO' | 'CRITICO' | 'NÃO CONTADO' | 'FORA DO ERP';
 
 /** Diferença |físico - sistema| a partir da qual o item é CRITICO. */
 export const LIMITE_CRITICO = 10;
@@ -151,9 +159,20 @@ export interface EstatisticasCorrigidos {
 }
 
 export interface EstatisticasAuditoria {
+  /** Produtos que participam da contagem. **Não inclui os fora do ERP.** */
   total: number;
   contados: number;
+  /**
+   * `total - contados`. Inclui os conferidos, que saem de `contados` e são somados à parte
+   * em `corrigidos` — assim `contados + naoContados` sempre fecha com `total`.
+   *
+   * Produto fora do ERP **não entra**: ele não pode ser contado, e somá-lo aqui faria a
+   * contagem nunca fechar — centenas de itens pendentes para sempre, com a equipe
+   * procurando na prateleira o que precisa ser resolvido no cadastro.
+   */
   naoContados: number;
+  /** Produtos que o ERP não conhece. Fora da contagem, contados à parte. */
+  foraDoErp: number;
   corretos: number;
   incorretos: number;
   percentualIncorretos: number;

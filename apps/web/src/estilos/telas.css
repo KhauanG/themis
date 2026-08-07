@@ -1112,3 +1112,20 @@
 .lista-simples li:last-child {
   border-bottom: none;
 }
+
+/*
+ * Produto que o ERP não conhece: visível, mas não contável.
+ * Some com o card e o problema some junto — o funcionário procura o item, não acha,
+ * e ninguém descobre que o cadastro está errado no Nuvem3.
+ */
+.card--travado .card__topo {
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
+.card__travado {
+  padding: var(--e3) var(--e4) var(--e4);
+  color: var(--texto-2);
+  font-size: var(--t-menor);
+  line-height: 1.45;
+}

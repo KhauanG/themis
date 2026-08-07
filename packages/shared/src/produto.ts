@@ -61,6 +61,21 @@ export function saldoNoErp(
 }
 
 /**
+ * O produto não está na listagem da loja no ERP.
+ *
+ * Marcado por `atualizarEstoqueSistema` a cada "Buscar estoque". Enquanto vale, o
+ * `estoqueSistema` guardado é o da última importação — número que o ERP **não** confirmou.
+ * Por isso o produto sai da contagem e do cálculo de divergência: contar contra um valor
+ * não confirmado produz divergência inventada, e é ela que vai parar no relatório impresso.
+ *
+ * Causas: produto de outra loja, inativado no ERP, ou `IdProduto` divergente. Todas se
+ * resolvem no cadastro do Nuvem3, não no Themis.
+ */
+export function foraDoErp(p: Produto): boolean {
+  return p.apiNotFound === true;
+}
+
+/**
  * Saldo que o ERP atribui ao produto, já resolvida a ausência.
  *
  * **A regra mora aqui e em nenhum outro lugar.** Ela é aplicada em dois momentos distantes

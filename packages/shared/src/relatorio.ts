@@ -11,12 +11,19 @@
  */
 import type { Produto, ProdutoSnapshot, StatusAuditoria } from './types.js';
 import { diferencaDe, statusDe } from './auditoria.js';
-import { fisicoDe, isItemContado, nomeDe, sistemaDe, validadeDe } from './produto.js';
+import { fisicoDe, foraDoErp, isItemContado, nomeDe, sistemaDe, validadeDe } from './produto.js';
 
 export interface LinhaRelatorio {
   id: string;
   nome: string;
-  sistema: number;
+  /**
+   * Saldo do sistema. `'-'` quando o produto está **fora do ERP**.
+   *
+   * Ali o número guardado é o da última importação, que o ERP nunca confirmou. Imprimir
+   * `sistema 1` num relatório que vai para a diretoria afirma algo que não sabemos, e faz
+   * pedir correção de saldo quando o que falta é cadastro.
+   */
+  sistema: number | '-';
   /** `null` quando o item não foi contado — diferente de zero, que é contagem válida. */
   contado: number | null;
   diferenca: number | '-';
@@ -25,23 +32,27 @@ export interface LinhaRelatorio {
 }
 
 export function linhasDeProdutos(produtos: readonly Produto[]): LinhaRelatorio[] {
-  return produtos.map((p) => ({
-    id: p.id,
-    nome: nomeDe(p),
-    sistema: sistemaDe(p),
-    contado: isItemContado(p) ? fisicoDe(p) : null,
-    diferenca: diferencaDe(p),
-    status: statusDe(p),
-    validade: validadeDe(p),
-  }));
+  return produtos.map((p) => {
+    const fora = foraDoErp(p);
+    return {
+      id: p.id,
+      nome: nomeDe(p),
+      sistema: fora ? ('-' as const) : sistemaDe(p),
+      contado: !fora && isItemContado(p) ? fisicoDe(p) : null,
+      diferenca: diferencaDe(p),
+      status: statusDe(p),
+      validade: validadeDe(p),
+    };
+  });
 }
 
 export function linhasDeSnapshot(snapshot: readonly ProdutoSnapshot[]): LinhaRelatorio[] {
   return snapshot.map((s) => ({
     id: s.id,
     nome: s.nome,
-    sistema: s.estoqueSistema,
-    contado: s.status === 'NÃO CONTADO' ? null : s.estoqueFisico,
+    // Auditoria salva antes desta versão não tinha o status; a checagem cobre as duas.
+    sistema: s.status === 'FORA DO ERP' ? ('-' as const) : s.estoqueSistema,
+    contado: s.status === 'NÃO CONTADO' || s.status === 'FORA DO ERP' ? null : s.estoqueFisico,
     diferenca: s.diferenca,
     status: s.status,
     validade: s.dataValidade,
@@ -89,8 +100,11 @@ export const ROTULO_ORDEM: Record<OrdemRelatorio, string> = {
 const PESO_STATUS: Record<StatusAuditoria, number> = {
   CRITICO: 0,
   ERRADO: 1,
-  'NÃO CONTADO': 2,
-  CORRETO: 3,
+  // Pede ação, mas no cadastro do Nuvem3, não na prateleira. Vem depois da divergência
+  // real e antes do que só falta contar.
+  'FORA DO ERP': 2,
+  'NÃO CONTADO': 3,
+  CORRETO: 4,
 };
 
 function moduloDaDiferenca(l: LinhaRelatorio): number {
@@ -102,7 +116,9 @@ export function filtrarLinhas(
   filtro: FiltroRelatorio,
 ): LinhaRelatorio[] {
   const resultado = linhas.filter((l) => {
-    const contado = l.status !== 'NÃO CONTADO';
+    // Pela presença da contagem, não pelo status: `FORA DO ERP` também não tem contagem,
+    // e comparar com `'NÃO CONTADO'` o classificaria como contado.
+    const contado = l.contado !== null;
 
     if (filtro.situacao === 'contados' && !contado) return false;
     if (filtro.situacao === 'nao-contados' && contado) return false;

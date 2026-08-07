@@ -30,6 +30,9 @@ const CLASSE_STATUS: Record<StatusAuditoria, string> = {
   ERRADO: 'etiqueta etiqueta--alerta',
   CRITICO: 'etiqueta etiqueta--critico',
   'NÃO CONTADO': 'etiqueta etiqueta--neutra',
+  // Não é grau de divergência: é falta de cadastro no ERP. Cor própria para não ser lido
+  // como "errado" nem como "ok".
+  'FORA DO ERP': 'etiqueta etiqueta--acento',
 };
 
 export function PainelAuditoria() {
@@ -277,6 +280,7 @@ export function PainelAuditoria() {
               <option value="ERRADO">Errados</option>
               <option value="CRITICO">Críticos</option>
               <option value="NÃO CONTADO">Não contados</option>
+              <option value="FORA DO ERP">Fora do ERP</option>
             </select>
           </label>
         </div>
@@ -424,7 +428,9 @@ export function PainelAuditoria() {
                             >
                               Desfazer
                             </button>
-                          ) : l.status === 'CORRETO' || l.status === 'NÃO CONTADO' ? (
+                          ) : l.status === 'CORRETO' ||
+                            l.status === 'NÃO CONTADO' ||
+                            l.status === 'FORA DO ERP' ? (
                             <span className="suave">—</span>
                           ) : (
                             <span className="acoes-linha">

@@ -10,6 +10,7 @@ import {
 } from 'react';
 import {
   filtrarEstoquesPermitidos,
+  foraDoErp,
   progressoContagem,
   type Inventory,
   type Produto,
@@ -283,6 +284,22 @@ export function EstoqueProvider({ children }: { children: ReactNode }) {
 
       if (somenteLeitura) {
         mostrar('Este estoque está em modo somente leitura. Não é possível contar.', 'warning');
+        return false;
+      }
+
+      /**
+       * Trava também aqui, não só no card.
+       *
+       * O card é o caminho normal, mas não é o único: o leitor de código de barras abre o
+       * produto pelo código, e a fila offline reenvia o que já estava pendente. Sem saldo do
+       * ERP não há com o que comparar, e a contagem viraria divergência inventada no
+       * relatório impresso.
+       */
+      if (foraDoErp(produto)) {
+        mostrar(
+          'Produto fora do ERP: não há saldo para comparar. Resolva o cadastro no Nuvem3.',
+          'warning',
+        );
         return false;
       }
 

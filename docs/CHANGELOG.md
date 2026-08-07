@@ -6,6 +6,47 @@ Categorias: **Adicionado**, **Alterado**, **Corrigido**, **Removido**, **Seguran
 
 ---
 
+## 2.9.0 — 2026-08-07
+
+### Adicionado
+
+- **Status `FORA DO ERP`, e produto nessa situação deixa de ser contável.**
+
+  Antes, um produto ausente da listagem do ERP continuava contável e continuava sendo
+  comparado com o `estoqueSistema` da última importação. O PDF da auditoria imprimia
+  `sistema 1 · contado 4 · +3 · ERRADO` para um produto que o ERP **não tem** — lido como
+  "corrija o saldo", quando o que falta é cadastro. Com centenas de produtos nessa
+  situação, o relatório vira uma lista de divergências fabricadas.
+
+  `FORA DO ERP` não é grau de divergência: é ausência de base de comparação. Por isso vem
+  antes de tudo em `statusDe()`.
+
+  | Onde | O que muda |
+  |---|---|
+  | Card da contagem | não abre; etiqueta `fora do ERP` e explicação no lugar do formulário |
+  | Quantidade e diferença no card | `—`, sem `ok` e sem `sistema N` |
+  | Aba "A contar" | não entra — não dá para contá-lo |
+  | Barra de progresso | fora do total, senão travaria abaixo de 100% para sempre |
+  | Relatório e PDF | `sistema —`, `contado —`, `diferença —`, status `FORA DO ERP` |
+  | Filtro de status da auditoria | opção própria |
+  | Finalizar contagem | linha própria, fora do total, com aviso |
+  | Estatísticas | `foraDoErp` separado; não entram em `naoContados` |
+
+  O card **continua visível**: sumir com ele esconderia o problema, e o problema é real —
+  o cadastro precisa ser resolvido no Nuvem3.
+
+  A trava está no card, no leitor de código de barras e em `salvarContagem`. Os dois
+  últimos porque o card não é o único caminho até a gravação.
+
+### Alterado
+
+- `LinhaRelatorio.sistema` passou a ser `number | '-'`, como `diferenca` já era. Imprimir um
+  número que o ERP nunca confirmou afirma o que não sabemos.
+- `filtrarLinhas` decide "contado" pela presença da contagem, não por
+  `status !== 'NÃO CONTADO'` — que classificaria `FORA DO ERP` como contado.
+
+---
+
 ## 2.8.0 — 2026-08-06
 
 ### Alterado

@@ -11,7 +11,7 @@
  * do funcionário, senão ele recontaria algo decidido.
  */
 import type { FiltroContagem, Produto } from './types.js';
-import { fisicoDe, statusContagemDe } from './produto.js';
+import { fisicoDe, foraDoErp, statusContagemDe } from './produto.js';
 
 export interface OpcaoFiltro {
   id: FiltroContagem;
@@ -64,7 +64,9 @@ function passaNoFiltro(p: Produto, filtro: FiltroContagem): boolean {
     case 'all':
       return true;
     case 'pendentes':
-      return status === null;
+      // Fora do ERP não é pendência de contagem: não dá para contá-lo. Deixá-lo aqui manda
+      // a equipe procurar na prateleira o que precisa ser resolvido no cadastro.
+      return status === null && !foraDoErp(p);
     case 'updated':
       return status === 'ATUALIZADO';
     case 'no-barcode':
@@ -142,8 +144,10 @@ export function contarPorFiltro(produtos: readonly Produto[]): Record<FiltroCont
 
   for (const p of produtos) {
     const status = statusContagemDe(p);
-    if (status === null) contagem.pendentes++;
-    else if (status === 'ATUALIZADO') contagem.updated++;
+    if (status === null) {
+      // Fora do ERP não conta como pendência: tem aba própria e não dá para contá-lo.
+      if (!foraDoErp(p)) contagem.pendentes++;
+    } else if (status === 'ATUALIZADO') contagem.updated++;
     else if (p.corrigidoIncorreto === true) contagem['conferido-incorreto']++;
     else contagem['conferido-correto']++;
 
@@ -164,8 +168,11 @@ export interface ProgressoContagem {
 
 /** Progresso da rodada atual, para a barra no topo da tela de contagem. */
 export function progressoContagem(produtos: readonly Produto[]): ProgressoContagem {
-  const total = produtos.length;
-  const contados = produtos.filter((p) => statusContagemDe(p) !== null).length;
+  // Produto fora do ERP não pode ser contado: mantê-lo no total faria a barra travar em
+  // 75%% para sempre, com a equipe procurando na prateleira o que não dá para contar.
+  const contaveis = produtos.filter((p) => !foraDoErp(p));
+  const total = contaveis.length;
+  const contados = contaveis.filter((p) => statusContagemDe(p) !== null).length;
   return {
     total,
     contados,

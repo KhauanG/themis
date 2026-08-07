@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import {
   contarPorFiltro,
+  foraDoErp,
   filtrarProdutos,
   filtrosVisiveis,
   mensagemVazio,
@@ -71,7 +72,8 @@ export function TelaContagem() {
 
       const achado = produtos.find((p) => String(p.codigoBarras ?? p.CodigoBarras ?? '') === codigo);
       // Abre direto o card do produto lido: é o passo seguinte que o funcionário faria.
-      setExpandido(achado ? achado.id : null);
+      // Produto fora do ERP não abre — o card explica o motivo no lugar do formulário.
+      setExpandido(achado && !foraDoErp(achado) ? achado.id : null);
     },
     [produtos],
   );

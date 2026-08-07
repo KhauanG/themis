@@ -146,3 +146,65 @@ describe('montarSnapshotProdutos', () => {
     expect(snap[0]?.dataValidade).toBeNull();
   });
 });
+
+/**
+ * `FORA DO ERP` não é grau de divergência — é ausência de base de comparação.
+ *
+ * O produto não está na listagem da loja, então o `estoqueSistema` guardado é o da última
+ * importação e ninguém confirmou. Chamar de `ERRADO` inventa uma divergência contra um
+ * número que o ERP nunca devolveu, e o relatório impresso pede correção de saldo quando o
+ * que falta é cadastro no Nuvem3.
+ */
+describe('statusDe com produto fora do ERP', () => {
+  it('vence o cálculo de divergência, mesmo com contagem', () => {
+    expect(statusDe({ id: 'a', apiNotFound: true, quantidade: 4, estoqueSistema: 1 })).toBe(
+      'FORA DO ERP',
+    );
+  });
+
+  it('vence "não contado" também', () => {
+    expect(statusDe({ id: 'a', apiNotFound: true })).toBe('FORA DO ERP');
+  });
+
+  it('vence mesmo quando os números batem', () => {
+    expect(statusDe({ id: 'a', apiNotFound: true, quantidade: 5, estoqueSistema: 5 })).toBe(
+      'FORA DO ERP',
+    );
+  });
+
+  it('apiNotFound false ou ausente não muda nada', () => {
+    const contado = { productStatus: 'ATUALIZADO' as const, quantidade: 5, estoqueSistema: 5 };
+    expect(statusDe({ id: 'a', apiNotFound: false, ...contado })).toBe('CORRETO');
+    expect(statusDe({ id: 'a', ...contado })).toBe('CORRETO');
+  });
+
+  // Qualquer número aqui seria invenção: não há sistema confiável para subtrair.
+  it('não produz diferença', () => {
+    expect(diferencaDe({ id: 'a', apiNotFound: true, quantidade: 4, estoqueSistema: 1 })).toBe('-');
+  });
+});
+
+describe('calcularEstatisticas com produtos fora do ERP', () => {
+  const base = [
+    { id: 'a', quantidade: 5, productStatus: 'ATUALIZADO' as const, estoqueSistema: 5 },
+    { id: 'b' },
+    { id: 'c', apiNotFound: true },
+    { id: 'd', apiNotFound: true, quantidade: 9 },
+  ];
+
+  it('tira os fora do ERP do total e os conta à parte', () => {
+    const est = calcularEstatisticas(base);
+    expect(est.total).toBe(2);
+    expect(est.foraDoErp).toBe(2);
+  });
+
+  // Somá-los aos não contados faria a contagem nunca fechar.
+  it('não os soma aos não contados', () => {
+    expect(calcularEstatisticas(base).naoContados).toBe(1);
+  });
+
+  it('contados + naoContados continua fechando com o total', () => {
+    const est = calcularEstatisticas(base);
+    expect(est.contados + est.naoContados).toBe(est.total);
+  });
+});

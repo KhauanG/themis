@@ -50,14 +50,28 @@ describe('filtrarProdutos', () => {
   });
 
   it('A contar mostra só quem não tem status', () => {
-    expect(filtrarProdutos(produtos, 'pendentes').map((x) => x.id)).toEqual(['b', 'f']);
+    expect(filtrarProdutos(produtos, 'pendentes').map((x) => x.id)).toEqual(['b']);
+  });
+
+  /**
+   * O produto 'f' não tem status e mesmo assim fica fora de 'A contar': o ERP não o
+   * conhece, então não dá para contá-lo. Deixá-lo na aba manda a equipe procurar na
+   * prateleira o que precisa ser resolvido no cadastro do Nuvem3 — e a aba nunca zera.
+   */
+  it('A contar não inclui produto fora do ERP', () => {
+    const pendentes = filtrarProdutos(produtos, 'pendentes').map((x) => x.id);
+    expect(pendentes).not.toContain('f');
+    expect(filtrarProdutos(produtos, 'api-not-found').map((x) => x.id)).toEqual(['f']);
   });
 
   it('Contados e A contar não se sobrepõem e cobrem os não corrigidos', () => {
     const contados = filtrarProdutos(produtos, 'updated');
     const pendentes = filtrarProdutos(produtos, 'pendentes');
     const conferidos = produtos.filter((x) => x.productStatus === 'CONFERIDO');
-    expect(contados.length + pendentes.length + conferidos.length).toBe(produtos.length);
+    const fora = produtos.filter((x) => x.apiNotFound === true);
+    expect(contados.length + pendentes.length + conferidos.length + fora.length).toBe(
+      produtos.length,
+    );
   });
 
   it('busca por nome e por código de barras, sem diferenciar caixa', () => {
@@ -100,10 +114,28 @@ describe('contarPorFiltro', () => {
 describe('progressoContagem', () => {
   it('conta quem tem qualquer status como contado', () => {
     const pr = progressoContagem(produtos);
-    expect(pr.total).toBe(6);
+    // 6 produtos, mas 'f' está fora do ERP e não é contável.
+    expect(pr.total).toBe(5);
     expect(pr.contados).toBe(4); // 2 ATUALIZADO + 2 CONFERIDO
-    expect(pr.pendentes).toBe(2);
-    expect(pr.percentual).toBe(67);
+    expect(pr.pendentes).toBe(1);
+    expect(pr.percentual).toBe(80);
+  });
+
+  /**
+   * Com o produto fora do ERP no total, a barra travaria abaixo de 100%% para sempre — e
+   * ninguém fecharia a contagem achando que faltava item.
+   */
+  it('produto fora do ERP não trava a barra em menos de 100%%', () => {
+    const tudoContado = [
+      p({ id: 'a', quantidade: 1, productStatus: 'ATUALIZADO' }),
+      p({ id: 'f', apiNotFound: true }),
+    ];
+    expect(progressoContagem(tudoContado)).toEqual({
+      total: 1,
+      contados: 1,
+      pendentes: 0,
+      percentual: 100,
+    });
   });
 
   it('não divide por zero com estoque vazio', () => {

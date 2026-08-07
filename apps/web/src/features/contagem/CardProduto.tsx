@@ -2,6 +2,7 @@ import { memo } from 'react';
 import {
   codigoBarrasDe,
   fisicoDe,
+  foraDoErp,
   nomeDe,
   sistemaDe,
   statusContagemDe,
@@ -55,6 +56,16 @@ function CardProdutoBase({
   const contado = status !== null;
   const conferido = status === 'CONFERIDO';
 
+  /**
+   * Produto que o ERP não conhece não é contável.
+   *
+   * Não é frescura de interface: sem saldo do ERP, a contagem seria comparada com o valor
+   * da última importação e produziria uma divergência que ninguém confirmou — que vai parar
+   * no relatório impresso pedindo correção de saldo, quando o que falta é cadastro no
+   * Nuvem3. O card fica visível de propósito: sumir com ele esconderia o problema.
+   */
+  const fora = foraDoErp(produto);
+
   const fisico = fisicoDe(produto);
   const sistema = sistemaDe(produto);
   const diferenca = fisico - sistema;
@@ -69,12 +80,17 @@ function CardProdutoBase({
       : 'card__estado';
 
   return (
-    <li className={expandido ? 'card card--aberto' : 'card'}>
+    <li className={expandido ? 'card card--aberto' : fora ? 'card card--travado' : 'card'}>
       <button
         className="card__topo"
         type="button"
-        onClick={() => onAlternar(produto.id)}
-        aria-expanded={expandido}
+        onClick={() => !fora && onAlternar(produto.id)}
+        aria-expanded={fora ? undefined : expandido}
+        aria-disabled={fora || undefined}
+        // `disabled` de verdade tiraria o card da navegação por teclado e do leitor de
+        // tela. O motivo precisa ser anunciável — o funcionário tem que entender por que
+        // aquele item não abre.
+        title={fora ? 'Produto fora do ERP: não pode ser contado' : undefined}
       >
         <span className={classeEstado} aria-hidden="true" />
 
@@ -98,12 +114,13 @@ function CardProdutoBase({
             )}
 
             {conferido && <span className="etiqueta etiqueta--acento">conferido</span>}
+            {fora && <span className="etiqueta etiqueta--acento">fora do ERP</span>}
           </span>
         </span>
 
         <span className="card__numeros">
-          <span className={contado ? 'card__qtd' : 'card__qtd card__qtd--vazio'}>
-            {contado ? fisico : '—'}
+          <span className={contado && !fora ? 'card__qtd' : 'card__qtd card__qtd--vazio'}>
+            {contado && !fora ? fisico : '—'}
           </span>
 
           {/*
@@ -111,7 +128,7 @@ function CardProdutoBase({
             Nem a diferença, nem o "ok" — os dois entregam o saldo do sistema.
             Para quem conta, o retorno é "contado", e isso basta.
           */}
-          {verSistema && contado && diferenca !== 0 && (
+          {verSistema && !fora && contado && diferenca !== 0 && (
             <span
               className={
                 Math.abs(diferenca) >= LIMITE_CRITICO
@@ -122,15 +139,22 @@ function CardProdutoBase({
               {diferenca > 0 ? `+${diferenca}` : diferenca}
             </span>
           )}
-          {verSistema && contado && diferenca === 0 && (
+          {verSistema && !fora && contado && diferenca === 0 && (
             <span className="etiqueta etiqueta--ok">ok</span>
           )}
-          {verSistema && !contado && <span className="card__sistema">sistema {sistema}</span>}
-          {!verSistema && contado && <span className="etiqueta etiqueta--neutra">contado</span>}
+          {verSistema && !fora && !contado && <span className="card__sistema">sistema {sistema}</span>}
+          {!verSistema && !fora && contado && <span className="etiqueta etiqueta--neutra">contado</span>}
         </span>
       </button>
 
-      {expandido && (
+      {fora && (
+        <p className="card__travado">
+          Este produto não está na listagem do ERP desta loja, então não há saldo para
+          comparar. Resolva o cadastro no Nuvem3 e busque o estoque de novo.
+        </p>
+      )}
+
+      {expandido && !fora && (
         <FormContagem
           produto={produto}
           onCancelar={() => onAlternar(produto.id)}

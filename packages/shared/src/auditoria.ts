@@ -18,6 +18,7 @@ import {
 import {
   codigoBarrasDe,
   fisicoDe,
+  foraDoErp,
   idProdutoDe,
   isItemContado,
   nomeDe,
@@ -26,8 +27,16 @@ import {
   validadeDe,
 } from './produto.js';
 
-/** Status de auditoria de um produto. */
+/**
+ * Status de auditoria de um produto.
+ *
+ * `FORA DO ERP` vem **antes de tudo**: sem o produto na listagem da loja, o `estoqueSistema`
+ * guardado é o da última importação, e comparar contra ele produz uma divergência que
+ * ninguém confirmou. Um relatório que imprime `sistema 1 · contado 4 · ERRADO` para um
+ * produto que o ERP não tem manda corrigir saldo quando o que falta é cadastro.
+ */
 export function statusDe(p: Produto): StatusAuditoria {
+  if (foraDoErp(p)) return 'FORA DO ERP';
   if (!isItemContado(p)) return 'NÃO CONTADO';
 
   const fisico = fisicoDe(p);
@@ -37,9 +46,14 @@ export function statusDe(p: Produto): StatusAuditoria {
   return Math.abs(fisico - sistema) >= LIMITE_CRITICO ? 'CRITICO' : 'ERRADO';
 }
 
-/** Diferença físico - sistema. `'-'` quando o item não foi contado. */
+/**
+ * Diferença físico - sistema. `'-'` quando não há o que comparar.
+ *
+ * Item não contado não tem físico; item fora do ERP não tem sistema confiável. Nos dois
+ * casos, qualquer número aqui seria invenção.
+ */
 export function diferencaDe(p: Produto): number | '-' {
-  if (!isItemContado(p)) return '-';
+  if (foraDoErp(p) || !isItemContado(p)) return '-';
   return fisicoDe(p) - sistemaDe(p);
 }
 
@@ -57,13 +71,19 @@ function percentual(parte: number, total: number): number {
  */
 export function calcularEstatisticas(produtos: Produto[]): EstatisticasAuditoria {
   const conferido = (p: Produto) => statusContagemDe(p) === 'CONFERIDO';
-  const naContagem = produtos.filter((p) => isItemContado(p) && !conferido(p));
+
+  // Produto fora do ERP sai da conta inteira: não é contável, e somá-lo aos "não contados"
+  // faria a contagem nunca fechar.
+  const fora = produtos.filter(foraDoErp);
+  const contaveis = produtos.filter((p) => !foraDoErp(p));
+
+  const naContagem = contaveis.filter((p) => isItemContado(p) && !conferido(p));
 
   const contados = naContagem.length;
   const corretos = naContagem.filter((p) => fisicoDe(p) === sistemaDe(p)).length;
   const incorretos = contados - corretos;
 
-  const corrigidos = produtos.filter(conferido);
+  const corrigidos = contaveis.filter(conferido);
   let corrigidosCorretos = 0;
   let corrigidosIncorretos = 0;
   for (const p of corrigidos) {
@@ -74,9 +94,12 @@ export function calcularEstatisticas(produtos: Produto[]): EstatisticasAuditoria
   }
 
   return {
-    total: produtos.length,
+    total: contaveis.length,
     contados,
-    naoContados: produtos.length - contados,
+    // Mantém `contados + naoContados === total`. Conferidos entram aqui de propósito — eles
+    // saem de `contados` e são somados à parte em `corrigidos`; ver o comentário acima.
+    naoContados: contaveis.length - contados,
+    foraDoErp: fora.length,
     corretos,
     incorretos,
     percentualIncorretos: percentual(incorretos, contados),

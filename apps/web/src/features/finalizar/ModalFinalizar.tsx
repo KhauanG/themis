@@ -71,6 +71,7 @@ export function ModalFinalizar({ aberto, onFechar }: Props) {
           contados: estatisticas.contados,
           naoContados: estatisticas.naoContados,
           incorretos: estatisticas.incorretos,
+          foraDoErp: estatisticas.foraDoErp,
         });
       }
 
@@ -136,7 +137,24 @@ export function ModalFinalizar({ aberto, onFechar }: Props) {
             </li>
           </>
         )}
+        {/* Fora do total: não são contáveis. Aparecem para o número bater com a tela. */}
+        {estatisticas.foraDoErp > 0 && (
+          <li>
+            <span>Fora do ERP</span>
+            <strong>{estatisticas.foraDoErp}</strong>
+          </li>
+        )}
       </ul>
+
+      {estatisticas.foraDoErp > 0 && (
+        <p className="aviso" role="status">
+          {estatisticas.foraDoErp}{' '}
+          {estatisticas.foraDoErp === 1
+            ? 'produto não está na listagem do ERP e não pôde ser contado'
+            : 'produtos não estão na listagem do ERP e não puderam ser contados'}
+          . Não entram no total nem impedem o fechamento — o cadastro se resolve no Nuvem3.
+        </p>
+      )}
 
       {estatisticas.naoContados > 0 && (
         <p className="aviso" role="alert">
