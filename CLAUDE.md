@@ -71,6 +71,11 @@ As regras exigem `quantidade is number`, `codigoBarras is string`, `dataValidade
 `deleteField()`, ou a constante `REMOVER` quando o valor puder passar pela fila offline.
 `'PENDENTE'` não existe.
 
+**Operação em lote anunciada ao usuário usa `exigirGravacao`, não `withWriteTimeout`.**
+O segundo resolve com `timedOut: true` sem lançar. Ignorar isso fez o aparelho do admin
+mostrar tudo conferido a partir do cache enquanto o servidor não tinha nada — e a equipe
+vendo outra coisa. Estouro é "não confirmado", nunca "não salvou".
+
 **Cálculo de domínio mora em `packages/shared`, com teste.**
 No 1.x isso estava duplicado e as cópias divergiram: uma nunca devolvia `CRITICO`.
 

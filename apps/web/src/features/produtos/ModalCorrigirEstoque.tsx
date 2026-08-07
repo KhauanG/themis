@@ -3,6 +3,7 @@ import { useEstoque } from '../../contexts/EstoqueContext.js';
 import { useToast } from '../../contexts/ToastContext.js';
 import { Modal } from '../../components/Modal.js';
 import { registrar } from '../../lib/historico.js';
+import { isWriteTimeout } from '../../lib/firestore-write.js';
 import {
   diagnosticar,
   executarCorrecao,
@@ -86,7 +87,22 @@ export function ModalCorrigirEstoque({ aberto, onFechar }: Props) {
       }
     } catch (erro) {
       console.error('[corrigir] Correção falhou:', erro);
-      mostrar('A correção não foi concluída. Verifique a conexão e tente de novo.', 'error');
+
+      /**
+       * Teto de tempo não é "não salvou": o lote está no cache local e sobe ao reconectar.
+       *
+       * A distinção importa porque **este aparelho já mostra tudo conferido** — o listener
+       * lê do cache. Os outros não veem nada até a sincronia. Sem esta mensagem, o admin
+       * conclui que deu certo e a equipe continua vendo os itens em aberto; foi assim que
+       * dois logins passaram a mostrar coisas diferentes na contagem da empresa.
+       */
+      mostrar(
+        isWriteTimeout(erro)
+          ? 'A conferência ficou gravada neste aparelho, mas o servidor não confirmou. ' +
+              'Os outros celulares só vão ver quando a conexão voltar — não repita a correção.'
+          : 'A correção não foi concluída. Verifique a conexão e tente de novo.',
+        isWriteTimeout(erro) ? 'warning' : 'error',
+      );
       setEtapa('confirmar');
     }
   }

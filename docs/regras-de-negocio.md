@@ -275,7 +275,20 @@ leitura. Ela aparece no relatório com status `FORA DO ERP`, sem diferença calc
 
 ## Conferência trava a contagem
 
-Item `CONFERIDO` sai da lista de trabalho e **não pode ser recontado por quem só conta**.
+**Um item conferido encerra a rodada do estoque inteiro.** Ninguém conta mais nada ali —
+nem admin — até a rodada ser reaberta.
+
+Conferir é o ato que fecha: o admin comparou com o ERP, mandou as correções e encerrou.
+Deixar a contagem aberta depois disso permite alterar a quantidade de um produto já
+corrigido no Nuvem3, e a partir daí Themis e ERP contam histórias diferentes sem nada
+acusar. Também é o que mantém os aparelhos coerentes: com a rodada fechada ninguém grava,
+então nenhum celular fica com um número que os outros não têm.
+
+Reabre com **Limpar contagem**, ou desfazendo as conferências uma a uma no painel de
+auditoria. Função: `contagemFechada(produtos)` em `filtros.ts` — derivada dos produtos, não
+de um interruptor que alguém precise lembrar de ligar.
+
+Item `CONFERIDO` também não pode ser recontado por quem só conta, individualmente.
 
 A regra é quem manda: `podeAlterarStatusProduto` exige que o `productStatus` anterior não
 seja `CONFERIDO` para usuário comum. A interface acompanha — o card não abre, e diz por quê.

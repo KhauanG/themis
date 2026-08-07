@@ -21,7 +21,14 @@ import { LeitorCodigo } from './LeitorCodigo.js';
 const PAGINA = 40;
 
 export function TelaContagem() {
-  const { produtos, carregandoProdutos, salvarContagem, progresso, somenteLeitura } = useEstoque();
+  const {
+    produtos,
+    carregandoProdutos,
+    salvarContagem,
+    progresso,
+    somenteLeitura,
+    contagemFechada,
+  } = useEstoque();
   const { permissoes } = useAuth();
 
   const [filtro, setFiltro] = useState<FiltroContagem>('all');
@@ -97,6 +104,18 @@ export function TelaContagem() {
 
   return (
     <section className="pilha-g">
+      {/*
+        Conferiu, fechou. O aviso vem antes de tudo porque explica por que os cards não
+        abrem — sem ele o funcionário toca item por item achando que o app travou.
+      */}
+      {contagemFechada && (
+        <p className="aviso" role="status">
+          <strong>Contagem encerrada.</strong> Este estoque já teve itens conferidos, então
+          ninguém conta nele até a rodada ser reaberta. Um administrador reabre em Produtos →
+          Limpar contagem, ou desfazendo as conferências no painel de auditoria.
+        </p>
+      )}
+
       <div className="painel-progresso">
         <div className="painel-progresso__topo">
           <p className="painel-progresso__numero">
@@ -198,6 +217,7 @@ export function TelaContagem() {
                 somenteLeitura={somenteLeitura}
                 verSistema={verSistema}
                 podeReabrirConferido={podeReabrirConferido}
+                contagemFechada={contagemFechada}
               />
             ))}
           </ul>

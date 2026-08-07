@@ -6,6 +6,78 @@ Categorias: **Adicionado**, **Alterado**, **Corrigido**, **Removido**, **Seguran
 
 ---
 
+## 2.12.0 — 2026-08-07
+
+Origem: contagem real da empresa. Dois relatos — itens conferidos aparecendo num login e
+não em outro, e a contagem seguindo editável depois da correção.
+
+### Corrigido
+
+- **Escrita em lote que estourava o teto reportava sucesso.** Esta é a causa da divergência
+  entre logins, e o defeito era geral, não só da conferência.
+
+  `withWriteTimeout` resolve com `{ timedOut: true }` em vez de lançar — o dado fica no
+  cache local e sobe ao reconectar. Correto para um registro de histórico. Só que
+  **nenhum dos 24 chamadores conferia esse campo.**
+
+  O que acontecia: o admin corrigia o estoque, o lote de `fecharConferencia` estourava, o
+  listener do próprio aparelho lia do **cache local** e mostrava tudo conferido — enquanto o
+  servidor não tinha nada e os celulares dos conferentes continuavam vendo os itens em
+  aberto. Dois logins, duas verdades, e a tela dizendo "concluído" nos dois.
+
+  Agora existe `exigirGravacao()`, que lança `WriteTimeoutError` no estouro, e **toda
+  operação em lote cujo resultado é anunciado ao usuário** passa por ela: fechar conferência,
+  importar planilha, sincronizar com o ERP, limpar contagem, apagar produtos, excluir
+  estoque. O `withWriteTimeout` cru fica só para o dispensável — histórico e preferência de
+  aparelho.
+
+  A mensagem distingue: estouro **não** é "não salvou" (o dado sobe depois), é
+  *"gravado neste aparelho, o servidor não confirmou, não repita"*.
+
+- **Recusa das regras não avisava o usuário.** Complemento da 2.11.0: o erro deixou de ir
+  para a fila, mas ainda caía na mensagem genérica "Não foi possível salvar". Agora diz o
+  motivo real e o caminho — desfazer a conferência no painel de auditoria.
+
+### Adicionado
+
+- **Conferir encerra a rodada e trava o estoque inteiro.** Antes, só o item conferido ficava
+  travado; os outros seguiam editáveis. Isso permitia alterar a contagem depois de o admin
+  ter mandado as correções ao Nuvem3 — e a partir daí Themis e ERP contam histórias
+  diferentes sem nada acusar.
+
+  Vale para **todos os papéis, inclusive admin**. Reabre com **Limpar contagem**, ou
+  desfazendo as conferências uma a uma no painel de auditoria.
+
+  Derivado dos produtos (`contagemFechada`), como a barra de progresso: mesma verdade em
+  qualquer aparelho, sem depender de um interruptor que alguém precise lembrar de ligar. Um
+  aviso no topo da contagem explica por que os cards não abrem.
+
+### Verificação de consistência entre logins
+
+A varredura pedida. Mecanismos que podem fazer dois aparelhos verem coisas diferentes:
+
+| Mecanismo | Situação |
+|---|---|
+| Escrita em lote com teto estourado | **era bug** — corrigido acima |
+| Recusa das regras enfileirada | **era bug** — corrigido na 2.11.0 |
+| Abas "Corrigidos OK/com erro" ocultas para papel `comum` | **por desenho** (2.7.0, contagem às cegas) |
+| Sobreposição da fila offline (`aplicarPendentes`) | por desenho — ver abaixo |
+| Estoques permitidos por usuário | por desenho — logins diferentes podem ver estoques diferentes |
+| Painel de auditoria oculto para `comum` | por desenho |
+
+⚠️ **A explicação mais provável do relato é a terceira**: quem só conta não tem as abas de
+corrigidos desde a 2.7.0. Os itens continuam visíveis na aba "Todos", com a etiqueta
+`conferido`, mas sem aba própria. Isso foi decidido junto com a contagem às cegas — se
+atrapalhar mais do que ajuda, é reversível numa linha (`revelaDivergencia` em `filtros.ts`).
+
+⚠️ **`aplicarPendentes` sobrepõe a fila local sobre o dado do servidor.** É o que faz o
+produto contado offline aparecer contado. Efeito colateral: se o item for conferido no
+servidor enquanto uma edição local ainda está na fila, aquele aparelho mostra o valor
+pendente até drenar. Com o travamento da rodada isso deixa de acontecer na prática — ninguém
+grava depois da conferência.
+
+---
+
 ## 2.11.0 — 2026-08-07
 
 ### Adicionado

@@ -26,7 +26,11 @@ import {
 } from 'firebase/firestore';
 import type { Inventory } from '@themis/shared';
 import { db } from './firebase.js';
-import { runTransactionWithTimeout, withWriteTimeout } from './firestore-write.js';
+import {
+  exigirGravacao,
+  runTransactionWithTimeout,
+  withWriteTimeout,
+} from './firestore-write.js';
 import { colecaoProdutos } from './produtos-repo.js';
 
 const COLECAO = 'inventories';
@@ -175,7 +179,7 @@ export async function excluirEstoque(
   for (let i = 0; i < produtos.docs.length; i += LIMITE_BATCH) {
     const lote = writeBatch(db);
     for (const p of produtos.docs.slice(i, i + LIMITE_BATCH)) lote.delete(p.ref);
-    await withWriteTimeout(lote.commit(), { ms: 20_000, label: 'excluir produtos' });
+    await exigirGravacao(lote.commit(), { ms: 20_000, label: 'excluir produtos' });
     apagados += Math.min(LIMITE_BATCH, produtos.docs.length - i);
     aoProgredir?.(apagados, total);
   }

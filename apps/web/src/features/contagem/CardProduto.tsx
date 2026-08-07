@@ -27,6 +27,11 @@ interface Props {
   verSistema?: boolean;
   /** Admin/master pode reabrir item `CONFERIDO`; quem só conta, não. */
   podeReabrirConferido?: boolean;
+  /**
+   * A rodada foi encerrada por uma conferência. Trava **todos** os cards, inclusive para
+   * admin — ver `contagemFechada` em `filtros.ts`.
+   */
+  contagemFechada?: boolean;
 }
 
 /** `YYYY-MM-DD` para `DD/MM`, sem passar por `new Date`, que desloca o fuso. */
@@ -54,6 +59,7 @@ function CardProdutoBase({
   somenteLeitura = false,
   verSistema = false,
   podeReabrirConferido = false,
+  contagemFechada = false,
 }: Props) {
   const status = statusContagemDe(produto);
   const contado = status !== null;
@@ -79,8 +85,8 @@ function CardProdutoBase({
    */
   const fora = foraDoErp(produto);
 
-  /** Não abre para contar. Os dois motivos são diferentes e a mensagem diz qual é. */
-  const travado = fora || travadoPorConferencia;
+  /** Não abre para contar. Os motivos são diferentes e a mensagem diz qual é. */
+  const travado = fora || travadoPorConferencia || contagemFechada;
 
   const fisico = fisicoDe(produto);
   const sistema = sistemaDe(produto);
@@ -113,9 +119,11 @@ function CardProdutoBase({
         title={
           fora
             ? 'Produto fora do ERP: não pode ser contado'
-            : travadoPorConferencia
-              ? 'Item já conferido: só admin pode reabrir'
-              : undefined
+            : contagemFechada
+              ? 'Contagem encerrada: limpe a contagem para reabrir'
+              : travadoPorConferencia
+                ? 'Item já conferido: só admin pode reabrir'
+                : undefined
         }
       >
         <span className={classeEstado} aria-hidden="true" />
@@ -180,7 +188,7 @@ function CardProdutoBase({
         </p>
       )}
 
-      {travadoPorConferencia && !fora && (
+      {travadoPorConferencia && !fora && !contagemFechada && (
         <p className="card__travado">
           Item já conferido pelo administrador. A contagem dele está fechada — se precisar
           recontar, peça para desfazer a conferência no painel de auditoria.

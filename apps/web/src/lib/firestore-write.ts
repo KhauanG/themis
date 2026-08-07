@@ -81,6 +81,38 @@ export function isWriteTimeout(erro: unknown): boolean {
 }
 
 /**
+ * Escrita que **precisa da confirmação do servidor**. Lança `WriteTimeoutError` no estouro.
+ *
+ * ## Por que existe
+ *
+ * `withWriteTimeout` resolve com `{ timedOut: true }` em vez de lançar — o dado fica no
+ * cache local e sobe ao reconectar, e para um registro de histórico isso basta. Só que
+ * **nenhum chamador conferia esse campo**. Uma gravação em lote que estourava o teto
+ * reportava sucesso.
+ *
+ * O efeito apareceu na contagem da empresa: o admin corrigia o estoque, o lote de
+ * `fecharConferencia` estourava, o listener do próprio aparelho lia do **cache local** e
+ * mostrava tudo conferido — enquanto o servidor não tinha nada e os celulares dos
+ * conferentes continuavam vendo os itens em aberto. Dois logins, duas verdades, e a tela
+ * dizendo "concluído" nos dois.
+ *
+ * Use isto em **toda operação em lote cujo resultado é anunciado ao usuário**. Deixe o
+ * `withWriteTimeout` cru só para o que é dispensável: histórico, preferência de aparelho.
+ *
+ * ⚠️ Estouro **não** significa que a gravação falhou — ela está no cache e sobe depois. Por
+ * isso a mensagem para o usuário é "não confirmado", nunca "não salvou". Quem trata o erro
+ * distingue com `isWriteTimeout`.
+ */
+export async function exigirGravacao<T>(
+  promise: Promise<T>,
+  options: WriteTimeoutOptions = {},
+): Promise<T> {
+  const resultado = await withWriteTimeout(promise, options);
+  if (resultado.timedOut) throw new WriteTimeoutError(options.label ?? 'escrita');
+  return resultado.value as T;
+}
+
+/**
  * Envolve uma escrita do Firestore com teto de tempo.
  * No estouro resolve com `{ timedOut: true }` — o dado segue no cache local e
  * sincroniza ao reconectar. Nunca lança por causa do teto; erro real continua subindo.

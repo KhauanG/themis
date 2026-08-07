@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from 'react';
 import {
+  contagemFechada,
   filtrarEstoquesPermitidos,
   foraDoErp,
   progressoContagem,
@@ -24,6 +25,7 @@ import {
   aplicarPendentes,
   carregarFila,
   isConflito,
+  isPermissaoNegada,
   type AlteracaoPendente,
 } from '../lib/fila-offline.js';
 import { monitorarConexao } from '../lib/conectividade.js';
@@ -54,6 +56,11 @@ interface EstoqueAPI {
   configuracoes: Configuracoes;
   /** `true` quando o estoque aberto está travado para contagem. */
   somenteLeitura: boolean;
+  /**
+   * A rodada foi encerrada por uma conferência e ninguém mais conta neste estoque.
+   * Destrava com "Limpar contagem" ou desfazendo as conferências.
+   */
+  contagemFechada: boolean;
   alterarConfiguracoes: (mudanca: Partial<Configuracoes>) => Promise<void>;
   /** Contexto pronto para `registrar()`. `null` enquanto não há usuário ou estoque. */
   contextoLog: {
@@ -151,6 +158,14 @@ export function EstoqueProvider({ children }: { children: ReactNode }) {
   }, [usuario, estoqueAtual, nome]);
 
   const somenteLeitura = Boolean(estoqueId && configuracoes.somenteLeitura.includes(estoqueId));
+
+  /**
+   * Conferiu um item, fechou a rodada — para todo mundo, inclusive admin.
+   *
+   * Derivado dos produtos, como o progresso: é a mesma verdade em qualquer aparelho, sem
+   * depender de um interruptor que alguém precise lembrar de ligar.
+   */
+  const rodadaFechada = useMemo(() => contagemFechada(produtos), [produtos]);
 
   const alterarConfiguracoes = useCallback(
     async (mudanca: Partial<Configuracoes>) => {
@@ -295,6 +310,14 @@ export function EstoqueProvider({ children }: { children: ReactNode }) {
        * ERP não há com o que comparar, e a contagem viraria divergência inventada no
        * relatório impresso.
        */
+      if (rodadaFechada) {
+        mostrar(
+          'A contagem deste estoque foi encerrada pela conferência. Limpe a contagem para começar uma nova rodada.',
+          'warning',
+        );
+        return false;
+      }
+
       if (foraDoErp(produto)) {
         mostrar(
           'Produto fora do ERP: não há saldo para comparar. Resolva o cadastro no Nuvem3.',
@@ -344,12 +367,21 @@ export function EstoqueProvider({ children }: { children: ReactNode }) {
           );
           return false;
         }
+        // Recusa das regras não vai mais para a fila (ver fila-offline.ts): chega aqui, e
+        // a tela precisa dizer que NÃO salvou, senão o usuário vai embora achando que sim.
+        if (isPermissaoNegada(erro)) {
+          mostrar(
+            'Este item não pode mais ser alterado. Ele já foi conferido — peça para desfazer no painel de auditoria.',
+            'warning',
+          );
+          return false;
+        }
         console.error('[estoque] Falha ao salvar contagem:', erro);
         mostrar('Não foi possível salvar. Tente novamente.', 'error');
         return false;
       }
     },
-    [estoqueId, ciclo, mostrar, contextoLog, somenteLeitura],
+    [estoqueId, ciclo, mostrar, contextoLog, somenteLeitura, rodadaFechada],
   );
 
   const valor = useMemo<EstoqueAPI>(
@@ -368,6 +400,7 @@ export function EstoqueProvider({ children }: { children: ReactNode }) {
       contextoLog,
       configuracoes,
       somenteLeitura,
+      contagemFechada: rodadaFechada,
       alterarConfiguracoes,
     }),
     [
@@ -385,6 +418,7 @@ export function EstoqueProvider({ children }: { children: ReactNode }) {
       contextoLog,
       configuracoes,
       somenteLeitura,
+      rodadaFechada,
       alterarConfiguracoes,
     ],
   );

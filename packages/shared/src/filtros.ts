@@ -166,6 +166,24 @@ export interface ProgressoContagem {
   percentual: number;
 }
 
+/**
+ * A contagem deste estoque está **fechada**: existe ao menos um item conferido.
+ *
+ * Conferir é o ato que encerra a rodada — o admin comparou com o ERP, mandou as correções e
+ * fechou. Deixar a contagem aberta depois disso permite que alguém altere a quantidade de um
+ * produto que já foi corrigido no Nuvem3, e a partir daí o Themis e o ERP contam histórias
+ * diferentes sem que nada acuse.
+ *
+ * Também é o que mantém os aparelhos coerentes: enquanto a rodada está fechada, ninguém
+ * grava, então não há como um celular ficar com um número que os outros não têm.
+ *
+ * Destrava com **Limpar contagem** (remove `productStatus` de todos) ou desfazendo as
+ * conferências uma a uma no painel de auditoria.
+ */
+export function contagemFechada(produtos: readonly Produto[]): boolean {
+  return produtos.some((p) => statusContagemDe(p) === 'CONFERIDO');
+}
+
 /** Progresso da rodada atual, para a barra no topo da tela de contagem. */
 export function progressoContagem(produtos: readonly Produto[]): ProgressoContagem {
   // Produto fora do ERP não pode ser contado: mantê-lo no total faria a barra travar em

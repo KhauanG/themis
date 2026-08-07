@@ -14,7 +14,19 @@ import {
 import { buscarEstoqueDoErp, hashDaLoja } from '../../lib/erp.js';
 import { lerPlanilha } from '../../lib/planilha.js';
 import { registrar } from '../../lib/historico.js';
+import { isWriteTimeout } from '../../lib/firestore-write.js';
 import { ModalCorrigirEstoque } from './ModalCorrigirEstoque.js';
+
+/**
+ * Mensagem de teto de tempo em operação de lote.
+ *
+ * Estouro **não** é falha: o lote está no cache local e sobe ao reconectar. Só que este
+ * aparelho já mostra o resultado (o listener lê do cache) e os outros não. Dizer "não
+ * salvou" faria o usuário repetir; dizer "concluído" faria confiar no que a equipe não vê.
+ */
+const AVISO_NAO_CONFIRMADO =
+  'Gravado neste aparelho, mas o servidor não confirmou. Os outros celulares só vão ver ' +
+  'quando a conexão voltar — não repita a operação.';
 
 /** Palavra da confirmação. Evita apagar 1600 produtos com um toque errado. */
 const PALAVRA_APAGAR = 'APAGAR';
@@ -83,7 +95,10 @@ export function TelaProdutos() {
       }
     } catch (erro) {
       console.error('[produtos] Importação falhou:', erro);
-      mostrar('Não foi possível importar a planilha.', 'error');
+      mostrar(
+        isWriteTimeout(erro) ? AVISO_NAO_CONFIRMADO : 'Não foi possível importar a planilha.',
+        isWriteTimeout(erro) ? 'warning' : 'error',
+      );
     } finally {
       setOcupado(null);
       if (entradaArquivo.current) entradaArquivo.current.value = '';
@@ -132,7 +147,10 @@ export function TelaProdutos() {
       if (contextoLog) void registrar('LIMPAR_CONTAGEM', contextoLog, { ciclo, total: produtos.length });
     } catch (erro) {
       console.error('[produtos] Limpeza falhou:', erro);
-      mostrar('Não foi possível limpar a contagem.', 'error');
+      mostrar(
+        isWriteTimeout(erro) ? AVISO_NAO_CONFIRMADO : 'Não foi possível limpar a contagem.',
+        isWriteTimeout(erro) ? 'warning' : 'error',
+      );
     } finally {
       setOcupado(null);
     }
@@ -253,7 +271,10 @@ export function TelaProdutos() {
       }
     } catch (erro) {
       console.error('[produtos] Buscar estoque falhou:', erro);
-      mostrar('Não foi possível buscar o estoque.', 'error');
+      mostrar(
+        isWriteTimeout(erro) ? AVISO_NAO_CONFIRMADO : 'Não foi possível buscar o estoque.',
+        isWriteTimeout(erro) ? 'warning' : 'error',
+      );
     } finally {
       setOcupado(null);
     }

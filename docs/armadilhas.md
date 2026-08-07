@@ -39,6 +39,23 @@ para usuário comum; o `createdAt` no payload fazia o `hasOnly` falhar e negava 
 **Evitar.** Converter com `.toDate()`, nunca regenerar. Enviar **só** os campos que a regra
 libera.
 
+### Dois logins mostram coisas diferentes depois de uma operação em lote
+
+**Sintoma.** O admin corrige o estoque, vê tudo conferido, e os celulares da equipe
+continuam mostrando os itens em aberto. A tela disse "concluído" nos dois.
+
+**Causa.** `withWriteTimeout` resolve com `{ timedOut: true }` em vez de lançar — o dado
+fica no cache local e sobe ao reconectar. Só que **o resultado era ignorado por todos os
+chamadores**. Estourado o teto, o listener do próprio aparelho lê do cache e mostra o
+resultado; o servidor não tem nada; os outros aparelhos não veem.
+
+**Evitar.** Operação em lote cujo resultado é anunciado ao usuário usa `exigirGravacao()`,
+que lança `WriteTimeoutError`. `withWriteTimeout` cru só para o dispensável — histórico,
+preferência de aparelho.
+
+E a mensagem precisa dizer **"não confirmado"**, nunca "não salvou": o dado sobe depois, e
+mandar repetir duplica a operação.
+
 ### `deleteField()` desaparece na fila offline
 
 **Sintoma.** Alteração feita offline sobe ao reconectar, mas o campo que deveria sumir

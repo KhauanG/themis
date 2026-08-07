@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { FILTROS, contarPorFiltro, filtrarProdutos, mensagemVazio, progressoContagem } from './filtros.js';
+import {
+  FILTROS,
+  contagemFechada,
+  contarPorFiltro,
+  filtrarProdutos,
+  mensagemVazio,
+  progressoContagem,
+} from './filtros.js';
 import type { Produto } from './types.js';
 
 function p(over: Partial<Produto> & { id: string }): Produto {
@@ -146,5 +153,44 @@ describe('progressoContagem', () => {
 describe('mensagemVazio', () => {
   it('devolve mensagem específica do filtro', () => {
     expect(mensagemVazio('no-barcode')).toBe('Nenhum produto sem código de barras');
+  });
+});
+
+/**
+ * Conferir encerra a rodada. Enquanto ela está fechada ninguém grava — e é isso que
+ * impede um aparelho de ficar com um número que os outros não têm.
+ */
+describe('contagemFechada', () => {
+  it('fechada com pelo menos um conferido', () => {
+    expect(contagemFechada([p({ id: 'a', productStatus: 'CONFERIDO' })])).toBe(true);
+  });
+
+  it('um conferido no meio de muitos contados já fecha', () => {
+    expect(
+      contagemFechada([
+        p({ id: 'a', quantidade: 3, productStatus: 'ATUALIZADO' }),
+        p({ id: 'b' }),
+        p({ id: 'c', productStatus: 'CONFERIDO' }),
+      ]),
+    ).toBe(true);
+  });
+
+  it('aberta sem nenhum conferido', () => {
+    expect(
+      contagemFechada([
+        p({ id: 'a', quantidade: 3, productStatus: 'ATUALIZADO' }),
+        p({ id: 'b' }),
+      ]),
+    ).toBe(false);
+  });
+
+  it('estoque vazio está aberto, não fechado', () => {
+    expect(contagemFechada([])).toBe(false);
+  });
+
+  // Limpar contagem remove o `productStatus` — é o que reabre a rodada.
+  it('reabre quando o status é removido', () => {
+    const depoisDeLimpar = [p({ id: 'a', quantidade: 0 })];
+    expect(contagemFechada(depoisDeLimpar)).toBe(false);
   });
 });

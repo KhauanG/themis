@@ -31,7 +31,11 @@ import {
 } from '@themis/shared';
 import { db } from './firebase.js';
 import { deviceId } from './dispositivo.js';
-import { runTransactionWithTimeout, withWriteTimeout } from './firestore-write.js';
+import {
+  exigirGravacao,
+  runTransactionWithTimeout,
+  withWriteTimeout,
+} from './firestore-write.js';
 import {
   ConflitoProdutoError,
   REMOVER,
@@ -300,7 +304,7 @@ export async function criarProdutosEmLote(
       lote.set(doc(colecaoProdutos(inventoryId)), { ...p, lastModified: agora, modifiedBy: autor });
     }
 
-    await withWriteTimeout(lote.commit(), { ms: 20_000, label: 'importar produtos' });
+    await exigirGravacao(lote.commit(), { ms: 20_000, label: 'importar produtos' });
     criados += fatia.length;
     aoProgredir?.(criados, produtos.length);
   }
@@ -456,7 +460,7 @@ export async function importarProdutos(
       }
     }
 
-    await withWriteTimeout(lote.commit(), { ms: 20_000, label: 'importar planilha' });
+    await exigirGravacao(lote.commit(), { ms: 20_000, label: 'importar planilha' });
     aoProgredir?.(Math.min(i + fatia.length, linhas.length), linhas.length);
   }
 
@@ -571,7 +575,7 @@ export async function atualizarEstoqueSistema(
         modifiedBy: autor,
       });
     }
-    await withWriteTimeout(lote.commit(), { ms: 20_000, label: 'sincronizar estoque do ERP' });
+    await exigirGravacao(lote.commit(), { ms: 20_000, label: 'sincronizar estoque do ERP' });
   }
 
   return { atualizados, semCorrespondencia, zeradosPorOmissao, casaram };
@@ -624,7 +628,7 @@ export async function fecharConferencia(
       else corretos++;
     }
 
-    await withWriteTimeout(lote.commit(), { ms: 20_000, label: 'fechar conferência' });
+    await exigirGravacao(lote.commit(), { ms: 20_000, label: 'fechar conferência' });
   }
 
   return { divergentes, corretos };
@@ -721,7 +725,7 @@ export async function excluirTodosProdutos(
       const lote = writeBatch(db);
       for (const d of fatia) lote.delete(d.ref);
 
-      await withWriteTimeout(lote.commit(), { ms: 20_000, label: 'apagar produtos' });
+      await exigirGravacao(lote.commit(), { ms: 20_000, label: 'apagar produtos' });
       apagados += fatia.length;
       aoProgredir?.(apagados);
     }
@@ -770,6 +774,6 @@ export async function limparContagem(inventoryId: string, produtos: readonly Pro
       lote.update(doc(colecaoProdutos(inventoryId), p.id), limpeza);
     }
 
-    await withWriteTimeout(lote.commit(), { label: 'limpar contagem' });
+    await exigirGravacao(lote.commit(), { label: 'limpar contagem' });
   }
 }
