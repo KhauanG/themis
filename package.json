@@ -1,6 +1,6 @@
 {
   "name": "themis",
-  "version": "2.12.0",
+  "version": "2.12.1",
   "private": true,
   "description": "Themis 2.0 - PWA de contagem de estoque do Grupo Ice Beer",
   "workspaces": [

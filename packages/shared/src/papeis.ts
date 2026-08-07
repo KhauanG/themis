@@ -46,7 +46,18 @@ export interface Permissoes {
   finalizarContagem: boolean;
   /** Gerenciar usuários e papéis. */
   gerenciarUsuarios: boolean;
-  /** Ver o histórico geral de ações. */
+  /**
+   * Ver o histórico geral de ações. **Só master.**
+   *
+   * Não é escolha de produto: a regra do Firestore é `allow read: if signedIn() &&
+   * isMaster()` em `historico_geral`. Enquanto isto dizia `admin || auditor`, os dois viam
+   * o item no menu, abriam a tela e recebiam `permission-denied` — e a mensagem ainda
+   * culpava um índice do Firestore que não tinha nada a ver.
+   *
+   * O 1.x fazia igual (`btn.style.display = this.isMaster ? '' : 'none'`). Para liberar
+   * admin e auditor é preciso alterar e **publicar** as regras, o que afeta o 1.x em
+   * produção no mesmo banco.
+   */
   verHistorico: boolean;
   /**
    * Ver o saldo do sistema e a diferença **durante a contagem**.
@@ -74,7 +85,7 @@ export function permissoesDe(papel: Papel): Permissoes {
     // confirmação de digitar FINALIZAR — o funcionário que contou é quem sabe que acabou.
     finalizarContagem: true,
     gerenciarUsuarios: papel === 'master',
-    verHistorico: admin || papel === 'auditor',
+    verHistorico: papel === 'master',
     // Auditor vê: o trabalho dele é justamente comparar contagem com sistema.
     verEstoqueSistema: admin || papel === 'auditor',
   };

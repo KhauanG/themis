@@ -42,9 +42,21 @@ describe('permissoesDe', () => {
   it('auditor lê auditoria mas não corrige contagem', () => {
     const p = permissoesDe('auditor');
     expect(p.verAuditoria).toBe(true);
-    expect(p.verHistorico).toBe(true);
     expect(p.corrigirContagem).toBe(false);
     expect(p.gerenciarEstoque).toBe(false);
+  });
+
+  /**
+   * A regra de `historico_geral` é `allow read: if signedIn() && isMaster()`. Enquanto
+   * `permissoesDe` dizia `admin || auditor`, os dois viam o item no menu, abriam a tela e
+   * levavam `permission-denied`. Interface mais permissiva que a regra é promessa que o
+   * banco não cumpre.
+   */
+  it('só master lê o histórico — é o que a regra permite', () => {
+    expect(permissoesDe('master').verHistorico).toBe(true);
+    expect(permissoesDe('admin').verHistorico).toBe(false);
+    expect(permissoesDe('auditor').verHistorico).toBe(false);
+    expect(permissoesDe('comum').verHistorico).toBe(false);
   });
 
   it('admin corrige e gerencia estoque, mas não mexe em usuários', () => {

@@ -6,6 +6,60 @@ Categorias: **Adicionado**, **Alterado**, **Corrigido**, **Removido**, **Seguran
 
 ---
 
+## 2.12.1 — 2026-08-07
+
+Auditoria completa do projeto, a pedido. Três defeitos encontrados e corrigidos; nenhum
+deles tinha sido notado em uso.
+
+### Corrigido
+
+- **Admin e auditor viam "Histórico" no menu e levavam `permission-denied`.** A regra é
+  `allow read: if signedIn() && isMaster()` em `historico_geral`, mas `permissoesDe` dizia
+  `admin || auditor`. Abriam a tela e a consulta falhava — com uma mensagem que ainda
+  culpava um índice do Firestore que não tinha nada a ver.
+
+  `verHistorico` passou a ser `papel === 'master'`, que é o que a regra permite e o que o
+  1.x fazia (`btn.style.display = this.isMaster ? '' : 'none'`).
+
+  ⚠️ Para liberar admin e auditor seria preciso **publicar regras novas**, o que afeta o
+  Themis 1.x em produção no mesmo banco. Não foi feito.
+
+- **Todo save de estoque feito por admin dizia que falhou — depois de ter dado certo.**
+  `salvar()` gravava o `HashLoja` incondicionalmente, e `hashConfigs` exige **master**
+  (`allow create, update: if isMaster()`), enquanto renomear estoque é liberado para admin.
+
+  O rename passava, a gravação do hash estourava, e o `catch` mostrava "Não foi possível
+  salvar" para uma operação que tinha funcionado. A entrada de histórico também nunca era
+  escrita, porque vinha depois do erro.
+
+  Agora o hash só é gravado quando **mudou**, e a mensagem de erro distingue os dois donos:
+  estoque exige admin, HashLoja exige master.
+
+- **`MenuPrincipal` roubava o foco a cada render.** Mesmo defeito que o `Modal` teve na
+  2.7.0: `onFechar` nas dependências do efeito, e a chamada passa uma arrow inline. Agrava
+  porque o menu mostra o contador de pendências, que muda sozinho enquanto a fila drena — o
+  foco pulava para o primeiro botão no meio da navegação. Agora `onFechar` vai por
+  referência e o efeito depende só de `aberto`.
+
+### Verificado, sem achados
+
+- **Escritas**: todas as 24 passam por `withWriteTimeout`, `exigirGravacao` ou
+  `runTransactionWithTimeout`. Nenhuma solta.
+- **Nulos em produto**: nenhuma gravação de `null`; as duas ocorrências são leitura.
+- **Efeitos**: nenhum outro com objeto de listener ou callback de prop nas dependências.
+  `mostrar` é `useCallback` e é estável.
+- **Composição das travas** (`somenteLeitura`, `contagemFechada`, `foraDoErp`, `CONFERIDO`):
+  todas aplicadas em `salvarContagem` e no card, sem caminho que escape.
+- **Demais gates** (auditoria, produtos, estoques, usuários, apagar tudo): coerentes com as
+  regras.
+
+### Removido
+
+- `excluirAuditoria` e `criarProdutosEmLote` não têm chamador. Mantidos por ora — remover é
+  mudança sem ganho e `excluirAuditoria` tem uso previsível.
+
+---
+
 ## 2.12.0 — 2026-08-07
 
 Origem: contagem real da empresa. Dois relatos — itens conferidos aparecendo num login e

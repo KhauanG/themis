@@ -88,6 +88,12 @@ O SDK já tem cache próprio. Dois caches sobre o mesmo dado servem informação
 **Não remova `.npmrc`.**
 `include=dev` é o que faz o `tsc` existir no build da hospedagem.
 
+**A interface nunca é mais permissiva que a Security Rule.**
+Quando é, o usuário vê o botão, clica e leva `permission-denied` — promessa que o banco não
+cumpre. Mudou `permissoesDe` ou criou botão novo? Confira a regra correspondente em
+`firestore/firestore.rules` antes. Os que exigem **master**, e não admin: `historico_geral`
+(leitura), `hashConfigs` (escrita), exclusão de `inventories` e de `produtos`.
+
 **Formato gravado precisa continuar legível pelo Themis 1.x.**
 Os dois apps convivem no mesmo banco.
 

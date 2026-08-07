@@ -70,27 +70,39 @@ export function MenuPrincipal({
   const caixa = useRef<HTMLDivElement>(null);
   const focoAnterior = useRef<HTMLElement | null>(null);
 
+  /**
+   * `onFechar` por referência, fora das dependências do efeito.
+   *
+   * Mesmo defeito que o `Modal` teve: a chamada passa uma arrow inline, que ganha
+   * identidade nova a cada render do pai. Com ela nas dependências, **qualquer** render
+   * remontava o efeito — e o menu mostra o contador de pendências, que muda sozinho
+   * enquanto a fila drena. O foco pulava para o primeiro botão no meio da navegação.
+   */
+  const fechar = useRef(onFechar);
+  fechar.current = onFechar;
+
   useEffect(() => {
     if (!aberto) return;
 
     focoAnterior.current = document.activeElement as HTMLElement | null;
 
     const aoTeclar = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onFechar();
+      if (e.key === 'Escape') fechar.current();
     };
     document.addEventListener('keydown', aoTeclar);
 
     const overflowAnterior = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
 
-    caixa.current?.querySelector<HTMLElement>('button, a')?.focus();
+    caixa.current?.querySelector<HTMLElement>('button, a')?.focus({ preventScroll: true });
 
     return () => {
       document.removeEventListener('keydown', aoTeclar);
       document.body.style.overflow = overflowAnterior;
-      focoAnterior.current?.focus();
+      focoAnterior.current?.focus({ preventScroll: true });
     };
-  }, [aberto, onFechar]);
+    // Só `aberto`: ver o comentário de `fechar`. Render do pai não pode mexer no foco.
+  }, [aberto]);
 
   if (!aberto) return null;
 

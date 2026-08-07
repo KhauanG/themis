@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { Inventory } from '@themis/shared';
 import { useAuth } from '../../contexts/AuthContext.js';
+import { isPermissaoNegada } from '../../lib/fila-offline.js';
 import { useEstoque } from '../../contexts/EstoqueContext.js';
 import { useToast } from '../../contexts/ToastContext.js';
 import { Icone } from '../../components/Icone.js';
@@ -102,7 +103,19 @@ export function TelaEstoques() {
         const hashAntes = hashes.get(form.id) ?? '';
 
         await renomearEstoque(form.id, form.nome, form.descricao);
-        await salvarHashDoEstoque(form.id, form.hashLoja);
+
+        /**
+         * Só grava o hash se ele **mudou**.
+         *
+         * `hashConfigs` exige master na regra (`allow create, update: if isMaster()`),
+         * enquanto renomear estoque é liberado para admin. Gravando sempre, todo save de
+         * um admin estourava em `permission-denied` — **depois** de o rename já ter dado
+         * certo. A tela dizia "não foi possível salvar", o nome tinha mudado, e a entrada
+         * de histórico nem chegava a ser escrita.
+         */
+        if (hashAntes !== form.hashLoja.trim()) {
+          await salvarHashDoEstoque(form.id, form.hashLoja);
+        }
 
         if (contextoLog) {
           void registrar('EDITAR_ESTOQUE', contextoLog, {
@@ -117,7 +130,8 @@ export function TelaEstoques() {
         mostrar('Estoque atualizado.', 'success');
       } else {
         const id = await criarEstoque(form.nome, form.descricao);
-        await salvarHashDoEstoque(id, form.hashLoja);
+        // Idem: estoque novo sem hash não precisa tocar em `hashConfigs`.
+        if (form.hashLoja.trim() !== '') await salvarHashDoEstoque(id, form.hashLoja);
 
         if (contextoLog) {
           void registrar('CRIAR_ESTOQUE', contextoLog, {
@@ -132,7 +146,13 @@ export function TelaEstoques() {
       setForm(null);
     } catch (erro) {
       console.error('[estoques] Falha ao salvar:', erro);
-      mostrar('Não foi possível salvar. Só admin ou master pode alterar estoques.', 'error');
+      // O HashLoja tem dono diferente do resto: a mensagem precisa dizer qual dos dois.
+      mostrar(
+        isPermissaoNegada(erro)
+          ? 'Sem permissão. Alterar estoque exige admin; alterar o HashLoja exige master.'
+          : 'Não foi possível salvar. Verifique a conexão e tente de novo.',
+        'error',
+      );
     } finally {
       setOcupado('');
     }

@@ -188,7 +188,7 @@ Há teste garantindo que os dois concordam.
 | Contar | ✓ | ✓ | ✓ | ✓ |
 | Finalizar contagem | ✓ | ✓ | ✓ | ✓ |
 | Ver auditoria | | ✓ | ✓ | ✓ |
-| Ver histórico | | ✓ | ✓ | ✓ |
+| Ver histórico | | | | ✓ |
 | Ver estoque do sistema | | ✓ | ✓ | ✓ |
 | Conferir divergência | | | ✓ | ✓ |
 | Gerenciar produtos e estoque | | | ✓ | ✓ |
@@ -196,6 +196,20 @@ Há teste garantindo que os dois concordam.
 
 Isto governa **só a interface**. Esconder botão não protege nada — quem decide é a Security
 Rule. Ver [seguranca.md](seguranca.md).
+
+⚠️ **A interface nunca pode ser mais permissiva que a regra.** Quando é, o usuário vê o
+botão, clica e leva `permission-denied` — promessa que o banco não cumpre. Foi o que
+acontecia com o Histórico (interface liberava admin e auditor, regra exige master) e com o
+HashLoja (tela liberava admin, regra exige master).
+
+Casos em que a regra é mais restrita que o papel sugere:
+
+| Recurso | Regra exige | Onde aparece |
+|---|---|---|
+| `historico_geral` (leitura) | **master** | menu Histórico |
+| `hashConfigs` (escrita) | **master** | HashLoja em Estoques |
+| `inventories` (exclusão) | **master** | botão Excluir em Estoques |
+| `produtos` (exclusão) | **master** | Excluir produto, Apagar todos |
 
 Função: `permissoesDe(papel)` em `papeis.ts`.
 
