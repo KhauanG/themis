@@ -168,7 +168,14 @@ comparação usaria o saldo da última importação: o app mandaria "corrigir" i
 batiam e deixaria passar divergências surgidas desde então.
 
 **2. Enviar as divergências.** Só elas. Item que bateu não tem o que corrigir, e mandar
-todos seriam 2000 requisições para resolver 40 problemas. Pausa de 500 ms entre envios.
+todos seriam 2000 requisições para resolver 40 problemas.
+
+⚠️ **Um item por vez, nunca em paralelo.** `for` sequencial com `await`, e **500 ms de pausa**
+entre um envio e o outro — os mesmos números do 1.x. Disparar tudo de uma vez afogaria a API
+da Nuvem3, e não há nada no nosso lado que segure isso depois de sair.
+
+Cerca de **um segundo por item** (pausa + resposta). Acima de dois minutos estimados, a tela
+avisa antes de confirmar e pede para não fechar a janela.
 
 ⚠️ **Produto que não está na listagem do ERP fica de fora do envio.** O ERP não devolveu
 saldo para ele, então a única base de comparação é o `estoqueSistema` da última importação —

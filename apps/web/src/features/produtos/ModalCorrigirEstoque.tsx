@@ -127,6 +127,18 @@ export function ModalCorrigirEstoque({ aberto, onFechar }: Props) {
   const naoEnviaveis = (diagnostico?.divergentes ?? []).filter((p) => idsForaDoErp.has(p.id)).length;
   const enviaveis = (diagnostico?.divergentes.length ?? 0) - naoEnviaveis;
 
+  /**
+   * Estimativa do tempo de envio, em minutos.
+   *
+   * O envio é **um item por vez**, com 500 ms de pausa entre eles, mais o tempo de resposta
+   * do ERP. Cerca de um segundo por item. Com 1200 divergências são 20 minutos de janela
+   * aberta — e sem esse aviso o usuário conclui que travou e fecha no meio.
+   *
+   * O 1.x avisava disso num `confirm()` acima de 1000 itens; aqui o número aparece junto do
+   * resto do diagnóstico, antes de confirmar.
+   */
+  const minutosEstimados = Math.ceil(enviaveis / 60);
+
   return (
     <Modal
       aberto={aberto}
@@ -270,11 +282,21 @@ export function ModalCorrigirEstoque({ aberto, onFechar }: Props) {
               marcados como conferidos e saem da lista de trabalho.
             </p>
           ) : (
-            <p>
-              {enviaveis} {enviaveis === 1 ? 'divergência vai' : 'divergências vão'} para o ERP.
-              Depois, os {diagnostico.contados.length} itens contados são marcados como
-              conferidos e saem da lista de trabalho.
-            </p>
+            <>
+              <p>
+                {enviaveis} {enviaveis === 1 ? 'divergência vai' : 'divergências vão'} para o
+                ERP, <strong>uma por vez</strong>, com meio segundo entre elas. Depois, os{' '}
+                {diagnostico.contados.length} itens contados são marcados como conferidos e
+                saem da lista de trabalho.
+              </p>
+
+              {minutosEstimados >= 2 && (
+                <p className="aviso" role="status">
+                  O envio deve levar cerca de {minutosEstimados} minutos. Deixe esta janela
+                  aberta até o fim — fechar no meio interrompe o envio.
+                </p>
+              )}
+            </>
           )}
         </div>
       )}

@@ -6,6 +6,38 @@ Categorias: **Adicionado**, **Alterado**, **Corrigido**, **Removido**, **Seguran
 
 ---
 
+## 2.9.1 — 2026-08-07
+
+### Adicionado
+
+- **Estimativa de tempo antes de confirmar a correção de estoque.** O envio é um item por
+  vez, com 500 ms entre eles — cerca de um segundo por item. Com 1200 divergências são 20
+  minutos de janela aberta, e sem aviso o usuário conclui que travou e fecha no meio,
+  interrompendo o envio.
+
+  O 1.x avisava disso num `confirm()` acima de 1000 itens; era a última diferença de
+  comportamento do fluxo de envio. Aqui o número aparece junto do resto do diagnóstico,
+  antes de confirmar, a partir de dois minutos estimados.
+
+- A tela de confirmação passou a dizer explicitamente que o envio é **um por vez**.
+
+### Verificação de paridade
+
+Conferido contra o `corrigirEstoque` do 1.x, a pedido:
+
+| | 1.x | 2.0 |
+|---|---|---|
+| O que é enviado | só os divergentes | só os divergentes (menos os fora do ERP) |
+| Forma | `for` sequencial com `await` | idem |
+| Pausa entre envios | 500 ms | 500 ms |
+| Paralelismo | nenhum | nenhum |
+| Itens corretos | só marcados `CONFERIDO` | idem |
+
+Não existe `Promise.all` em nenhum caminho de envio ao ERP — o único do projeto carrega as
+bibliotecas do PDF.
+
+---
+
 ## 2.9.0 — 2026-08-07
 
 ### Adicionado
