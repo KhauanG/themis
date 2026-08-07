@@ -81,6 +81,7 @@ export function ModalCorrigirEstoque({ aberto, onFechar }: Props) {
           confirmadosNoErp: r.confirmados,
           pendentesNoErp: r.pendentes.length,
           falhasNoEnvio: r.falhasNoEnvio.length,
+          naoEnviadosForaDoErp: r.naoEnviadosForaDoErp.length,
         });
       }
     } catch (erro) {
@@ -115,6 +116,17 @@ export function ModalCorrigirEstoque({ aberto, onFechar }: Props) {
 
   const emAndamento = etapa === 'diagnosticando' || etapa === 'executando';
 
+  /**
+   * Divergências que o ERP não conhece — não vão para o envio.
+   *
+   * `foraDoErp` traz todos os contados ausentes da listagem; aqui só interessam os que
+   * também divergem, porque são esses que **deixariam** de ser corrigidos. Item que bate
+   * não seria enviado de qualquer forma.
+   */
+  const idsForaDoErp = new Set((diagnostico?.foraDoErp ?? []).map((p) => p.id));
+  const naoEnviaveis = (diagnostico?.divergentes ?? []).filter((p) => idsForaDoErp.has(p.id)).length;
+  const enviaveis = (diagnostico?.divergentes.length ?? 0) - naoEnviaveis;
+
   return (
     <Modal
       aberto={aberto}
@@ -146,7 +158,7 @@ export function ModalCorrigirEstoque({ aberto, onFechar }: Props) {
               onClick={() => void rodarCorrecao()}
               disabled={(diagnostico?.contados.length ?? 0) === 0}
             >
-              {diagnostico && diagnostico.divergentes.length > 0 ? 'Corrigir e conferir' : 'Conferir'}
+              {enviaveis > 0 ? 'Corrigir e conferir' : 'Conferir'}
             </button>
           </>
         ) : etapa === 'resultado' ? (
@@ -214,6 +226,13 @@ export function ModalCorrigirEstoque({ aberto, onFechar }: Props) {
               <span>Divergentes</span>
               <strong>{diagnostico.divergentes.length}</strong>
             </li>
+            {/* Contado à parte: são divergências que existem mas não têm como ser enviadas. */}
+            {naoEnviaveis > 0 && (
+              <li>
+                <span>Fora do ERP</span>
+                <strong>{naoEnviaveis}</strong>
+              </li>
+            )}
           </ul>
 
           {diagnostico.saldosAtualizados > 0 && (
@@ -226,23 +245,35 @@ export function ModalCorrigirEstoque({ aberto, onFechar }: Props) {
 
           {diagnostico.semCorrespondencia > 0 && (
             <p className="aviso">
-              {diagnostico.semCorrespondencia} produtos não existem no ERP e não podem ser
-              corrigidos.
+              {diagnostico.semCorrespondencia} produtos do estoque não estão na listagem do ERP.
+            </p>
+          )}
+
+          {/*
+            O aviso aparece **antes** de confirmar, não só no resultado: é informação que
+            muda a decisão. Saber depois que 40 divergências não foram enviadas é tarde.
+          */}
+          {naoEnviaveis > 0 && (
+            <p className="aviso aviso--perigo">
+              {naoEnviaveis} {naoEnviaveis === 1 ? 'divergência não será enviada' : 'divergências não serão enviadas'} ao
+              ERP: {naoEnviaveis === 1 ? 'o produto não está' : 'os produtos não estão'} na
+              listagem da loja. {naoEnviaveis === 1 ? 'Ele' : 'Eles'} será conferido normalmente,
+              mas o saldo no ERP continua como está — resolva o cadastro no Nuvem3.
             </p>
           )}
 
           {diagnostico.contados.length === 0 ? (
             <p className="aviso">Nenhum item com contagem em aberto para conferir.</p>
-          ) : diagnostico.divergentes.length === 0 ? (
+          ) : enviaveis === 0 ? (
             <p>
-              Tudo bate com o ERP. Nada será enviado — os {diagnostico.contados.length} itens
-              serão apenas marcados como conferidos.
+              Nada será enviado ao ERP. Os {diagnostico.contados.length} itens contados serão
+              marcados como conferidos e saem da lista de trabalho.
             </p>
           ) : (
             <p>
-              As {diagnostico.divergentes.length} divergências vão para o ERP. Depois, os{' '}
-              {diagnostico.contados.length} itens contados são marcados como conferidos e saem
-              da lista de trabalho.
+              {enviaveis} {enviaveis === 1 ? 'divergência vai' : 'divergências vão'} para o ERP.
+              Depois, os {diagnostico.contados.length} itens contados são marcados como
+              conferidos e saem da lista de trabalho.
             </p>
           )}
         </div>
@@ -271,6 +302,12 @@ export function ModalCorrigirEstoque({ aberto, onFechar }: Props) {
                 <strong>{resultado.pendentes.length}</strong>
               </li>
             )}
+            {resultado.naoEnviadosForaDoErp.length > 0 && (
+              <li>
+                <span>Fora do ERP</span>
+                <strong>{resultado.naoEnviadosForaDoErp.length}</strong>
+              </li>
+            )}
           </ul>
 
           {resultado.falhasNoEnvio.length > 0 && (
@@ -278,6 +315,27 @@ export function ModalCorrigirEstoque({ aberto, onFechar }: Props) {
               {resultado.falhasNoEnvio.length} itens não foram aceitos pelo ERP. A conferência
               foi fechada mesmo assim — reenvie depois.
             </p>
+          )}
+
+          {/*
+            Repetido aqui de propósito. O item foi conferido e sumiu da lista de trabalho,
+            mas continua divergente no ERP. Se este aviso não aparecer, ninguém vai atrás.
+          */}
+          {resultado.naoEnviadosForaDoErp.length > 0 && (
+            <>
+              <p className="aviso">
+                Estes itens divergem, mas não estão na listagem do ERP e não foram enviados.
+                Continuam com o saldo atual no Nuvem3 — o cadastro precisa ser resolvido lá.
+              </p>
+              <ul className="lista-simples">
+                {resultado.naoEnviadosForaDoErp.slice(0, 20).map((nome) => (
+                  <li key={nome}>{nome}</li>
+                ))}
+                {resultado.naoEnviadosForaDoErp.length > 20 && (
+                  <li>e mais {resultado.naoEnviadosForaDoErp.length - 20}…</li>
+                )}
+              </ul>
+            </>
           )}
 
           {resultado.verificacaoIndisponivel && (

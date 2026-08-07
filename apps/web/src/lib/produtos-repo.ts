@@ -24,6 +24,7 @@ import {
   fisicoDe,
   idProdutoDe,
   nomeDe,
+  saldoDoErpPara,
   saldoNoErp,
   sistemaDe,
   type Produto,
@@ -513,8 +514,7 @@ export async function atualizarEstoqueSistema(
 
   for (const p of produtos) {
     const naListagem = saldoNoErp(estoqueErp, p);
-    // Ausente numa listagem que só traz positivos é zero, não desconhecido.
-    const saldo = naListagem ?? (opcoes.omiteZerados ? 0 : undefined);
+    const saldo = saldoDoErpPara(estoqueErp, p, opcoes.omiteZerados === true);
     const dados: Record<string, unknown> = {};
 
     if (saldo === undefined) {

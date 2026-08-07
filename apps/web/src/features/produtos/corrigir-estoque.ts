@@ -25,6 +25,7 @@ import {
   idProdutoDe,
   montarEnvio,
   nomeDe,
+  saldoDoErpPara,
   saldoNoErp,
   sistemaDe,
   type Produto,
@@ -41,8 +42,24 @@ const PAUSA_ENTRE_ENVIOS_MS = 500;
 export interface Diagnostico {
   hashLoja: string;
   contados: Produto[];
+  /**
+   * Contados cuja quantidade difere do saldo do sistema.
+   *
+   * Inclui os que estão fora do ERP: é esta lista que decide `corrigidoIncorreto` no
+   * fechamento da conferência, e ali a divergência existe mesmo que não dê para corrigir.
+   * Quem filtra o envio é `paraOErp`, em `executarCorrecao`.
+   */
   divergentes: Produto[];
-  /** Produtos do estoque que o ERP não conhece — não dá para corrigir o que ele não tem. */
+  /**
+   * Contados que **não estão na listagem do ERP**, divergentes ou não.
+   *
+   * Não vão para o envio: mandar quantidade de produto que a loja não tem cadastrado é
+   * escrever no ERP a partir de uma comparação contra o saldo da última importação. O ERP
+   * recusa ou aceita errado, e a verificação da fase 3 os listaria como pendentes para
+   * sempre, sem nunca resolver.
+   */
+  foraDoErp: Produto[];
+  /** Produtos do estoque que o ERP não conhece — contados ou não. */
   semCorrespondencia: number;
   /** Quantos tiveram o saldo do sistema corrigido pela leitura. */
   saldosAtualizados: number;
@@ -57,6 +74,14 @@ export interface PendenciaErp {
 export interface ResultadoCorrecao {
   enviados: number;
   falhasNoEnvio: string[];
+  /**
+   * Divergentes que ficaram de fora do envio por não estarem na listagem do ERP.
+   *
+   * Contado à parte de `falhasNoEnvio`: não é falha, é recusa deliberada. Aparece no
+   * resultado porque o usuário precisa saber que aqueles itens continuam divergentes no
+   * ERP — some daqui e ninguém vai atrás.
+   */
+  naoEnviadosForaDoErp: string[];
   /** Itens cujo saldo no ERP passou a bater com o que foi enviado. */
   confirmados: number;
   /** Enviados que o ERP aceitou mas não refletiu. */
@@ -113,9 +138,17 @@ export async function diagnosticar(
   // mesma regra que `atualizarEstoqueSistema` acabou de gravar. Sem repeti-la aqui, o
   // diagnóstico compararia a contagem com o saldo da última importação para justamente os
   // produtos zerados no ERP, que são os que mais precisam de correção.
+  const desconhecidos = new Set<string>();
+
   const frescos = produtos.map((p) => {
-    const atualizado = saldoNoErp(leitura.estoque, p) ?? (leitura.omiteZerados ? 0 : undefined);
-    return atualizado === undefined ? p : { ...p, estoqueSistema: atualizado };
+    // Mesma regra que `atualizarEstoqueSistema` acabou de gravar — vem de `shared` para as
+    // duas não poderem divergir.
+    const atualizado = saldoDoErpPara(leitura.estoque, p, leitura.omiteZerados);
+    if (atualizado === undefined) {
+      desconhecidos.add(p.id);
+      return p;
+    }
+    return { ...p, estoqueSistema: atualizado };
   });
 
   const contados = frescos.filter((p) => p.productStatus === 'ATUALIZADO');
@@ -124,6 +157,7 @@ export async function diagnosticar(
     hashLoja,
     contados,
     divergentes: contados.filter((p) => fisicoDe(p) !== sistemaDe(p)),
+    foraDoErp: contados.filter((p) => desconhecidos.has(p.id)),
     semCorrespondencia: sincronia.semCorrespondencia,
     saldosAtualizados: sincronia.atualizados,
   };
@@ -135,8 +169,21 @@ export async function executarCorrecao(
   diagnostico: Diagnostico,
   aoProgredir: (texto: string, feitos?: number, total?: number) => void,
 ): Promise<ResultadoCorrecao> {
-  const { contados, divergentes, hashLoja } = diagnostico;
-  const paraOErp = divergentes.filter((p) => idProdutoDe(p) != null);
+  const { contados, divergentes, foraDoErp, hashLoja } = diagnostico;
+
+  /**
+   * Quem vai ao ERP: divergente, com identificador, e **conhecido pelo ERP**.
+   *
+   * Produto ausente da listagem fica de fora. Ele não está no estoque daquela loja no ERP,
+   * então o número que temos para comparar é o da última importação — mandar uma correção
+   * calculada sobre ele é escrever no estoque real a partir de dado velho. E a fase 3 nunca
+   * confirmaria: o item continuaria ausente na releitura e viraria pendência eterna.
+   */
+  const desconhecidos = new Set(foraDoErp.map((p) => p.id));
+  const enviaveis = divergentes.filter((p) => !desconhecidos.has(p.id));
+  const paraOErp = enviaveis.filter((p) => idProdutoDe(p) != null);
+
+  const naoEnviadosForaDoErp = divergentes.filter((p) => desconhecidos.has(p.id)).map(nomeDe);
 
   let enviados = 0;
   const falhasNoEnvio: string[] = [];
@@ -198,6 +245,7 @@ export async function executarCorrecao(
   return {
     enviados,
     falhasNoEnvio,
+    naoEnviadosForaDoErp,
     confirmados,
     pendentes,
     conferidos: fechados.divergentes + fechados.corretos,

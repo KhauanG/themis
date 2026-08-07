@@ -216,3 +216,35 @@ do código — mas quem paga seria o usuário.
 
 **Quando remover.** Depois de normalizar os documentos e confirmar que nenhum perfil usa os
 formatos antigos.
+
+---
+
+## 17. Produto fora da listagem do ERP não entra na correção
+
+**Contexto.** A listagem `EstoqueQuantidadePorLojaListar` não traz todos os produtos do
+catálogo. Alguns simplesmente não aparecem — cadastrados em outra loja, inativados no ERP,
+ou com `IdProduto` divergente. O 1.x enviava esses itens junto com os demais.
+
+**Decisão.** Eles ficam **fora do envio**. Continuam sendo conferidos, com
+`corrigidoIncorreto` refletindo a divergência, e aparecem numa lista própria antes e depois
+da confirmação.
+
+**Por quê.** O ERP não devolveu saldo para eles, então a comparação usa o `estoqueSistema`
+da última importação. Mandar uma correção calculada sobre isso é escrever no estoque real da
+empresa a partir de uma comparação que não vale. E a verificação da fase 3 nunca
+confirmaria: o item continua ausente na releitura, e vira pendência que ninguém consegue
+resolver reenviando.
+
+**O que se perde.** Paridade com o 1.x, e a chance de que o ERP aceitasse o envio e
+corrigisse o cadastro sozinho. Julgamos que não escrever a partir de comparação inválida
+vale mais — sobretudo porque o efeito de errar aqui é silencioso.
+
+**Como se contorna.** Resolver o cadastro no Nuvem3. Para saber quantos produtos estão nessa
+situação e se têm algo em comum:
+
+```
+npx tsx scripts/diagnosticar-erp.mts <hashLoja> --planilha <arquivo>
+```
+
+**Quando revisar.** Se o cruzamento mostrar que os ausentes são poucos e todos legítimos, ou
+se o ERP passar a aceitar atualização de produto fora da listagem.

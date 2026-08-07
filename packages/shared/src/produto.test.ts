@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { chavesDeIdProduto, fisicoDe, saldoNoErp, sistemaDe, validadeDe } from './produto.js';
+import {
+  chavesDeIdProduto,
+  fisicoDe,
+  saldoDoErpPara,
+  saldoNoErp,
+  sistemaDe,
+  validadeDe,
+} from './produto.js';
 
 /**
  * O casamento do produto com a listagem do ERP passa por aqui. Se falhar, o app conclui
@@ -109,5 +116,49 @@ describe('saldoNoErp', () => {
   it('produto sem IdProduto não casa com nada', () => {
     const erp = new Map([['5', 9]]);
     expect(saldoNoErp(erp, { id: 'a' })).toBeUndefined();
+  });
+});
+
+/**
+ * A regra que decide o que "ausente da listagem" significa.
+ *
+ * Ela é aplicada em dois lugares distantes — ao gravar `estoqueSistema` e ao montar o
+ * diagnóstico da correção. Duas cópias divergem: no 1.x foi assim que o cálculo de status
+ * passou a nunca devolver `CRITICO` numa das telas. Por isso mora aqui, com teste.
+ */
+describe('saldoDoErpPara', () => {
+  const erp = new Map([['42', 7]]);
+  const presente = { id: 'a', IdProduto: '42' };
+  const ausente = { id: 'b', IdProduto: '99' };
+
+  it('produto na listagem devolve o saldo, independente da regra', () => {
+    expect(saldoDoErpPara(erp, presente, false)).toBe(7);
+    expect(saldoDoErpPara(erp, presente, true)).toBe(7);
+  });
+
+  // Listagem traz zeros: ausente é ausente mesmo — o produto não está naquela loja.
+  it('ausente com listagem que traz zeros continua desconhecido', () => {
+    expect(saldoDoErpPara(erp, ausente, false)).toBeUndefined();
+  });
+
+  // Listagem só com positivos: ausente é zero.
+  it('ausente com listagem só de positivos vale zero', () => {
+    expect(saldoDoErpPara(erp, ausente, true)).toBe(0);
+  });
+
+  // O caso que mais engana: 0 é saldo, não ausência. `??` funciona, `||` estragaria.
+  it('saldo zero vindo da listagem não vira desconhecido', () => {
+    const comZero = new Map([['42', 0]]);
+    expect(saldoDoErpPara(comZero, presente, false)).toBe(0);
+    expect(saldoDoErpPara(comZero, presente, true)).toBe(0);
+  });
+
+  it('saldo negativo é preservado', () => {
+    expect(saldoDoErpPara(new Map([['42', -3]]), presente, false)).toBe(-3);
+  });
+
+  it('produto sem IdProduto segue a mesma regra da ausência', () => {
+    expect(saldoDoErpPara(erp, { id: 'c' }, false)).toBeUndefined();
+    expect(saldoDoErpPara(erp, { id: 'c' }, true)).toBe(0);
   });
 });

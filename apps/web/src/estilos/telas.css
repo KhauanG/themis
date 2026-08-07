@@ -1088,3 +1088,27 @@
   font-size: var(--t-maior);
   font-variant-numeric: tabular-nums;
 }
+
+/*
+ * Lista curta de nomes dentro de um aviso — produtos que não foram enviados ao ERP, por
+ * exemplo. Rola no lugar em vez de esticar o modal: com 40 itens, o botão de concluir
+ * sairia da tela do celular.
+ */
+.lista-simples {
+  max-height: 12rem;
+  overflow-y: auto;
+  margin: var(--e3) 0;
+  padding: var(--e3);
+  background: var(--superficie-3);
+  border-radius: var(--raio-p);
+  font-size: var(--t-menor);
+}
+
+.lista-simples li {
+  padding: var(--e1) 0;
+  border-bottom: 1px solid var(--borda-suave);
+}
+
+.lista-simples li:last-child {
+  border-bottom: none;
+}

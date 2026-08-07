@@ -170,6 +170,14 @@ batiam e deixaria passar divergências surgidas desde então.
 **2. Enviar as divergências.** Só elas. Item que bateu não tem o que corrigir, e mandar
 todos seriam 2000 requisições para resolver 40 problemas. Pausa de 500 ms entre envios.
 
+⚠️ **Produto que não está na listagem do ERP fica de fora do envio.** O ERP não devolveu
+saldo para ele, então a única base de comparação é o `estoqueSistema` da última importação —
+e correção calculada sobre dado velho é escrita no estoque real a partir de comparação que
+não vale. A fase 3 também nunca confirmaria: o item continua ausente na releitura e viraria
+pendência eterna. Eles são **conferidos normalmente** (a divergência existe, só não dá para
+corrigir daqui) e aparecem numa lista própria, antes e depois da confirmação. O caminho é
+resolver o cadastro no Nuvem3. *Difere do 1.x, que enviava todos.*
+
 **3. Verificar se aplicou.** Espera 1,5 s, lê o ERP de novo e confere item a item se o
 saldo ficou igual ao enviado. O que não refletiu vira pendência, listada com "enviado" e
 "no ERP", com botão de **reenviar**.

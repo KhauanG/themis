@@ -6,6 +6,45 @@ Categorias: **Adicionado**, **Alterado**, **Corrigido**, **Removido**, **Seguran
 
 ---
 
+## 2.8.0 — 2026-08-06
+
+### Alterado
+
+- **Produto fora da listagem do ERP não é mais enviado na correção de estoque.**
+
+  Até aqui, um produto ausente da listagem entrava no envio como qualquer outro. O problema
+  é o número contra o qual ele era comparado: como o ERP não devolve saldo para ele, a
+  comparação usava o `estoqueSistema` da **última importação**. Mandar uma correção
+  calculada sobre dado velho é escrever no estoque real da empresa a partir de uma
+  comparação que não vale — e a verificação da fase 3 nunca confirmaria, porque o item
+  continua ausente na releitura. Ele viraria pendência eterna.
+
+  O que muda:
+
+  - `diagnosticar()` devolve `foraDoErp`: os contados ausentes da listagem.
+  - `executarCorrecao()` os exclui do envio e devolve `naoEnviadosForaDoErp` com os nomes.
+  - O aviso aparece **antes de confirmar**, não só no resultado — saber depois que 40
+    divergências não foram enviadas é tarde para mudar de ideia.
+  - O resultado repete a lista. O item foi conferido e saiu da lista de trabalho, mas
+    **continua divergente no ERP**; sem o aviso, ninguém iria atrás.
+
+  Eles continuam sendo **conferidos normalmente**, com `corrigidoIncorreto` refletindo a
+  divergência: ela existe, só não tem como ser corrigida daqui. O caminho é resolver o
+  cadastro no Nuvem3.
+
+  Diferente do 1.x, que enviava todos. A troca é deliberada: não escrever no ERP a partir de
+  comparação inválida vale mais que a paridade. Registrado em
+  [decisoes.md](decisoes.md) §17.
+
+### Alterado (interno)
+
+- A regra "o que significa ausente da listagem" virou `saldoDoErpPara()` em
+  `@themis/shared`, com teste. Estava escrita em dois lugares — ao gravar `estoqueSistema` e
+  ao montar o diagnóstico da correção. Duas cópias de uma regra divergem: no 1.x foi assim
+  que o cálculo de status passou a nunca devolver `CRITICO` numa das telas.
+
+---
+
 ## 2.7.3 — 2026-08-06
 
 ### Adicionado

@@ -61,6 +61,32 @@ export function saldoNoErp(
 }
 
 /**
+ * Saldo que o ERP atribui ao produto, já resolvida a ausência.
+ *
+ * **A regra mora aqui e em nenhum outro lugar.** Ela é aplicada em dois momentos distantes
+ * — ao gravar `estoqueSistema` e ao montar o diagnóstico da correção — e duas cópias de uma
+ * regra acabam divergindo. No Themis 1.x foi exatamente assim que o cálculo de status
+ * passou a nunca devolver `CRITICO` numa das telas.
+ *
+ * `omiteZerados` vem da resposta do ERP: quando a listagem só traz saldo positivo, produto
+ * ausente está **zerado**, não desconhecido. Quando a listagem traz zeros, ausente é
+ * ausente mesmo — o produto não está no estoque daquela loja.
+ *
+ * `undefined` significa "o ERP não sabe deste produto", e é o que mantém o item fora da
+ * correção: sem saldo do ERP, a única comparação possível seria contra o valor da última
+ * importação.
+ */
+export function saldoDoErpPara(
+  estoqueErp: ReadonlyMap<string, number>,
+  p: Produto,
+  omiteZerados: boolean,
+): number | undefined {
+  const naListagem = saldoNoErp(estoqueErp, p);
+  if (naListagem !== undefined) return naListagem;
+  return omiteZerados ? 0 : undefined;
+}
+
+/**
  * Estoque físico: o que o funcionário contou.
  * `quantidade` tem precedência; `estoqueFisico` é o campo legado.
  * Atenção: `quantidade: 0` é contagem válida — só cai no fallback se for null/undefined.
