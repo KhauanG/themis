@@ -294,6 +294,21 @@ Para escrever "Depósito" é preciso tocar no campo antes de cada letra.
   primeiro focável. Mandar o usuário para o botão de cancelar a própria ação é o oposto do
   que ele quer.
 
+### Um item recusado trava a fila offline inteira
+
+**Sintoma.** Contagens param de subir. A tela diz "salvo no aparelho" e o contador de
+pendentes só cresce. Nada de errado com a rede.
+
+**Causa.** Gravação negada por `permission-denied` era tratada como falha de rede e ia para
+a fila. E `drenarFila` **para no primeiro erro** — de propósito, para não queimar bateria
+com a rede caída. Um item recusado bloqueava tudo o que viesse depois, para sempre.
+
+Acontece de verdade: funcionário comum tentando recontar item já `CONFERIDO`.
+
+**Evitar.** `isPermissaoNegada()` separa "a rede falhou" de "as regras recusaram". Recusa
+sobe como erro na gravação e é descartada na drenagem. **Qualquer erro novo que entre na
+fila precisa passar por essa pergunta** — se tentar de novo não vai adiantar, não enfileire.
+
 ### A câmera do leitor reabre sem parar
 
 **Causa.** O callback passado ao leitor não era memoizado e estava nas dependências do

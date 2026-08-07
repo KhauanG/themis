@@ -1,5 +1,13 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { carregarFila, enfileirar, limparFila, removerDaFila, tamanhoFila } from './fila-offline.js';
+import {
+  carregarFila,
+  enfileirar,
+  isConflito,
+  isPermissaoNegada,
+  limparFila,
+  removerDaFila,
+  tamanhoFila,
+} from './fila-offline.js';
 
 /** localStorage mínimo — o teste roda em Node, sem DOM. */
 function instalarLocalStorage() {
@@ -100,5 +108,44 @@ describe('fila offline', () => {
   it('preserva o marcador de remoção de campo', () => {
     enfileirar({ ...base, dados: { dataValidade: '__themis_remover_campo__' } });
     expect(carregarFila()[0]?.dados['dataValidade']).toBe('__themis_remover_campo__');
+  });
+});
+
+/**
+ * Distinguir "a rede falhou" de "as regras recusaram" decide o destino do erro, e errar
+ * custa caro nos dois sentidos:
+ *
+ * - enfileirar uma recusa faz a fila tentar para sempre, e como `drenarFila` para no
+ *   primeiro erro, um item recusado trava tudo o que vier depois;
+ * - a tela ainda diria "salvo no aparelho", e o usuário vai embora achando que gravou.
+ *
+ * Acontece de verdade: funcionário comum tentando recontar item já `CONFERIDO`.
+ */
+describe('isPermissaoNegada', () => {
+  it('reconhece o código do Firestore', () => {
+    expect(isPermissaoNegada({ code: 'permission-denied' })).toBe(true);
+  });
+
+  it('reconhece o código com prefixo do SDK', () => {
+    expect(isPermissaoNegada({ code: 'firestore/permission-denied' })).toBe(true);
+  });
+
+  // Estes precisam ir para a fila: são falha de rede, e a fila existe para eles.
+  it('não confunde com falha de rede', () => {
+    expect(isPermissaoNegada({ code: 'unavailable' })).toBe(false);
+    expect(isPermissaoNegada({ code: 'deadline-exceeded' })).toBe(false);
+    expect(isPermissaoNegada(new Error('offline'))).toBe(false);
+  });
+
+  it('não quebra com valor estranho', () => {
+    expect(isPermissaoNegada(null)).toBe(false);
+    expect(isPermissaoNegada(undefined)).toBe(false);
+    expect(isPermissaoNegada('permission-denied')).toBe(false);
+  });
+
+  // Conflito tem tratamento próprio: descarta a pendência, não sobe erro de permissão.
+  it('não se confunde com conflito', () => {
+    expect(isPermissaoNegada({ code: 'conflict/stale-product' })).toBe(false);
+    expect(isConflito({ code: 'permission-denied' })).toBe(false);
   });
 });

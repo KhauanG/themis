@@ -1,11 +1,13 @@
 import { useRef, useState } from 'react';
 import { useEstoque } from '../../contexts/EstoqueContext.js';
+import { useAuth } from '../../contexts/AuthContext.js';
 import { useToast } from '../../contexts/ToastContext.js';
 import { Icone } from '../../components/Icone.js';
 import { Modal } from '../../components/Modal.js';
 import {
   atualizarEstoqueSistema,
   criarProduto,
+  excluirTodosProdutos,
   importarProdutos,
   limparContagem,
 } from '../../lib/produtos-repo.js';
@@ -13,6 +15,9 @@ import { buscarEstoqueDoErp, hashDaLoja } from '../../lib/erp.js';
 import { lerPlanilha } from '../../lib/planilha.js';
 import { registrar } from '../../lib/historico.js';
 import { ModalCorrigirEstoque } from './ModalCorrigirEstoque.js';
+
+/** Palavra da confirmação. Evita apagar 1600 produtos com um toque errado. */
+const PALAVRA_APAGAR = 'APAGAR';
 
 interface Ocupado {
   texto: string;
@@ -24,10 +29,13 @@ export function TelaProdutos() {
   const { estoqueAtual, produtos, ciclo, contextoLog, progresso, configuracoes, somenteLeitura } =
     useEstoque();
   const { mostrar } = useToast();
+  const { permissoes } = useAuth();
 
   const entradaArquivo = useRef<HTMLInputElement>(null);
   const [ocupado, setOcupado] = useState<Ocupado | null>(null);
   const [confirmarLimpeza, setConfirmarLimpeza] = useState(false);
+  const [apagandoTudo, setApagandoTudo] = useState(false);
+  const [textoApagar, setTextoApagar] = useState('');
   const [corrigindo, setCorrigindo] = useState(false);
   const [cadastrando, setCadastrando] = useState(false);
   const [novo, setNovo] = useState({ nome: '', codigoBarras: '', estoqueSistema: '' });
@@ -125,6 +133,46 @@ export function TelaProdutos() {
     } catch (erro) {
       console.error('[produtos] Limpeza falhou:', erro);
       mostrar('Não foi possível limpar a contagem.', 'error');
+    } finally {
+      setOcupado(null);
+    }
+  }
+
+  /**
+   * Apaga o catálogo inteiro deste estoque.
+   *
+   * Existe para recomeçar do zero antes de reimportar, quando o catálogo saiu de sincronia
+   * a ponto de não valer reconciliar. Exige digitar a palavra porque é irreversível e o
+   * alvo é o estoque inteiro — um toque errado num botão de "limpar" apaga 1600 produtos e
+   * a contagem em andamento junto.
+   */
+  async function apagarTudo() {
+    if (!estoqueAtual || textoApagar.trim().toUpperCase() !== PALAVRA_APAGAR) return;
+
+    const total = produtos.length;
+    setApagandoTudo(false);
+    setTextoApagar('');
+    setOcupado({ texto: 'Apagando produtos', feitos: 0, total });
+
+    try {
+      const apagados = await excluirTodosProdutos(estoqueAtual.id, (feitos) =>
+        setOcupado({ texto: 'Apagando produtos', feitos, total }),
+      );
+
+      mostrar(
+        apagados === 0
+          ? 'O estoque já estava vazio.'
+          : `${apagados} ${apagados === 1 ? 'produto apagado' : 'produtos apagados'}. Pode importar a planilha.`,
+        'success',
+      );
+      if (contextoLog) void registrar('LIMPAR_ESTOQUE', contextoLog, { apagados });
+    } catch (erro) {
+      console.error('[produtos] Exclusão total falhou:', erro);
+      // Parcial e irreversível: o usuário precisa saber que sobrou coisa.
+      mostrar(
+        'A exclusão não terminou. Parte dos produtos pode ter sido apagada — confira a lista e repita.',
+        'error',
+      );
     } finally {
       setOcupado(null);
     }
@@ -345,6 +393,30 @@ export function TelaProdutos() {
               <span className="acao__descricao">Zera quantidade, status e validade de todos</span>
             </span>
           </button>
+
+          {/*
+            Só master: a regra do Firestore exige (`allow delete: if isMaster()`). Admin
+            tentando receberia `permission-denied` no meio do lote, com parte do catálogo
+            já apagada — pior que não ter o botão.
+          */}
+          {permissoes.gerenciarUsuarios && (
+            <button
+              className="acao acao--perigo"
+              type="button"
+              onClick={() => setApagandoTudo(true)}
+              disabled={bloqueado || produtos.length === 0}
+            >
+              <span className="acao__icone">
+                <Icone nome="lixeira" />
+              </span>
+              <span className="acao__texto">
+                <span className="acao__titulo">Apagar todos os produtos</span>
+                <span className="acao__descricao">
+                  Esvazia o catálogo para reimportar do zero
+                </span>
+              </span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -425,6 +497,62 @@ export function TelaProdutos() {
           <p className="aviso aviso--perigo">
             Não dá para desfazer. Salve a auditoria antes se precisar do histórico.
           </p>
+        </div>
+      </Modal>
+
+      <Modal
+        aberto={apagandoTudo}
+        titulo="Apagar todos os produtos"
+        onFechar={() => {
+          setApagandoTudo(false);
+          setTextoApagar('');
+        }}
+        rodape={
+          <>
+            <button
+              className="botao botao--secundario"
+              type="button"
+              onClick={() => {
+                setApagandoTudo(false);
+                setTextoApagar('');
+              }}
+            >
+              Cancelar
+            </button>
+            <button
+              className="botao botao--perigo"
+              type="button"
+              onClick={() => void apagarTudo()}
+              disabled={textoApagar.trim().toUpperCase() !== PALAVRA_APAGAR}
+            >
+              Apagar tudo
+            </button>
+          </>
+        }
+      >
+        <div className="pilha">
+          <p>
+            Remove os <strong>{produtos.length} produtos</strong> de{' '}
+            <strong>{estoqueAtual?.nome ?? 'este estoque'}</strong>. O estoque em si continua
+            existindo, vazio, pronto para receber a planilha.
+          </p>
+          <p className="aviso aviso--perigo">
+            Não dá para desfazer — o Firestore não tem lixeira. A contagem em andamento vai
+            junto. Se ela importa, finalize e salve a auditoria antes.
+          </p>
+          <label className="campo">
+            <span className="campo__rotulo">
+              Digite <strong>{PALAVRA_APAGAR}</strong> para confirmar
+            </span>
+            <input
+              className="campo__entrada"
+              type="text"
+              value={textoApagar}
+              onChange={(e) => setTextoApagar(e.target.value)}
+              autoComplete="off"
+              autoCapitalize="characters"
+            />
+          </label>
         </div>
       </Modal>
     </section>

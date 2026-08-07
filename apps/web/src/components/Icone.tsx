@@ -22,7 +22,8 @@ export type NomeIcone =
   | 'fechar'
   | 'seta'
   | 'baixar'
-  | 'aviso';
+  | 'aviso'
+  | 'lixeira';
 
 const TRACADOS: Record<NomeIcone, string> = {
   contagem: 'M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01',
@@ -34,6 +35,7 @@ const TRACADOS: Record<NomeIcone, string> = {
   trocar: 'M7 4L3 8l4 4M3 8h13a4 4 0 014 4M17 20l4-4-4-4M21 16H8a4 4 0 01-4-4',
   sair: 'M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9',
   menu: 'M3 6h18M3 12h18M3 18h18',
+  lixeira: 'M3 6h18M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6M10 11v6M14 11v6',
   codigo: 'M3 5v14M7 5v14M11 5v14M14 5v14M18 5v14M21 5v14',
   fechar: 'M18 6L6 18M6 6l12 12',
   seta: 'M6 9l6 6 6-6',

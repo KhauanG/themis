@@ -6,6 +6,50 @@ Categorias: **Adicionado**, **Alterado**, **Corrigido**, **Removido**, **Seguran
 
 ---
 
+## 2.11.0 — 2026-08-07
+
+### Adicionado
+
+- **Apagar todos os produtos do estoque.** Porte do "Limpar Estoque" do 1.x, na Zona de
+  risco da tela de Produtos. Esvazia o catálogo para reimportar a planilha do zero, quando
+  reconciliar não vale mais a pena. O estoque em si continua existindo.
+
+  **Só master** — é o que a regra permite (`allow delete: if isMaster()`). Admin tentando
+  receberia `permission-denied` no meio do lote, com parte do catálogo já apagada.
+
+  Melhorias sobre o 1.x: exige digitar **APAGAR** (era um `confirm` simples), mostra a
+  contagem e o nome do estoque antes, tem barra de progresso, e avisa que a contagem em
+  andamento vai junto. A varredura se repete até 3 vezes, como no 1.x: entre a leitura e o
+  fim da exclusão outro aparelho pode ter importado, e esses produtos ficariam órfãos num
+  estoque que o usuário acredita vazio.
+
+### Corrigido
+
+- **Recusa das regras ia para a fila offline.** Uma gravação negada por
+  `permission-denied` era tratada como falha de rede: entrava na fila, a tela dizia
+  *"salvo no aparelho"*, e o usuário ia embora achando que gravou.
+
+  Pior: `drenarFila` **para no primeiro erro** para não queimar bateria com a rede caída.
+  Um único item recusado travava a fila inteira — a contagem legítima de outro produto
+  nunca subia, sem nada na tela dizendo por quê.
+
+  Agora `isPermissaoNegada()` separa os dois: a gravação sobe como erro, e a pendência
+  recusada é descartada da fila em vez de bloqueá-la.
+
+- **Item `CONFERIDO` abria para contar e só falhava ao salvar.** A regra já barrava
+  (`podeAlterarStatusProduto`), mas a interface deixava abrir, digitar e salvar — o erro
+  aparecia no fim, depois do trabalho feito. Agora o card não abre para quem só conta, com
+  o motivo escrito e o caminho: desfazer a conferência no painel de auditoria. Admin e
+  master seguem podendo.
+
+  Vale também para o leitor de código de barras, que abria o card direto.
+
+  ⚠️ A dependência do callback do leitor usa o **booleano** `permissoes.corrigirContagem`,
+  não o objeto `permissoes` — o objeto ganha identidade nova a cada re-emissão do perfil
+  (que é em tempo real desde a 2.6.0) e reabriria a câmera sozinha.
+
+---
+
 ## 2.10.0 — 2026-08-07
 
 ### Adicionado

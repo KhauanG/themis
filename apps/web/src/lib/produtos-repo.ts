@@ -38,6 +38,7 @@ import {
   carregarFila,
   enfileirar,
   isConflito,
+  isPermissaoNegada,
   removerDaFila,
   type AlteracaoPendente,
 } from './fila-offline.js';
@@ -186,6 +187,15 @@ export async function atualizarProduto(
   } catch (erro) {
     // Conflito é decisão do usuário, não falha de rede: não vai para a fila.
     if (isConflito(erro)) throw erro;
+
+    // Recusa das regras também não. Enfileirar faria a fila tentar para sempre — e como
+    // `drenarFila` para no primeiro erro, um item recusado trava a contagem de todos os
+    // outros. Sobe como erro para a tela dizer que NÃO salvou.
+    if (isPermissaoNegada(erro)) {
+      console.warn('[produtos] Gravação negada pelas regras:', erro);
+      throw erro;
+    }
+
     console.warn('[produtos] Gravação não confirmada, enfileirando:', erro);
     return paraFila();
   }
@@ -218,6 +228,16 @@ export async function drenarFila(): Promise<ResultadoDrenagem> {
         descartados++;
         continue;
       }
+
+      // Recusada pelas regras: tentar de novo dará no mesmo, e insistir travaria a fila
+      // inteira. Sai, e o contador de descartados denuncia que algo não subiu.
+      if (isPermissaoNegada(erro)) {
+        console.warn('[produtos] Pendência descartada por falta de permissão:', item.produtoId);
+        removerDaFila(item.id);
+        descartados++;
+        continue;
+      }
+
       break;
     }
   }
@@ -664,6 +684,50 @@ export async function atualizarCadastroProduto(
   await withWriteTimeout(updateDoc(doc(colecaoProdutos(inventoryId), produtoId), dados), {
     label: 'editar produto',
   });
+}
+
+/**
+ * Apaga **todos** os produtos do estoque. Porte do `clearAllProducts` do 1.x.
+ *
+ * Serve para recomeçar do zero antes de reimportar a planilha, quando o catálogo saiu de
+ * sincronia a ponto de não valer a pena reconciliar. É irreversível: o Firestore não tem
+ * lixeira, e nenhuma contagem em andamento sobrevive.
+ *
+ * ⚠️ **Só master.** É o que a regra permite (`allow delete: if isMaster()`); admin tentando
+ * receberia `permission-denied` no meio do lote, com parte do catálogo já apagada.
+ *
+ * ## Por que relê a coleção em vez de apagar a lista da tela
+ *
+ * A lista da tela é um instantâneo. Entre ela e o fim da exclusão, outro aparelho pode ter
+ * importado ou cadastrado — e esses produtos ficariam órfãos, invisíveis num estoque que o
+ * usuário acredita vazio. O 1.x repetia a varredura até a coleção vir vazia, no máximo três
+ * vezes; a mesma ideia aqui, com o teto explícito para não girar para sempre se alguém
+ * estiver importando ao mesmo tempo.
+ */
+const MAX_VARREDURAS = 3;
+
+export async function excluirTodosProdutos(
+  inventoryId: string,
+  aoProgredir?: (apagados: number) => void,
+): Promise<number> {
+  let apagados = 0;
+
+  for (let varredura = 0; varredura < MAX_VARREDURAS; varredura++) {
+    const snap = await getDocs(colecaoProdutos(inventoryId));
+    if (snap.empty) break;
+
+    for (let i = 0; i < snap.docs.length; i += LIMITE_BATCH) {
+      const fatia = snap.docs.slice(i, i + LIMITE_BATCH);
+      const lote = writeBatch(db);
+      for (const d of fatia) lote.delete(d.ref);
+
+      await withWriteTimeout(lote.commit(), { ms: 20_000, label: 'apagar produtos' });
+      apagados += fatia.length;
+      aoProgredir?.(apagados);
+    }
+  }
+
+  return apagados;
 }
 
 export async function excluirProduto(inventoryId: string, produtoId: string): Promise<void> {

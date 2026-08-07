@@ -52,6 +52,24 @@ export function isConflito(erro: unknown): boolean {
   return (erro as { code?: string } | null)?.code === 'conflict/stale-product';
 }
 
+/**
+ * A gravação foi **recusada pelas regras**, não perdida pela rede.
+ *
+ * A diferença decide o destino do erro, e errar aqui é caro nos dois sentidos:
+ *
+ * - enfileirar uma recusa faz a fila tentar para sempre. E como `drenarFila` **para no
+ *   primeiro erro** para não queimar bateria com a rede caída, um único item recusado
+ *   trava tudo o que vier depois — a contagem legítima de outro produto nunca sobe.
+ * - a tela ainda diz "salvo no aparelho", então o usuário vai embora achando que gravou.
+ *
+ * Acontece de verdade: funcionário comum tentando recontar item já `CONFERIDO`, ou admin
+ * tentando apagar produto (a regra exige master).
+ */
+export function isPermissaoNegada(erro: unknown): boolean {
+  const code = (erro as { code?: string } | null)?.code;
+  return code === 'permission-denied' || code === 'firestore/permission-denied';
+}
+
 function novoId(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }

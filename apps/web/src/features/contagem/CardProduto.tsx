@@ -25,6 +25,8 @@ interface Props {
    * `permissoes.verEstoqueSistema`.
    */
   verSistema?: boolean;
+  /** Admin/master pode reabrir item `CONFERIDO`; quem só conta, não. */
+  podeReabrirConferido?: boolean;
 }
 
 /** `YYYY-MM-DD` para `DD/MM`, sem passar por `new Date`, que desloca o fuso. */
@@ -51,10 +53,21 @@ function CardProdutoBase({
   onEditar,
   somenteLeitura = false,
   verSistema = false,
+  podeReabrirConferido = false,
 }: Props) {
   const status = statusContagemDe(produto);
   const contado = status !== null;
   const conferido = status === 'CONFERIDO';
+
+  /**
+   * Item já conferido pelo admin não volta para a contagem de quem só conta.
+   *
+   * A regra do Firestore já barra (`podeAlterarStatusProduto` exige que o `productStatus`
+   * anterior não seja `CONFERIDO`), mas até agora a interface deixava abrir, digitar e
+   * salvar — e o erro só aparecia no fim, depois do trabalho feito. `travadoPorConferencia`
+   * evita a viagem perdida; admin e master seguem podendo, e é assim que se desfaz.
+   */
+  const travadoPorConferencia = conferido && !podeReabrirConferido;
 
   /**
    * Produto que o ERP não conhece não é contável.
@@ -65,6 +78,9 @@ function CardProdutoBase({
    * Nuvem3. O card fica visível de propósito: sumir com ele esconderia o problema.
    */
   const fora = foraDoErp(produto);
+
+  /** Não abre para contar. Os dois motivos são diferentes e a mensagem diz qual é. */
+  const travado = fora || travadoPorConferencia;
 
   const fisico = fisicoDe(produto);
   const sistema = sistemaDe(produto);
@@ -80,17 +96,27 @@ function CardProdutoBase({
       : 'card__estado';
 
   return (
-    <li className={expandido ? 'card card--aberto' : fora ? 'card card--travado' : 'card'}>
+    <li
+      className={
+        expandido ? 'card card--aberto' : travado ? 'card card--travado' : 'card'
+      }
+    >
       <button
         className="card__topo"
         type="button"
-        onClick={() => !fora && onAlternar(produto.id)}
-        aria-expanded={fora ? undefined : expandido}
-        aria-disabled={fora || undefined}
+        onClick={() => !travado && onAlternar(produto.id)}
+        aria-expanded={travado ? undefined : expandido}
+        aria-disabled={travado || undefined}
         // `disabled` de verdade tiraria o card da navegação por teclado e do leitor de
         // tela. O motivo precisa ser anunciável — o funcionário tem que entender por que
         // aquele item não abre.
-        title={fora ? 'Produto fora do ERP: não pode ser contado' : undefined}
+        title={
+          fora
+            ? 'Produto fora do ERP: não pode ser contado'
+            : travadoPorConferencia
+              ? 'Item já conferido: só admin pode reabrir'
+              : undefined
+        }
       >
         <span className={classeEstado} aria-hidden="true" />
 
@@ -154,7 +180,14 @@ function CardProdutoBase({
         </p>
       )}
 
-      {expandido && !fora && (
+      {travadoPorConferencia && !fora && (
+        <p className="card__travado">
+          Item já conferido pelo administrador. A contagem dele está fechada — se precisar
+          recontar, peça para desfazer a conferência no painel de auditoria.
+        </p>
+      )}
+
+      {expandido && !travado && (
         <FormContagem
           produto={produto}
           onCancelar={() => onAlternar(produto.id)}

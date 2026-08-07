@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState } from 'react';
 import {
   contarPorFiltro,
   foraDoErp,
+  statusContagemDe,
   filtrarProdutos,
   filtrosVisiveis,
   mensagemVazio,
@@ -49,6 +50,16 @@ export function TelaContagem() {
    * bateu com o sistema — é a diferença dita de outro jeito. Somem para quem só conta.
    */
   const verSistema = permissoes.verEstoqueSistema;
+
+  /**
+   * O **booleano**, não o objeto `permissoes`, nas dependências do callback do leitor.
+   *
+   * O objeto ganha identidade nova toda vez que o perfil re-emite — e desde a 2.6.0 o
+   * perfil é acompanhado em tempo real. Com ele na lista, o callback seria recriado, o
+   * efeito do leitor remontaria e a câmera reabriria sozinha. Ver armadilhas.md §A câmera
+   * do leitor reabre sem parar.
+   */
+  const podeReabrirConferido = permissoes.corrigirContagem;
   const abas = useMemo(() => filtrosVisiveis(verSistema), [verSistema]);
 
   const alternar = useCallback((produtoId: string) => {
@@ -73,9 +84,13 @@ export function TelaContagem() {
       const achado = produtos.find((p) => String(p.codigoBarras ?? p.CodigoBarras ?? '') === codigo);
       // Abre direto o card do produto lido: é o passo seguinte que o funcionário faria.
       // Produto fora do ERP não abre — o card explica o motivo no lugar do formulário.
-      setExpandido(achado && !foraDoErp(achado) ? achado.id : null);
+      const travado =
+        achado &&
+        (foraDoErp(achado) ||
+          (statusContagemDe(achado) === 'CONFERIDO' && !podeReabrirConferido));
+      setExpandido(achado && !travado ? achado.id : null);
     },
-    [produtos],
+    [produtos, podeReabrirConferido],
   );
 
   const fecharLeitor = useCallback(() => setLendoCodigo(false), []);
@@ -182,6 +197,7 @@ export function TelaContagem() {
                 onEditar={permissoes.gerenciarProdutos ? setEditando : undefined}
                 somenteLeitura={somenteLeitura}
                 verSistema={verSistema}
+                podeReabrirConferido={podeReabrirConferido}
               />
             ))}
           </ul>

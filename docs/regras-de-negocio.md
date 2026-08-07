@@ -270,3 +270,56 @@ tela obedecer.
 ⚠️ Contagem feita **antes** de o produto ser marcado permanece gravada. Apagá-la seria
 destruir trabalho real — alguém contou aquela prateleira — a partir de uma operação de
 leitura. Ela aparece no relatório com status `FORA DO ERP`, sem diferença calculada.
+
+---
+
+## Conferência trava a contagem
+
+Item `CONFERIDO` sai da lista de trabalho e **não pode ser recontado por quem só conta**.
+
+A regra é quem manda: `podeAlterarStatusProduto` exige que o `productStatus` anterior não
+seja `CONFERIDO` para usuário comum. A interface acompanha — o card não abre, e diz por quê.
+Antes ela deixava abrir, digitar e salvar, e o erro só aparecia no fim.
+
+Admin e master podem. **Desfazer** no painel de auditoria devolve o item para `ATUALIZADO`,
+e ele volta para a contagem.
+
+Depois de "Corrigir estoque", todo item contado vira `CONFERIDO`:
+
+| | `corrigidoIncorreto` | Significado |
+|---|---|---|
+| Contagem bateu com o ERP | `false` | conferido correto |
+| Contagem divergiu | `true` | conferido incorreto |
+
+`corrigidoCritico` acompanha quando a diferença é ≥ 10.
+
+---
+
+## Limpar contagem × Apagar todos os produtos
+
+Duas ações diferentes, as duas na Zona de risco da tela de Produtos.
+
+| | Limpar contagem | Apagar todos os produtos |
+|---|---|---|
+| O que faz | zera a rodada | remove os documentos |
+| `quantidade` | vai a `0` | — |
+| `productStatus` | removido | — |
+| `corrigidoIncorreto` | removido | — |
+| `dataValidade` | **removida** | — |
+| `estoqueSistema` | **preservado** | — |
+| Cadastro (nome, código, preço) | preservado | apagado |
+| Quem pode | admin e master | **só master** |
+| Confirmação | um clique | digitar `APAGAR` |
+
+**Limpar contagem** destrava os itens conferidos: remover `productStatus` os devolve para
+"não contado". É como se recomeça um ciclo sem fechar auditoria.
+
+A validade é apagada junto de propósito (decisão do produto na 4.19.5): validade sem
+contagem correspondente é dado órfão que o relatório mostraria como atual.
+
+**Apagar todos** existe para reimportar do zero. A varredura se repete até 3 vezes: entre a
+leitura e o fim da exclusão outro aparelho pode ter importado, e esses produtos ficariam
+órfãos num estoque que o usuário acredita vazio.
+
+⚠️ Nenhuma das duas dá para desfazer — o Firestore não tem lixeira. Salve a auditoria antes
+se o histórico importar.
