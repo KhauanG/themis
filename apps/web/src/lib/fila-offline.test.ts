@@ -2,8 +2,11 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import {
   carregarFila,
   enfileirar,
+  ProdutoAusenteError,
   isConflito,
+  isFalhaPermanente,
   isPermissaoNegada,
+  isProdutoAusente,
   limparFila,
   removerDaFila,
   tamanhoFila,
@@ -147,5 +150,51 @@ describe('isPermissaoNegada', () => {
   it('não se confunde com conflito', () => {
     expect(isPermissaoNegada({ code: 'conflict/stale-product' })).toBe(false);
     expect(isConflito({ code: 'permission-denied' })).toBe(false);
+  });
+});
+
+/**
+ * A classificação governa a drenagem, e errar nela trava a fila.
+ *
+ * Falha transitória para e tenta depois. Falha permanente precisa SAIR — tentar de novo dá
+ * no mesmo, e como a drenagem para no primeiro erro, uma pendência irrecuperável na frente
+ * bloqueia todas as outras. Para sempre.
+ *
+ * Foi o relato: "1 alteração aguardando envio", clica em Enviar agora, a faixa continua.
+ */
+describe('isFalhaPermanente', () => {
+  it('conflito é permanente', () => {
+    expect(isFalhaPermanente({ code: 'conflict/stale-product' })).toBe(true);
+  });
+
+  it('recusa das regras é permanente', () => {
+    expect(isFalhaPermanente({ code: 'permission-denied' })).toBe(true);
+  });
+
+  // O caso do relato: produto apagado, ou estoque reimportado com IDs novos.
+  it('produto ausente é permanente', () => {
+    expect(isFalhaPermanente(new ProdutoAusenteError())).toBe(true);
+    expect(isProdutoAusente(new ProdutoAusenteError())).toBe(true);
+  });
+
+  // Estas voltam a ser tentadas: a fila existe exatamente para elas.
+  it('falha de rede é transitória', () => {
+    expect(isFalhaPermanente({ code: 'unavailable' })).toBe(false);
+    expect(isFalhaPermanente({ code: 'deadline-exceeded' })).toBe(false);
+    expect(isFalhaPermanente(new Error('offline'))).toBe(false);
+  });
+
+  it('não quebra com valor estranho', () => {
+    expect(isFalhaPermanente(null)).toBe(false);
+    expect(isFalhaPermanente(undefined)).toBe(false);
+    expect(isFalhaPermanente('permission-denied')).toBe(false);
+  });
+
+  /**
+   * `Error` solto NÃO pode ser permanente: era assim que "Produto não encontrado" chegava
+   * — sem código, sem tipo, indistinguível de uma falha de rede. Por isso ficava preso.
+   */
+  it('Error sem código não é classificado como permanente', () => {
+    expect(isFalhaPermanente(new Error('Produto não encontrado'))).toBe(false);
   });
 });

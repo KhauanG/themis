@@ -311,6 +311,28 @@ Para escrever "Depósito" é preciso tocar no campo antes de cada letra.
   primeiro focável. Mandar o usuário para o botão de cancelar a própria ação é o oposto do
   que ele quer.
 
+### "N alterações aguardando envio" que não somem
+
+**Sintoma.** A faixa mostra pendências, o usuário toca em **Enviar agora**, o botão anima, e
+a faixa continua igual. Sem mensagem nenhuma.
+
+**Causa.** Duas, somadas:
+
+1. `drenarFila` para no primeiro erro — de propósito, para não queimar bateria com a rede
+   caída. Mas uma pendência **irrecuperável** ficava eternamente na frente, bloqueando todas
+   as outras. O caso real: `new Error('Produto não encontrado')` solto, sem código nem tipo,
+   indistinguível de falha de rede. Acontece quando o produto foi apagado ou **a planilha
+   foi reimportada depois de "Apagar todos"** — a reimportação cria IDs novos, e o
+   `produtoId` guardado aponta para o nada.
+2. `sincronizar` só falava quando `enviados > 0` ou `descartados > 0`. Fora disso: silêncio.
+
+**Evitar.** Erro que a fila possa encontrar precisa ser **classificável**: `isFalhaPermanente`
+decide entre sair da fila e tentar depois. Nunca lance `new Error('...')` cru num caminho que
+a fila percorre — sem código, ele vira "transitório" e trava tudo.
+
+E toda ação disparada por botão precisa de retorno, inclusive no caminho "nada aconteceu".
+Botão que anima e não muda nada é botão quebrado, do ponto de vista de quem usa.
+
 ### Um item recusado trava a fila offline inteira
 
 **Sintoma.** Contagens param de subir. A tela diz "salvo no aparelho" e o contador de

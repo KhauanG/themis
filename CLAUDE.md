@@ -88,6 +88,10 @@ O SDK já tem cache próprio. Dois caches sobre o mesmo dado servem informação
 **Não remova `.npmrc`.**
 `include=dev` é o que faz o `tsc` existir no build da hospedagem.
 
+**Erro num caminho que a fila offline percorre precisa ter `code`.**
+`isFalhaPermanente` decide entre descartar a pendência e tentar depois. `new Error('...')`
+cru não é classificável, vira "transitório", e trava a fila inteira atrás dele.
+
 **A interface nunca é mais permissiva que a Security Rule.**
 Quando é, o usuário vê o botão, clica e leva `permission-denied` — promessa que o banco não
 cumpre. Mudou `permissoesDe` ou criou botão novo? Confira a regra correspondente em

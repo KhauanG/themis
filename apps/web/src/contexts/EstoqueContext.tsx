@@ -235,29 +235,71 @@ export function EstoqueProvider({ children }: { children: ReactNode }) {
     );
   }, [estoqueId, usuario, mostrar]);
 
+  /**
+   * Drena a fila. **Sempre dá retorno**, inclusive quando nada se move.
+   *
+   * O relato que motivou isto: "1 alteração aguardando envio", o usuário toca em Enviar
+   * agora, o botão anima, e a faixa continua igual. Não havia mensagem nenhuma para o caso
+   * `enviados === 0` — nem para sucesso parcial, nem para falha. Da cadeira do usuário, o
+   * botão está quebrado.
+   */
   const sincronizar = useCallback(async () => {
+    if (!navigator.onLine) {
+      mostrar('Sem conexão. As alterações sobem sozinhas quando a internet voltar.', 'info');
+      return;
+    }
     // Reentrância aqui reenviaria a mesma pendência duas vezes.
-    if (sincronizando.current || !navigator.onLine) return;
+    if (sincronizando.current) return;
     sincronizando.current = true;
+
     try {
       const resultado = await drenarFila();
       await drenarHistorico();
       setFila(carregarFila());
 
-      if (resultado.enviados > 0) {
+      const { enviados, motivos, restantes } = resultado;
+
+      if (enviados > 0) {
         mostrar(
-          `${resultado.enviados} ${resultado.enviados === 1 ? 'alteração sincronizada' : 'alterações sincronizadas'}.`,
+          `${enviados} ${enviados === 1 ? 'alteração sincronizada' : 'alterações sincronizadas'}.`,
           'success',
         );
       }
-      if (resultado.descartados > 0) {
+
+      // Cada motivo pede uma ação diferente do usuário. Juntar tudo em "não foi aplicada"
+      // — como era antes — manda conferir o que não precisa e esconde o que precisa.
+      if (motivos.conflito > 0) {
         mostrar(
-          `${resultado.descartados} ${resultado.descartados === 1 ? 'alteração não foi aplicada' : 'alterações não foram aplicadas'} porque o produto mudou em outro aparelho. Confira os itens.`,
+          `${motivos.conflito} ${motivos.conflito === 1 ? 'contagem foi descartada' : 'contagens foram descartadas'}: o mesmo item foi contado depois em outro aparelho. Confira esses produtos.`,
           'warning',
         );
       }
+      if (motivos.semPermissao > 0) {
+        mostrar(
+          `${motivos.semPermissao} ${motivos.semPermissao === 1 ? 'contagem não pôde ser aplicada' : 'contagens não puderam ser aplicadas'}: os itens já foram conferidos e estão fechados.`,
+          'warning',
+        );
+      }
+      if (motivos.ausente > 0) {
+        mostrar(
+          `${motivos.ausente} ${motivos.ausente === 1 ? 'contagem foi descartada' : 'contagens foram descartadas'}: o produto não existe mais neste estoque. Costuma acontecer depois de reimportar a planilha.`,
+          'warning',
+        );
+      }
+
+      // O que sobrou só pode ser falha transitória — permanente já saiu da fila acima.
+      if (restantes > 0) {
+        mostrar(
+          `${restantes} ${restantes === 1 ? 'alteração continua' : 'alterações continuam'} na fila: o servidor não respondeu a tempo. Tente de novo com sinal melhor.`,
+          'warning',
+        );
+      } else if (enviados === 0 && resultado.descartados === 0) {
+        // Fila vazia e nada a fazer: o contador estava desatualizado.
+        mostrar('Nada pendente para enviar.', 'info');
+      }
     } catch (erro) {
       console.warn('[estoque] Sincronização falhou:', erro);
+      mostrar('Não foi possível sincronizar agora. Tente de novo em instantes.', 'error');
     } finally {
       sincronizando.current = false;
     }

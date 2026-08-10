@@ -6,6 +6,54 @@ Categorias: **Adicionado**, **Alterado**, **Corrigido**, **Removido**, **Seguran
 
 ---
 
+## 2.12.2 — 2026-08-10
+
+Relato de campo: *"1 alteração aguardando envio"* na faixa, o usuário toca em **Enviar
+agora**, o botão anima e a faixa continua igual. Duas causas, somadas.
+
+### Corrigido
+
+- **A fila travava para sempre numa pendência irrecuperável.** `drenarFila` para no primeiro
+  erro — de propósito, para não queimar bateria com a rede caída. Mas ela não distinguia
+  falha **transitória** de **permanente**, e uma pendência que nunca vai passar ficava
+  eternamente na frente, **bloqueando todas as outras**.
+
+  O caso concreto: `gravarComTransacao` lançava um `new Error('Produto não encontrado')`
+  solto — sem código, sem tipo, indistinguível de uma falha de rede. Acontece quando o
+  produto foi apagado, o estoque excluído, ou **a planilha reimportada depois de "Apagar
+  todos"** — a reimportação cria documentos novos, com IDs novos, e o `produtoId` guardado
+  na fila passa a apontar para o nada.
+
+  Agora existe `ProdutoAusenteError` e `isFalhaPermanente()`. Permanente (conflito, recusa
+  das regras, produto ausente) **sai da fila**; transitória para e tenta depois.
+
+- **"Enviar agora" não dizia nada quando nada se movia.** Só havia mensagem para
+  `enviados > 0` e `descartados > 0`. Nos demais casos: silêncio. Da cadeira do usuário, o
+  botão está quebrado.
+
+  Agora sempre há retorno, e cada motivo tem sua mensagem — porque cada um pede uma ação
+  diferente:
+
+  | Situação | O que o usuário lê |
+  |---|---|
+  | Enviou | *N alterações sincronizadas* |
+  | Conflito | *o mesmo item foi contado depois em outro aparelho. Confira esses produtos* |
+  | Sem permissão | *os itens já foram conferidos e estão fechados* |
+  | Produto ausente | *o produto não existe mais. Costuma acontecer depois de reimportar a planilha* |
+  | Sobrou na fila | *o servidor não respondeu a tempo. Tente de novo com sinal melhor* |
+  | Fila já vazia | *Nada pendente para enviar* |
+  | Offline | *as alterações sobem sozinhas quando a internet voltar* |
+
+  A mensagem antiga dizia "porque o produto mudou em outro aparelho" para **todo** descarte
+  — mandava conferir o que não precisava e escondia o que precisava.
+
+### Alterado
+
+- `ResultadoDrenagem` ganhou `motivos: { conflito, semPermissao, ausente }`. Sem isso a tela
+  não tem como explicar o que aconteceu.
+
+---
+
 ## 2.12.1 — 2026-08-07
 
 Auditoria completa do projeto, a pedido. Três defeitos encontrados e corrigidos; nenhum

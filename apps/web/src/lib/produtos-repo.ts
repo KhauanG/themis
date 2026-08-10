@@ -38,11 +38,14 @@ import {
 } from './firestore-write.js';
 import {
   ConflitoProdutoError,
+  ProdutoAusenteError,
   REMOVER,
   carregarFila,
   enfileirar,
   isConflito,
+  isFalhaPermanente,
   isPermissaoNegada,
+  isProdutoAusente,
   removerDaFila,
   type AlteracaoPendente,
 } from './fila-offline.js';
@@ -133,7 +136,7 @@ async function gravarComTransacao(
 
   await runTransactionWithTimeout(async (tx) => {
     const snap = await tx.get(ref);
-    if (!snap.exists()) throw new Error('Produto não encontrado');
+    if (!snap.exists()) throw new ProdutoAusenteError();
 
     const atual = snap.data();
 
@@ -207,7 +210,18 @@ export async function atualizarProduto(
 
 export interface ResultadoDrenagem {
   enviados: number;
+  /** Pendências que saíram da fila sem serem aplicadas. Detalhe em `motivos`. */
   descartados: number;
+  /** Por que cada descarte aconteceu — a mensagem ao usuário depende disso. */
+  motivos: {
+    /** Outro aparelho contou o mesmo item depois. A contagem mais recente vence. */
+    conflito: number;
+    /** As regras recusaram. Item já conferido, por exemplo. */
+    semPermissao: number;
+    /** O produto não existe mais: apagado, ou o estoque foi reimportado. */
+    ausente: number;
+  };
+  /** Ficaram na fila. Só por falha transitória — vão na próxima tentativa. */
   restantes: number;
 }
 
@@ -217,7 +231,7 @@ export interface ResultadoDrenagem {
  */
 export async function drenarFila(): Promise<ResultadoDrenagem> {
   let enviados = 0;
-  let descartados = 0;
+  const motivos = { conflito: 0, semPermissao: 0, ausente: 0 };
 
   for (const item of carregarFila()) {
     try {
@@ -225,28 +239,30 @@ export async function drenarFila(): Promise<ResultadoDrenagem> {
       removerDaFila(item.id);
       enviados++;
     } catch (erro) {
-      if (isConflito(erro)) {
-        // Contagem mais recente de outro aparelho vence: descartar é o certo.
-        console.warn('[produtos] Pendência descartada por conflito:', item.produtoId);
+      /**
+       * Falha permanente **sai da fila**. Tentar de novo dá no mesmo, e como a drenagem
+       * para no primeiro erro transitório, uma pendência irrecuperável na frente bloquearia
+       * todas as outras — para sempre, inclusive as contagens legítimas atrás dela.
+       */
+      if (isFalhaPermanente(erro)) {
+        if (isConflito(erro)) motivos.conflito++;
+        else if (isPermissaoNegada(erro)) motivos.semPermissao++;
+        else if (isProdutoAusente(erro)) motivos.ausente++;
+
+        console.warn('[produtos] Pendência descartada:', item.produtoId, erro);
         removerDaFila(item.id);
-        descartados++;
         continue;
       }
 
-      // Recusada pelas regras: tentar de novo dará no mesmo, e insistir travaria a fila
-      // inteira. Sai, e o contador de descartados denuncia que algo não subiu.
-      if (isPermissaoNegada(erro)) {
-        console.warn('[produtos] Pendência descartada por falta de permissão:', item.produtoId);
-        removerDaFila(item.id);
-        descartados++;
-        continue;
-      }
-
+      // Transitória: rede caída ou teto estourado. Para aqui e tenta na próxima —
+      // insistir com a rede fora só queima bateria.
+      console.warn('[produtos] Drenagem interrompida por falha transitória:', erro);
       break;
     }
   }
 
-  return { enviados, descartados, restantes: carregarFila().length };
+  const descartados = motivos.conflito + motivos.semPermissao + motivos.ausente;
+  return { enviados, descartados, motivos, restantes: carregarFila().length };
 }
 
 async function aplicarPendente(item: AlteracaoPendente): Promise<void> {

@@ -53,6 +53,29 @@ export function isConflito(erro: unknown): boolean {
 }
 
 /**
+ * O documento do produto não existe mais no servidor.
+ *
+ * Acontece quando a pendência ficou no aparelho e, nesse meio tempo, alguém apagou o
+ * produto, apagou o estoque, ou **apagou tudo e reimportou a planilha** — a reimportação
+ * cria documentos novos, com IDs novos, e o `produtoId` guardado passa a apontar para o
+ * nada.
+ *
+ * Era um `new Error('Produto não encontrado')` solto: não casava com nenhuma checagem, a
+ * drenagem parava nele, e a pendência ficava na fila para sempre. Tipado, é classificável.
+ */
+export class ProdutoAusenteError extends Error {
+  readonly code = 'not-found';
+  constructor(mensagem = 'O produto não existe mais neste estoque.') {
+    super(mensagem);
+    this.name = 'ProdutoAusenteError';
+  }
+}
+
+export function isProdutoAusente(erro: unknown): boolean {
+  return (erro as { code?: string } | null)?.code === 'not-found';
+}
+
+/**
  * A gravação foi **recusada pelas regras**, não perdida pela rede.
  *
  * A diferença decide o destino do erro, e errar aqui é caro nos dois sentidos:
@@ -68,6 +91,21 @@ export function isConflito(erro: unknown): boolean {
 export function isPermissaoNegada(erro: unknown): boolean {
   const code = (erro as { code?: string } | null)?.code;
   return code === 'permission-denied' || code === 'firestore/permission-denied';
+}
+
+/**
+ * A pendência **nunca** vai passar: insistir é desperdício.
+ *
+ * A distinção governa a drenagem. Falha transitória (rede caída, teto estourado) faz parar
+ * e tentar depois — insistir com a rede fora só queima bateria. Falha permanente precisa
+ * **sair da fila**: tentar de novo dá no mesmo, e como a drenagem para no primeiro erro,
+ * uma pendência irrecuperável na frente bloqueia todas as outras. Para sempre.
+ *
+ * Foi o que um usuário relatou: "1 alteração aguardando envio", clica em Enviar agora, a
+ * faixa continua. Era uma pendência de produto que não existia mais.
+ */
+export function isFalhaPermanente(erro: unknown): boolean {
+  return isConflito(erro) || isPermissaoNegada(erro) || isProdutoAusente(erro);
 }
 
 function novoId(): string {

@@ -172,3 +172,27 @@ normal, não erro. O 1.x tinha esse overlay e ele atrapalhava.
 
 O relatório original da investigação está em `documentacao/RELATORIO_CORRECAO_CONEXAO_LENTA.md`
 no repositório do Themis 1.x.
+
+---
+
+## O que sai da fila, e por quê
+
+`drenarFila` percorre as pendências em ordem e **para no primeiro erro transitório** — de
+propósito: insistir com a rede caída só queima bateria.
+
+Por isso a classificação do erro importa mais do que parece. Uma pendência que nunca vai
+passar, deixada na fila, fica eternamente na frente e **bloqueia todas as outras**.
+
+| Erro | Classe | O que acontece |
+|---|---|---|
+| Conflito (`conflict/stale-product`) | permanente | descarta — contagem mais nova de outro aparelho vence |
+| Recusa das regras (`permission-denied`) | permanente | descarta — item já conferido, por exemplo |
+| Produto ausente (`not-found`) | permanente | descarta — apagado, ou planilha reimportada com IDs novos |
+| Rede, teto de tempo | transitória | para e tenta na próxima |
+
+⚠️ **Nunca lance `new Error('...')` cru num caminho que a fila percorra.** Sem `code`,
+`isFalhaPermanente` o classifica como transitório e a fila trava. Foi exatamente o que
+acontecia com `Produto não encontrado`.
+
+Cada descarte é contado à parte em `ResultadoDrenagem.motivos`, porque cada um pede uma ação
+diferente do usuário — conferir o produto, pedir para desfazer a conferência, ou nada.
