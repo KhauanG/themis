@@ -248,3 +248,26 @@ npx tsx scripts/diagnosticar-erp.mts <hashLoja> --planilha <arquivo>
 
 **Quando revisar.** Se o cruzamento mostrar que os ausentes são poucos e todos legítimos, ou
 se o ERP passar a aceitar atualização de produto fora da listagem.
+
+---
+
+## 18. Histórico geral continua só para master
+
+**Contexto.** A regra é `allow read: if signedIn() && isMaster()` em `historico_geral`. Até
+a 2.12.1 a interface prometia admin e auditor, e os dois levavam `permission-denied` ao
+abrir a tela. O alinhamento foi feito restringindo a **interface**.
+
+Com o 1.x fora do ar (2026-08-10), a regra passou a ser alterável.
+
+**Decisão.** Manter só master. A interface segue como está; a regra também.
+
+**Por quê.** O histórico registra login, alteração de papéis, exclusão de produto e de
+estoque — informação de gestão, não de operação. Quem investiga divergência de contagem tem
+o painel de auditoria, que já mostra quem contou o quê. O 1.x fazia igual
+(`btn.style.display = this.isMaster ? '' : 'none'`).
+
+**O que se perde.** Um auditor investigando precisa pedir ao master. Se isso virar atrito
+recorrente, é sinal de que a decisão mudou de contexto.
+
+**Como reverter.** Duas linhas: `verHistorico` em `papeis.ts` e a regra de `historico_geral`.
+Exige publicar regras.

@@ -417,8 +417,9 @@ export async function importarProdutos(
   /** Campos que vêm da planilha, iguais para criação e atualização. */
   const doCadastro = (l: ProdutoDaPlanilha): Record<string, unknown> => ({
     nome: l.nome,
-    // A grafia legada acompanha: o Themis 1.x lê `NomeProduto`, e enquanto os dois apps
-    // convivem gravar só uma faria o produto aparecer sem nome no app velho.
+    // A grafia legada acompanha porque o acervo tem documentos nas duas formas e a
+    // leitura precisa dos dois. Só para de ser gravada junto de uma normalização do banco
+    // — ver docs/pendencias.md §3.
     NomeProduto: l.nome,
     codigoBarras: l.codigoBarras,
     CodigoBarras: l.codigoBarras,
@@ -566,8 +567,9 @@ export async function atualizarEstoqueSistema(
 
       if (sistemaDe(p) !== saldo) {
         dados['estoqueSistema'] = saldo;
-        // `EstoqueAtual` acompanha porque o Themis 1.x continua em produção no mesmo banco
-        // e lê a grafia antiga. Gravar só uma deixaria os dois apps discordando do saldo.
+        // `EstoqueAtual` acompanha `estoqueSistema`: o acervo tem as duas grafias e
+        // `sistemaDe` lê ambas. Parar de gravar uma criaria documento novo divergente do
+        // antigo — ver docs/pendencias.md §3.
         dados['EstoqueAtual'] = saldo;
         atualizados++;
       }
@@ -676,8 +678,9 @@ export interface CadastroProduto {
  * Não toca em `quantidade` nem em `productStatus`: cadastro e contagem são coisas
  * diferentes, e misturá-las faria uma correção de nome apagar o trabalho do funcionário.
  *
- * `NomeProduto` acompanha `nome` porque o Themis 1.x lê a grafia antiga — enquanto os dois
- * apps convivem, gravar só uma faria o produto aparecer sem nome no app velho.
+ * `NomeProduto` acompanha `nome` porque o acervo tem documentos nas duas grafias e
+ * `nomeDe` lê ambas. Só para de ser gravada junto de uma normalização do banco — ver
+ * docs/pendencias.md §3.
  *
  * `IdProduto` vazio é **removido**, não gravado como string vazia: a regra aceita string,
  * mas um identificador vazio faria o produto casar errado com a listagem do ERP.

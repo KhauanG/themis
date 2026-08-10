@@ -57,9 +57,9 @@ Mapa do projeto. Comece por aqui.
 
 | | |
 |---|---|
-| Versão | 2.0.0 |
+| Versão | ver `package.json` — sobe a cada alteração |
 | No ar em | `https://themis.grupoicebeer.com.br` |
-| Firestore | projeto `auditoria-icebeer` — **o mesmo do Themis 1.x** |
-| Testes | 77 |
-| Código-fonte | ~5.700 linhas |
-| Convivendo com | Themis 1.x (APK Android), lendo o mesmo banco |
+| Firestore | projeto `auditoria-icebeer` |
+| Testes | 284 |
+| Código-fonte | ~11.300 linhas |
+| Substituiu | Themis 1.x (APK Android), desligado em 2026-08-10 |

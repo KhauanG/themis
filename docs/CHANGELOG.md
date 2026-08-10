@@ -6,6 +6,44 @@ Categorias: **Adicionado**, **Alterado**, **Corrigido**, **Removido**, **Seguran
 
 ---
 
+## 2.13.1 — 2026-08-10
+
+A 2.13.0 desligou o 1.x mas **deixou a documentação falando dele no presente**. Uma das
+instruções desatualizadas reverteria a própria 2.13.0.
+
+### Corrigido
+
+- **`armadilhas.md` mandava responder `N`** ao prompt de exclusão de índices, "porque os
+  dois são do 1.x, que continua em produção". Seguir isso recriaria exatamente os dois
+  índices que a 2.13.0 removeu. Agora a instrução é datada: `N` até 2026-08-10, `y` daí em
+  diante.
+- **`dados.md`** dizia "cinco índices, dois são do 1.x e não podem ser removidos". São três.
+- **`visao-geral.md`** listava como consequências práticas "regras não podem ser
+  endurecidas" e "índices não podem ser removidos" — as duas coisas feitas na 2.13.0.
+- **`CLAUDE.md`** abria dizendo que o banco é "compartilhado com o app Themis 1.x, que
+  continua em produção". É o primeiro arquivo que um agente lê; errado ali, todo trabalho
+  seguinte parte de premissa falsa.
+- **`docs/README.md`**: "Convivendo com Themis 1.x", 77 testes (são 284), ~5.700 linhas (são
+  ~11.300), versão fixa em 2.0.0.
+- **Comentários no código** (`produtos-repo.ts`, `auditorias-repo.ts`) justificavam a grafia
+  dupla com "enquanto os dois apps convivem". O motivo real hoje é outro: o **acervo** tem
+  as duas formas, e a leitura precisa dos dois. Isso muda o que fazer a respeito.
+
+### Adicionado
+
+- [decisoes.md](decisoes.md) §18 — **histórico geral continua só para master**, agora como
+  decisão registrada e não como limitação herdada da regra. Com o motivo, o que se perde, e
+  como reverter.
+
+### Nota
+
+A pergunta que gerou esta versão foi *"tudo que estava bloqueado por regras foi
+solucionado?"*. As três pendências de regras sim (2.13.0). O que sobrou foi documentação
+contradizendo o código — que é o tipo de dívida que faz alguém desfazer, de boa fé, o que
+acabou de ser feito.
+
+---
+
 ## 2.13.0 — 2026-08-10
 
 A equipe migrou do APK para o PWA. O 1.x saiu do ar, e com ele as restrições que existiam

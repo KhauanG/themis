@@ -7,8 +7,11 @@ outra ferramenta que trabalhe neste repositório.
 
 Themis 2.0 — PWA de contagem e auditoria de estoque do Grupo Ice Beer, no ar em
 `themis.grupoicebeer.com.br`. Monorepo npm: `apps/web` (React + Vite), `apps/api`
-(Fastify), `packages/shared` (domínio puro). Banco Firestore `auditoria-icebeer`,
-**compartilhado com o app Themis 1.x, que continua em produção**.
+(Fastify), `packages/shared` (domínio puro). Banco Firestore `auditoria-icebeer`.
+
+O app Themis 1.x (APK) **saiu de produção em 2026-08-10**. Os dados dele ficaram: o banco
+tem documentos com duas grafias de campo e perfis com flags legadas, e a **leitura** precisa
+continuar tolerando os dois. Gravar já é livre.
 
 ## Antes de escrever código
 

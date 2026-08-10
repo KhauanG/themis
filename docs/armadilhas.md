@@ -74,9 +74,14 @@ continua lá.
 **Causa.** O arquivo de índices é tratado como a verdade. O que existe no projeto e não
 está nele é oferecido para remoção.
 
-**Evitar.** Responder **`N`**. Os dois são do Themis 1.x, que continua em produção. Já
-estão listados no arquivo; se a pergunta voltar, alguém criou índice pelo Console —
-traga-o para o arquivo.
+**Evitar.** Depende de **quando**:
+
+- **Até 2026-08-10**, com o 1.x no ar: responder **`N`**. Os índices eram dele.
+- **Da 2.13.0 em diante**: os dois saíram do arquivo de propósito — o 2.0 nunca os usou, e
+  toda entrada de histórico pagava a escrita neles. Responder **`y`** na primeira vez.
+
+Se a pergunta voltar depois disso, alguém criou índice pelo Console — traga-o para o
+arquivo em vez de apagar.
 
 ---
 

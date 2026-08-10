@@ -32,17 +32,24 @@ Disso decorre praticamente todo o resto:
 
 ## Como se relaciona com o Themis 1.x
 
-O 1.x é um app Android (Capacitor + JavaScript sem build) que **continua em produção**.
+O 1.x é um app Android (Capacitor + JavaScript sem build). **Saiu de produção em
+2026-08-10**, quando a equipe migrou para o PWA.
 
-Os dois leem e escrevem o **mesmo banco Firestore**, com as mesmas coleções e as mesmas
-Security Rules. Não houve migração de dados.
+Nunca houve migração de dados: os dois liam e escreviam o **mesmo banco Firestore**, com as
+mesmas coleções e as mesmas Security Rules. O 1.x foi embora, **os dados dele ficaram**.
 
-Consequências práticas:
+O que a saída dele destravou (feito na 2.13.0):
 
-- Formato gravado precisa continuar legível pelo 1.x
-- Índices do Firestore usados pelo 1.x não podem ser removidos
-- Regras não podem ser endurecidas sem quebrar o app antigo
-- Campos com duas grafias (`nome`/`NomeProduto`) precisam continuar sendo aceitos
+- Endurecer as Security Rules — `allowedInventories` virou barreira de acesso real
+- Remover os dois índices que só ele usava
+
+O que **continua valendo**, porque depende dos dados e não do app:
+
+- Campos com duas grafias (`nome`/`NomeProduto`, `codigoBarras`/`CodigoBarras`,
+  `estoqueSistema`/`EstoqueAtual`) precisam continuar sendo **lidos**
+- Perfis com flag legada (`isAuditor` como `"true"` ou `1`) precisam continuar sendo aceitos
+
+Os dois só saem junto de uma normalização do acervo — [pendencias.md](pendencias.md) §3.
 
 A transição está descrita em [../DEPLOY.md](../DEPLOY.md) §Migrar quem usa o APK.
 

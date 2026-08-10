@@ -1,9 +1,8 @@
 /**
  * Coleção `auditorias`: snapshots de contagens finalizadas.
  *
- * O formato gravado é idêntico ao do Themis 1.x — auditorias antigas e novas são lidas
- * pelo mesmo código, e o app 1.x continua conseguindo ler o que o 2.0 salva enquanto os
- * dois estiverem no ar.
+ * O formato gravado é idêntico ao do Themis 1.x: auditorias salvas por ele continuam no
+ * banco e são lidas pelo mesmo código. Mudar o formato exigiria migrar o acervo.
  */
 import {
   Timestamp,

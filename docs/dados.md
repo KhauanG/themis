@@ -191,6 +191,7 @@ deslogaria usuários com perfil legado.
 
 ## Índices
 
-Cinco no total, em `firestore/firestore.indexes.json`. **Dois são do 1.x** e não podem ser
-removidos. O arquivo precisa listar todos: o deploy oferece apagar o que não estiver nele.
+Três, em `firestore/firestore.indexes.json`. Eram cinco: dois só o 1.x usava
+(`historico_geral` por `userId` e por `action`) e saíram na 2.13.0, quando o 1.x foi
+desligado. O arquivo precisa listar todos: o deploy oferece apagar o que não estiver nele.
 Detalhes em [../firestore/README.md](../firestore/README.md).
