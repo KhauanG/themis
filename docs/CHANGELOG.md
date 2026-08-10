@@ -6,6 +6,62 @@ Categorias: **Adicionado**, **Alterado**, **Corrigido**, **Removido**, **Seguran
 
 ---
 
+## 2.12.3 — 2026-08-10
+
+Segunda varredura, focada em **fluxo e estrutura** (a primeira, na 2.12.1, cobriu permissões
+e escritas).
+
+### Adicionado
+
+- **O Finalizar agora avisa o que ele não faz.** Finalizar salva o retrato e incrementa o
+  contador — **nunca zerou a contagem**, nem no 1.x. Os produtos seguem com a quantidade e o
+  `productStatus` do ciclo anterior.
+
+  Quem não sabe disso abre o ciclo novo, vê a **barra em 100%** e a aba "A contar" **vazia**,
+  e conclui que o app perdeu a contagem. Pior desde a 2.12.0: se houve conferência, o ciclo
+  seguinte nasce **travado**, e nada explicava por quê.
+
+  O modal passa a dizer, antes de confirmar, qual dos dois casos se aplica e que o caminho é
+  Produtos → Limpar contagem. ⚠️ Limpar exige admin — um usuário comum finaliza mas não
+  reabre, e a mensagem diz isso.
+
+### Corrigido
+
+- **Vazamento de global entre arquivos de teste.** `fila-offline.test.ts` atribuía
+  `globalThis.localStorage` e nunca desfazia. O vitest isola o grafo de módulos entre
+  arquivos, mas não desfaz atribuição crua no global do worker: qualquer arquivo que rodasse
+  depois herdava o objeto, já populado com a fila daquele teste.
+
+  Nenhum teste dependia disso hoje — `armazenamento.ts` protege todo acesso com `try/catch`,
+  então nada estourava. Mas é exatamente a receita de falha que só aparece em certa ordem de
+  execução e some quando se tenta reproduzir. Fechado com `afterAll`.
+
+  ⚠️ **Não é diagnóstico da instabilidade observada**, é uma classe de risco eliminada. Ver
+  abaixo.
+
+### Verificado, sem achados
+
+- **Ciclos de import**: 0, em 170 imports internos entre 66 arquivos.
+- **Lógica de domínio duplicada fora de `packages/shared`**: nenhuma. As três comparações
+  diretas a `productStatus` são equivalentes a `statusContagemDe`, que só lê o campo.
+- **Estado compartilhado em testes**: só o `localStorage` acima.
+- **Dependência de tempo ou aleatório em testes**: nenhuma além de datas fixas.
+
+### Sobre a instabilidade dos testes
+
+Uma falha (`283 passed | 1 failed`) apareceu hoje dentro do `npm run verificar` e **não foi
+capturada**. Desde então: **20 execuções** da suíte em segundo plano e **3 do `verificar`
+completo**, todas verdes.
+
+A hipótese do teto de tempo em `planilha.test.ts` **enfraqueceu com a medição**: isolado leva
+334–415 ms, na suíte cheia chegou a 1205 ms, e o teto padrão é 5000 ms — folga de 4×.
+Estourar exigiria ~12× o tempo isolado.
+
+**Sem causa identificada.** Nada foi alterado com base em palpite. Se reaparecer, o que
+resolve é a saída do `npm test` sozinho, sem filtro.
+
+---
+
 ## 2.12.2 — 2026-08-10
 
 Relato de campo: *"1 alteração aguardando envio"* na faixa, o usuário toca em **Enviar

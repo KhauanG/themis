@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import {
   carregarFila,
   enfileirar,
@@ -12,7 +12,15 @@ import {
   tamanhoFila,
 } from './fila-offline.js';
 
-/** localStorage mínimo — o teste roda em Node, sem DOM. */
+/**
+ * localStorage mínimo — o teste roda em Node, sem DOM.
+ *
+ * ⚠️ Isto grava em `globalThis`, que é do **worker**, não do arquivo. O vitest isola o grafo
+ * de módulos entre arquivos, mas não desfaz atribuição crua no global: sem o `afterAll`
+ * abaixo, qualquer arquivo que rodasse depois neste mesmo worker herdaria este objeto — já
+ * populado com a fila deste teste. É a receita de falha que só aparece em certa ordem de
+ * execução, e some quando se tenta reproduzir.
+ */
 function instalarLocalStorage() {
   const dados = new Map<string, string>();
   globalThis.localStorage = {
@@ -37,6 +45,11 @@ const base = {
 };
 
 describe('fila offline', () => {
+  afterAll(() => {
+    // Devolve o worker ao estado em que o encontramos.
+    delete (globalThis as { localStorage?: unknown }).localStorage;
+  });
+
   beforeEach(() => {
     instalarLocalStorage();
     limparFila();

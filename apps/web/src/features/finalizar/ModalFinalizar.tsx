@@ -18,7 +18,7 @@ interface Props {
 }
 
 export function ModalFinalizar({ aberto, onFechar }: Props) {
-  const { estoqueAtual, produtos, ciclo, contextoLog } = useEstoque();
+  const { estoqueAtual, produtos, ciclo, contextoLog, contagemFechada } = useEstoque();
   const { usuario, permissoes } = useAuth();
   const { mostrar } = useToast();
 
@@ -106,9 +106,25 @@ export function ModalFinalizar({ aberto, onFechar }: Props) {
       }
     >
       <p>
-        Isso salva a contagem do <strong>ciclo {ciclo}</strong> como auditoria e abre um novo ciclo.
-        A contagem atual deixa de ser editável.
+        Isso salva a contagem do <strong>ciclo {ciclo}</strong> como auditoria e abre o{' '}
+        <strong>ciclo {ciclo + 1}</strong>.
       </p>
+
+      {/*
+        Finalizar NÃO zera a contagem — nunca zerou, nem no 1.x. Ele salva o retrato e
+        incrementa o contador; os produtos continuam com a quantidade e o status do ciclo
+        anterior. Quem não souber disso abre o ciclo novo achando que está tudo por contar,
+        vê a barra em 100% e a aba "A contar" vazia, e conclui que o app perdeu alguma
+        coisa. O aviso é o que separa "funcionou" de "sumiu tudo".
+      */}
+      {estatisticas.contados > 0 && (
+        <p className="aviso" role="status">
+          <strong>Finalizar não apaga a contagem.</strong>{' '}
+          {contagemFechada
+            ? `Como já houve conferência, o ciclo ${ciclo + 1} nasce travado: ninguém conta até um administrador usar Produtos → Limpar contagem.`
+            : `Os ${estatisticas.contados} itens contados continuam marcados no ciclo ${ciclo + 1}, e a barra vai mostrar 100%. Para começar do zero, um administrador usa Produtos → Limpar contagem.`}
+        </p>
+      )}
 
       <ul className="resumo">
         <li>

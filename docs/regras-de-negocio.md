@@ -92,6 +92,24 @@ Função: `calcularEstatisticas(produtos)`.
 
 ## Ciclo de contagem
 
+⚠️ **Finalizar não zera a contagem.** Ele salva o retrato como auditoria e incrementa
+`contagemCycle`. Os produtos continuam com `quantidade` e `productStatus` do ciclo anterior —
+comportamento herdado do 1.x, mantido de propósito: o dado da rodada só some quando alguém
+manda apagar.
+
+Consequência no ciclo seguinte:
+
+| Situação ao finalizar | Como o ciclo novo começa |
+|---|---|
+| Houve conferência | **travado** — ninguém conta até Limpar contagem |
+| Só contagens, sem conferência | tudo marcado como contado, barra em 100% |
+| Contagem já limpa | do zero |
+
+Em todos os casos quem reabre é **Produtos → Limpar contagem**, que exige admin. Usuário
+comum finaliza mas não reabre. O modal de Finalizar avisa disso antes de confirmar.
+
+
+
 `inventories/{id}.contagemCycle` — começa em 1 e sobe a cada finalização.
 
 Finalizar faz, **nesta ordem**:
