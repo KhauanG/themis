@@ -67,8 +67,26 @@ leitura por avaliação, não quatro. Num lote de 500 escritas, é **uma** leitu
 
 ### Antes de publicar esta regra
 
-⚠️ Regra errada aqui tranca a equipe fora no meio de uma contagem. Teste no **Rules
-Playground** do Console, com estes casos:
+⚠️ Regra errada aqui tranca a equipe fora no meio de uma contagem.
+
+**Jeito automatizado, preferível:**
+
+```
+npm run testar-regras
+```
+
+Sobe o emulador do Firestore local, roda `firestore/regras.test.ts` e derruba. Nada toca o
+projeto de verdade. Exige **JDK 21 ou superior** — o `firebase-tools` recusa versões
+anteriores:
+
+```
+winget install Microsoft.OpenJDK.21
+```
+
+O arquivo cobre os seis casos abaixo mais conferência, exclusões, `hashConfigs`,
+`validProductData` e quem lê o histórico.
+
+**Sem o JDK**, à mão no **Rules Playground** do Console:
 
 | Cenário | Operação | Esperado |
 |---|---|---|

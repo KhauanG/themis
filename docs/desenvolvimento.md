@@ -176,6 +176,7 @@ porque include tem precedencia sobre omit.
 | `npm run auditar-produtos` | varredura de produtos legados (só leitura) |
 | `npx tsx scripts/verificar-planilha.mts <arquivo>` | testa a leitura de uma planilha real |
 | `npx tsx scripts/diagnosticar-erp.mts <hashLoja>` | mostra a resposta crua do ERP (só leitura) |
+| `npm run testar-regras` | roda as Security Rules contra o emulador (exige JDK 21+) |
 | `npm run deploy-rules` | publica as Security Rules |
 | `npm run deploy-indexes` | publica os índices |
 

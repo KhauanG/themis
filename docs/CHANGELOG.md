@@ -6,6 +6,43 @@ Categorias: **Adicionado**, **Alterado**, **Corrigido**, **Removido**, **Seguran
 
 ---
 
+## 2.14.0 — 2026-08-10
+
+### Adicionado
+
+- **Testes automatizados das Security Rules**, contra o emulador do Firestore:
+
+  ```
+  npm run testar-regras
+  ```
+
+  Sobe o emulador local, roda `firestore/regras.test.ts`, derruba. Nada toca o projeto de
+  verdade.
+
+  As regras são o **único** controle de acesso real do Themis — esconder botão não protege
+  nada. E eram o tipo de código que ninguém exercitava até o dia em que tranca a equipe fora
+  no meio de um inventário. Até aqui a única verificação era o Rules Playground do Console,
+  feito à mão, seis casos, sem repetição garantida.
+
+  Cobre: as seis situações de `podeAcessarEstoque` (incluindo as três portas abertas que
+  evitam trancar alguém fora), leitura permanecendo aberta, ciclo em `inventories`,
+  `podeAlterarStatusProduto`, `validProductData` (`null` e `'PENDENTE'`), quem lê o
+  histórico, exclusões master-only e `hashConfigs`.
+
+  ⚠️ Exige **JDK 21+** — o `firebase-tools` recusa versões anteriores. Instalação no
+  Windows: `winget install Microsoft.OpenJDK.21`.
+
+  ⚠️ Ficam **fora do `npm test`**, em `vitest.regras.config.ts`. Um `npm run verificar` que
+  falha por falta de emulador treina a equipe a ignorar falha de teste.
+
+### Nota
+
+O arquivo de teste foi escrito mas **ainda não executado**: a máquina onde foi criado tem
+Java 8, e o emulador exige 21. As asserções refletem a leitura das regras, não uma execução
+— espere ajustes na primeira rodada de verdade.
+
+---
+
 ## 2.13.1 — 2026-08-10
 
 A 2.13.0 desligou o 1.x mas **deixou a documentação falando dele no presente**. Uma das
