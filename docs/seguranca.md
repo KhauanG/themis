@@ -33,33 +33,57 @@ Precedência: master > admin > auditor > comum.
 
 ---
 
-## ⚠️ Estoques por usuário NÃO é barreira de segurança
+## Estoques por usuário — agora é barreira de verdade
 
-`users/{uid}.allowedInventories` define quais estoques cada pessoa **enxerga na
-interface**. As Security Rules liberam leitura e escrita de `estoques/{qualquer}/produtos`
-para **qualquer usuário autenticado** — era assim no 1.x e continua, porque as regras são
-compartilhadas entre os dois apps.
+`users/{uid}.allowedInventories` define em quais estoques a pessoa pode **escrever**. Desde
+a 2.13.0, isso vale nas Security Rules — não só na interface.
 
-Quem souber montar a requisição alcança qualquer estoque.
+Antes valia só na tela: qualquer autenticado escrevia em qualquer estoque, e a lista apenas
+escondia os outros do seletor. Era assim porque as regras eram compartilhadas com o Themis
+1.x. Com o 1.x fora do ar, virou controle de acesso.
 
-**O que isso resolve mesmo assim:** o funcionário da Loja Centro não rola por seis
-depósitos para achar o dele, nem conta no lugar errado por engano. É prevenção de erro
-humano, e tem valor real — só não é controle de acesso.
+**O que a regra cobre:** escrita em `estoques/{id}/produtos` (contar, importar, corrigir,
+limpar) e atualização de `inventories/{id}` (inclusive fechar ciclo).
 
-Semântica (herdada do 1.x, mantida de propósito):
+**O que continua liberado:** *leitura* de qualquer estoque, para qualquer autenticado. É
+deliberado — o app lista todos para montar o seletor e filtra do lado do cliente. Fechar a
+leitura quebraria o seletor e cobraria um `get()` por documento lido.
 
-| Situação | Resultado |
-|---|---|
-| Lista vazia | Vê todos — é o padrão de quem nunca foi configurado |
-| Master | Vê todos, independente da lista |
-| Lista preenchida | Vê só os da lista |
-| Sem documento de perfil, ou falha ao ler | Vê todos |
+### As três portas abertas, e por que existem
 
-A última linha é deliberada: falha de leitura não pode trancar a equipe para fora no meio
-de uma contagem.
+`podeAcessarEstoque` libera em três casos, e **inverter qualquer um deles tranca a equipe no
+meio de um inventário**:
 
-> Transformar isso em barreira real está em [pendencias.md](pendencias.md). Exige mudar
-> `firestore.rules`, o que afeta o Themis 1.x na hora.
+| Caso | Resultado | Motivo |
+|---|---|---|
+| Master | passa sempre | precisa alcançar tudo para administrar |
+| Sem documento de perfil | passa | falha de leitura não pode parar a contagem |
+| Lista vazia | passa | é o padrão de quem nunca foi configurado |
+| Lista preenchida | só os da lista | o caso que a regra existe para cobrir |
+
+A ordem dos `||` importa: o curto-circuito faz o master nem chegar a olhar a lista. E os
+`get()` repetidos para o mesmo caminho são **cacheados** pelo motor de regras — custa uma
+leitura por avaliação, não quatro. Num lote de 500 escritas, é **uma** leitura, não 500.
+
+### Antes de publicar esta regra
+
+⚠️ Regra errada aqui tranca a equipe fora no meio de uma contagem. Teste no **Rules
+Playground** do Console, com estes casos:
+
+| Cenário | Operação | Esperado |
+|---|---|---|
+| Master, qualquer estoque | update em `estoques/X/produtos/1` | ✅ permite |
+| Comum sem `allowedInventories` | update em `estoques/X/produtos/1` | ✅ permite |
+| Comum com `allowedInventories: []` | update em `estoques/X/produtos/1` | ✅ permite |
+| Comum com `allowedInventories: ['X']` | update em `estoques/X/produtos/1` | ✅ permite |
+| Comum com `allowedInventories: ['Y']` | update em `estoques/X/produtos/1` | ❌ **nega** |
+| Comum sem documento em `users/` | update em `estoques/X/produtos/1` | ✅ permite |
+
+O quinto é o que a mudança existe para fazer. Os outros cinco são o que ela **não** pode
+quebrar.
+
+**Rollback:** publicar de volta a versão anterior do arquivo pelo Console ou por
+`git checkout <commit-anterior> -- firestore/firestore.rules && npm run deploy-rules`.
 
 ## Security Rules
 

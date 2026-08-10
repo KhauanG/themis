@@ -7,97 +7,54 @@ uma pendência deliberada vira esquecimento acidental.
 
 | # | Pendência | Esforço | Urgência |
 |---|---|---|---|
-| 1 | [Migrar a equipe do APK](#1-migrar-a-equipe-do-apk) | dias, quase todo de espera | **é o que fecha o projeto** |
-| 2 | [Cabeçalhos de segurança no Fastify](#2-cabeçalhos-de-segurança-no-fastify) | 1 sessão + validação | baixa |
-| 3 | [Gerenciar usuários pelo app](#3-criar-e-excluir-usuário-pelo-app) | 1 sessão | baixa |
+| 1 | [Promover o CSP a bloqueio](#1-promover-o-csp-a-bloqueio) | 1 sessão de observação | baixa |
+| 2 | [Criar e excluir usuário pelo app](#2-criar-e-excluir-usuário-pelo-app) | 1 sessão | baixa |
+| 3 | [Normalizar as duas grafias de campo](#3-normalizar-as-duas-grafias-de-campo) | 1 sessão + varredura | baixa |
+
+> A migração do APK para o PWA (2026-08-10) fechou três pendências de uma vez:
+> `allowedInventories` virou barreira nas Security Rules, os cabeçalhos de segurança
+> entraram, e dois índices mortos saíram. Registro na [CHANGELOG.md](CHANGELOG.md) §2.13.0.
 
 ---
 
-## 1. Migrar a equipe do APK
+## 1. Promover o CSP a bloqueio
 
-**Situação.** O Themis 1.x (APK Android) e o 2.0 (PWA) leem o mesmo banco e estão no ar ao
-mesmo tempo. A equipe ainda usa o APK.
+**Situação.** Os cabeçalhos de segurança entraram na 2.13.0
+(`apps/api/src/cabecalhos.ts`). Cinco deles bloqueiam de verdade. O **CSP está em
+`Content-Security-Policy-Report-Only`**: relata no console o que *teria* bloqueado, sem
+bloquear nada.
 
-**Por que não foi feito agora.** Exige tempo de calendário, não de código: precisa de ciclos
-de contagem reais para confiar.
+**Por que não foi feito agora.** Um CSP estrito demais quebra o app inteiro, para todo
+mundo, na hora. A lista de origens do Firebase é longa e frágil, e acertá-la de primeira sem
+observar o uso real é aposta.
 
-**Como fazer.** Roteiro em [../DEPLOY.md](../DEPLOY.md) §Passo 8:
+**Como fazer.**
 
-1. Um ou dois funcionários no PWA por alguns dias, o resto no APK
-2. Conferir no painel de auditoria que as contagens dos dois aparecem certas
-3. Liberar o link para a equipe, com instrução de "Adicionar à tela inicial"
-4. Só então desinstalar o APK
-
-⚠️ **Não desative o app antigo antes de um ciclo de contagem inteiro fechado pelo PWA.**
-
-**Quando fica urgente.** Já é o próximo passo. Enquanto os dois convivem, carregamos
-restrições que só existem por causa do 1.x: índices que não podem sumir, regras que não
-podem endurecer, campos com duas grafias.
-
-**O que destrava depois.** Poder normalizar as duas grafias de campo no banco, remover a
-tolerância a flags legadas em `papelDe()` e apertar as Security Rules.
-
----
-
-## 2. Cabeçalhos de segurança no Fastify
-
-**Situação.** Os cabeçalhos existem em `apps/web/public/.htaccess`, mas **não são
-aplicados**: na configuração atual o Node serve o site direto, sem Apache na frente. O
-arquivo fica no repositório caso um dia haja servidor web na frente.
-
-**Por que não foi feito agora.** Não tapa buraco conhecido — é defesa em profundidade. E o
-único cabeçalho de peso (CSP) quebra o app inteiro, para todo mundo e na hora, se ficar
-estrito demais.
-
-### O que cada um resolve, no nosso caso
-
-| Cabeçalho | Contra | Risco de quebrar |
-|---|---|---|
-| `X-Content-Type-Options: nosniff` | navegador adivinhar tipo de arquivo | nenhum |
-| `Referrer-Policy: strict-origin-when-cross-origin` | vazar URL completa em link externo | nenhum |
-| `Permissions-Policy: camera=(self), geolocation=(), microphone=()` | limitar recursos à própria página | nenhum |
-| `frame-ancestors 'none'` | **clickjacking** | nenhum |
-| `Strict-Transport-Security` | forçar HTTPS | baixo (max-age é difícil de desfazer) |
-| `Content-Security-Policy` | limitar o estrago de um XSS | ⚠️ **alto** |
-
-**Os dois ganhos concretos:**
-
-- **Clickjacking.** Hoje qualquer site pode embutir o Themis num iframe invisível e induzir
-  um funcionário logado a clicar em "Limpar contagem" achando que clica noutra coisa.
-  `frame-ancestors 'none'` resolve, com custo zero. É o único risco real que existe hoje.
-- **CSP como rede.** O React escapa texto, então XSS é improvável — mas nomes de produto
-  vêm do ERP e de planilha, dado que não controlamos. O CSP protege contra o erro que ainda
-  não cometemos.
-
-### Como fazer — duas etapas, nunca uma
-
-**Etapa 1.** Publicar os cinco cabeçalhos seguros, e o CSP em modo
-**`Content-Security-Policy-Report-Only`**. O navegador não bloqueia nada, só reporta o que
-*teria* bloqueado. Usar o app um ou dois dias e olhar o console.
-
-**Etapa 2.** Console limpo → trocar para o modo que bloqueia de fato.
+1. Usar o app um ou dois dias exercitando **tudo**: contar, ler código de barras, exportar
+   PDF, exportar planilha, corrigir estoque, trabalhar offline e reconectar.
+2. Olhar o console do navegador. Cada violação relatada é uma origem que falta na lista.
+3. Console limpo → trocar `MODO_RELATO` para `false` em `apps/api/src/cabecalhos.ts`.
 
 ### Armadilhas conhecidas do CSP aqui
 
 - **Firebase precisa de vários domínios** em `connect-src`: `*.googleapis.com`,
   `*.firebaseio.com`, `firestore.googleapis.com`, `identitytoolkit.googleapis.com`,
   `securetoken.googleapis.com`, e `wss:` para o canal de tempo real
-- **`blob:` em `img-src` e `object-src`** — PDF e planilha são entregues como blob
-- **`worker-src 'self'`** — senão o service worker não registra e o offline morre
+- **`blob:` em `img-src` e `worker-src`** — PDF e planilha são entregues como blob, e o
+  leitor de código de barras usa blob no vídeo
+- **`worker-src 'self' blob:`** — senão o service worker não registra e o offline morre
 - **`style-src` precisa de `'unsafe-inline'`** — usamos `style={{...}}` na barra de
   progresso (`TelaContagem`) e nas etiquetas do histórico (`TelaHistorico`). Alternativa:
-  trocar por variáveis CSS e manter o `style-src` estrito
-- Errar qualquer um destes = **tela branca em produção, para todos, na hora**
-
-**Esforço.** ~60 linhas num plugin Fastify, mais teste conferindo cada cabeçalho na
-resposta. Nenhuma mudança em código de tela.
+  trocar por variáveis CSS e apertar o `style-src`
+- Errar qualquer um destes com o CSP bloqueando = **tela branca em produção, para todos, na
+  hora**
 
 **Quando fica urgente.** Se o app passar a ser acessível fora da rede da empresa, ou se
 algum campo de texto passar a aceitar conteúdo de fora sem passar pelo React.
 
 ---
 
-## 3. Criar e excluir usuário pelo app
+## 2. Criar e excluir usuário pelo app
 
 **Situação.** A tela de usuários (`features/usuarios/`) troca papéis, mas criar e excluir
 conta continua no Console do Firebase.
@@ -119,39 +76,43 @@ valia introduzir isso para uma operação que acontece poucas vezes por ano.
 qualidade, não um acaso: se a hospedagem for comprometida, o atacante não ganha controle do
 projeto Firebase. Introduzir o Admin SDK muda esse cálculo — pese antes.
 
+⚠️ Desde a 2.13.0 há um efeito novo: usuário no Auth **sem** documento em `users/` passa em
+`podeAcessarEstoque` (é uma das três portas abertas, para não trancar ninguém fora). Criar
+conta sem criar o documento não é mais só confuso — é permissivo.
+
 **Quando fica urgente.** Se a rotatividade da equipe crescer a ponto de o Console virar
 gargalo.
 
 ---
 
-## 4. Fazer `allowedInventories` valer nas Security Rules
+## 3. Normalizar as duas grafias de campo
 
-**Situação.** Os estoques permitidos por usuário filtram a **interface**, não o acesso.
-Qualquer autenticado ainda alcança `estoques/{qualquer}/produtos` montando a requisição na
-mão. Detalhes em [seguranca.md](seguranca.md).
+**Situação.** O banco guarda o mesmo dado em duas grafias, herdadas do 1.x: `nome` e
+`NomeProduto`, `codigoBarras` e `CodigoBarras`, `estoqueSistema` e `EstoqueAtual`. O 2.0
+**lê as duas e grava as duas**.
 
-**Por que não foi feito agora.** A regra é compartilhada com o Themis 1.x, que está em
-produção. Endurecer agora quebraria o app antigo para quem tiver a lista preenchida — e o
-1.x não trata `permission-denied` na leitura de produtos.
+**Por que não foi feito na 2.13.0.** O 1.x saiu do ar, mas os **dados** dele continuam.
+Parar de gravar a grafia antiga criaria documentos novos incompatíveis com os antigos, que
+seguem no acervo — inconsistência sem ganho. Só faz sentido junto de uma passada que
+normalize o que já existe.
 
-**Como fazer.** Nas regras de `estoques/{estoqueId}/produtos`, trocar `signedIn()` por algo
-como:
+**Como fazer, nesta ordem:**
 
-```
-function podeVerEstoque(estoqueId) {
-  let perfil = get(userDoc(request.auth.uid)).data;
-  return isMaster() ||
-    !('allowedInventories' in perfil) ||
-    perfil.allowedInventories.size() == 0 ||
-    estoqueId in perfil.allowedInventories;
-}
-```
+1. Script de varredura (nos moldes de `auditar-produtos.mjs`) que reporte quantos documentos
+   têm cada grafia, e **quantos têm as duas divergindo entre si** — este último número é o
+   que decide se dá para escolher uma cegamente.
+2. Migração em lote: grava a grafia canônica, remove a legada.
+3. Só então: parar de gravar a legada no app, e simplificar `nomeDe`, `codigoBarrasDe` e
+   `sistemaDe` em `packages/shared/src/produto.ts`.
 
-⚠️ Isso adiciona um `get()` por operação — conta como leitura cobrada e tem limite de 10
-por requisição. Medir o impacto numa importação de 2000 produtos antes de publicar.
+⚠️ A leitura tolerante precisa continuar até o passo 2 terminar **e** ser conferida. É ela
+que impede o produto de aparecer sem nome na tela do funcionário.
 
-**Quando fica urgente.** Quando o 1.x sair do ar, ou se a operação passar a ter dados que
-uma loja não pode ver da outra.
+**Quando fica urgente.** Não fica. É dívida cosmética: custa alguns bytes por documento e um
+`??` em três funções. O ganho é legibilidade, não comportamento.
+
+**O que mais vai junto.** A tolerância a flags legadas em `papelDe()` (`isAuditor` como
+`true`, `"true"` ou `1`) tem o mesmo formato de problema e cabe na mesma migração.
 
 ---
 

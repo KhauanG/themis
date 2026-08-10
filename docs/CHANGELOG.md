@@ -6,6 +6,65 @@ Categorias: **Adicionado**, **Alterado**, **Corrigido**, **Removido**, **Seguran
 
 ---
 
+## 2.13.0 — 2026-08-10
+
+A equipe migrou do APK para o PWA. O 1.x saiu do ar, e com ele as restrições que existiam
+só por causa da convivência.
+
+### Segurança
+
+- **`allowedInventories` virou barreira de verdade.** Até aqui era só filtro de interface:
+  qualquer autenticado escrevia em qualquer estoque, e a lista apenas escondia os outros do
+  seletor. Agora a regra cobra.
+
+  Cobre escrita em `estoques/{id}/produtos` (contar, importar, corrigir, limpar) e
+  atualização de `inventories/{id}`, inclusive fechar ciclo. **Leitura continua liberada**
+  de propósito — o app lista todos para montar o seletor e filtra do lado do cliente.
+
+  Três portas ficam abertas, e inverter qualquer uma tranca a equipe no meio de um
+  inventário: master passa sempre, quem não tem documento de perfil passa, lista vazia
+  significa "todos". Ver [seguranca.md](seguranca.md) para os casos de teste no Rules
+  Playground **antes de publicar**.
+
+  Custo: uma leitura por avaliação de regra. Os `get()` repetidos para o mesmo caminho são
+  cacheados — num lote de 500 escritas é **uma** leitura, não 500.
+
+- **Cabeçalhos de segurança no Fastify.** Existiam em `.htaccess` e **nunca foram
+  aplicados**: na Hostinger o Node serve o site direto, sem Apache na frente.
+
+  Entram bloqueando: `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`,
+  `X-Frame-Options: DENY` e `Strict-Transport-Security` (só em produção sobre HTTPS).
+
+  O ganho concreto é o **clickjacking**: hoje qualquer site pode embutir o Themis num iframe
+  invisível e induzir um funcionário já logado a clicar em "Limpar contagem" achando que
+  clica noutra coisa. Custo zero, porque o Themis nunca é embutido.
+
+  ⚠️ O **CSP entra em `Report-Only`** — relata no console o que *teria* bloqueado, sem
+  bloquear nada. CSP estrito demais quebra o app inteiro, para todo mundo, na hora. Para
+  promover: usar o app um ou dois dias exercitando leitor de código de barras, PDF e
+  planilha, conferir o console e trocar `MODO_RELATO` para `false` em
+  `apps/api/src/cabecalhos.ts`.
+
+### Removido
+
+- **Dois índices do Firestore que só o 1.x usava**: `historico_geral` por `userId` e por
+  `action`. O 2.0 consulta sempre com `inventoryId`, então nunca os tocava — mas **toda
+  entrada de histórico pagava a escrita neles**, e o histórico é escrito a cada contagem.
+
+  ⚠️ Ao publicar os índices, o Firebase vai **perguntar se quer apagá-los**. Desta vez a
+  resposta é **sim** — ao contrário do que a documentação dizia enquanto o 1.x existia.
+
+### Mantido de propósito
+
+- **As duas grafias de campo** (`nome`/`NomeProduto`, `codigoBarras`/`CodigoBarras`,
+  `estoqueSistema`/`EstoqueAtual`) continuam sendo gravadas. Parar agora criaria documentos
+  novos incompatíveis com os antigos, que continuam no banco — inconsistência sem ganho.
+  Só faz sentido junto de uma normalização em massa do acervo.
+- **A tolerância a flags legadas** em `papelDe()` (`isAuditor` como `true`, `"true"` ou `1`)
+  depende dos **dados**, não do app. Documentos antigos ainda têm as três formas.
+
+---
+
 ## 2.12.3 — 2026-08-10
 
 Segunda varredura, focada em **fluxo e estrutura** (a primeira, na 2.12.1, cobriu permissões

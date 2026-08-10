@@ -37,6 +37,35 @@ service cloud.firestore {
       return isAuditor() || isMaster();
     }
 
+    // O usuario pode ESCREVER neste estoque?
+    //
+    // Ate 2.13 isso era so filtro de interface: qualquer autenticado escrevia em qualquer
+    // estoque, e `allowedInventories` apenas escondia os outros da lista. Era assim porque
+    // as regras eram compartilhadas com o Themis 1.x. Com o 1.x fora do ar, virou barreira
+    // de verdade.
+    //
+    // Leitura continua liberada de proposito: o app lista todos os estoques para montar o
+    // seletor e filtra do lado do cliente. Fechar a leitura quebraria o seletor e cobraria
+    // um get() por documento lido.
+    //
+    // A ordem dos `||` importa: o curto-circuito faz o master nem chegar a olhar a lista.
+    // E os `get()` repetidos para o mesmo caminho sao cacheados pelo motor de regras, entao
+    // isto custa UMA leitura por avaliacao, nao quatro.
+    //
+    // As tres portas abertas sao deliberadas, e todas evitam trancar alguem fora:
+    //   - master passa sempre;
+    //   - quem nao tem documento de perfil passa (falha de leitura nao pode parar contagem);
+    //   - lista vazia significa "todos", que e o padrao de quem nunca foi configurado.
+    // Inverter qualquer uma delas tranca a equipe no meio de um inventario.
+    function podeAcessarEstoque(estoqueId) {
+      return isMaster()
+        || !hasUserDoc()
+        || !('allowedInventories' in get(userDoc(request.auth.uid)).data)
+        || !(get(userDoc(request.auth.uid)).data.allowedInventories is list)
+        || get(userDoc(request.auth.uid)).data.allowedInventories.size() == 0
+        || estoqueId in get(userDoc(request.auth.uid)).data.allowedInventories;
+    }
+
     function validOptionalUserFields(data) {
       return (!('firstName' in data) || (data.firstName is string && data.firstName.size() > 0 && data.firstName.size() <= 50)) &&
         (!('lastName' in data) || (data.lastName is string && data.lastName.size() > 0 && data.lastName.size() <= 50)) &&
@@ -128,8 +157,13 @@ service cloud.firestore {
 
       match /produtos/{produtoId} {
         allow read: if signedIn();
-        allow create: if isAdminOrMaster() && validProductData(request.resource.data);
-        allow update: if signedIn() && validProductData(request.resource.data) && podeAlterarStatusProduto();
+        allow create: if isAdminOrMaster()
+          && podeAcessarEstoque(estoqueId)
+          && validProductData(request.resource.data);
+        allow update: if signedIn()
+          && podeAcessarEstoque(estoqueId)
+          && validProductData(request.resource.data)
+          && podeAlterarStatusProduto();
         allow delete: if isMaster();
       }
 
@@ -149,12 +183,16 @@ service cloud.firestore {
       allow create: if isAdminOrMaster() && validInventoryData(request.resource.data);
       // Update normal (nome/descrição/etc) segue admin/master; finalização de ciclo por
       // qualquer usuário logado é permitida SOMENTE nos campos do ciclo (finalizar contagem).
-      allow update: if (isAdminOrMaster() && validInventoryData(request.resource.data))
-        || (signedIn()
-            && request.resource.data.diff(resource.data).affectedKeys()
-                 .hasOnly(['contagemCycle', 'lastFinalizedCycle', 'lastFinalizedAt', 'updatedAt'])
-            && request.resource.data.contagemCycle is number
-            && request.resource.data.contagemCycle >= 1);
+      // `podeAcessarEstoque` tambem aqui: fechar o ciclo de um estoque que a pessoa nao
+      // pode contar e tao errado quanto contar nele. Nao vale para `create` -- estoque
+      // recem-criado nao esta na lista de ninguem, e exigi-lo impediria a propria criacao.
+      allow update: if podeAcessarEstoque(inventoryId)
+        && ((isAdminOrMaster() && validInventoryData(request.resource.data))
+            || (signedIn()
+                && request.resource.data.diff(resource.data).affectedKeys()
+                     .hasOnly(['contagemCycle', 'lastFinalizedCycle', 'lastFinalizedAt', 'updatedAt'])
+                && request.resource.data.contagemCycle is number
+                && request.resource.data.contagemCycle >= 1));
       allow delete: if isMaster();
     }
 

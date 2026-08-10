@@ -2,6 +2,7 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import rateLimit from '@fastify/rate-limit';
 import { config } from './config.js';
+import { registrarCabecalhos } from './cabecalhos.js';
 import { registrarEstaticos } from './estaticos.js';
 import { rotasErp } from './routes/erp.js';
 import { rotasWebhook } from './routes/webhook.js';
@@ -29,6 +30,10 @@ const app = Fastify({
   // e o rate limit passa a valer para todo mundo junto.
   trustProxy: true,
 });
+
+// Antes de qualquer rota: o hook `onSend` vale para tudo que sair daqui,
+// inclusive os arquivos estáticos do PWA e as respostas de erro.
+registrarCabecalhos(app);
 
 // Mesma origem dispensa CORS. O registro só serve para o caso de a API acabar num
 // subdomínio separado, e para o `npm run dev`, em que o Vite roda na 5173.
