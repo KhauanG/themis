@@ -70,14 +70,26 @@ function paraProduto(snap: QueryDocumentSnapshot<DocumentData>): Produto {
  * `includeMetadataChanges: false` de propósito: sem isso cada escrita local dispara dois
  * snapshots (cache e servidor) e a lista pisca a cada produto contado.
  */
+/**
+ * Acompanha os produtos do estoque.
+ *
+ * ⚠️ `doCache` **não é detalhe**: com `persistentLocalCache` ligado, o Firestore dispara
+ * este listener duas vezes ao abrir o app — primeiro com o que está guardado no aparelho,
+ * depois com o que o servidor tem. O primeiro chega em milissegundos e pode estar dias
+ * atrasado.
+ *
+ * Tratar o primeiro disparo como final foi o que produziu "itens duplicados e contagem
+ * maior que o estoque, que somem ao recarregar". Quem consome decide o que fazer com o
+ * sinal — ver `podeLiberarTela` em @themis/shared.
+ */
 export function ouvirProdutos(
   inventoryId: string,
-  aoMudar: (produtos: Produto[]) => void,
+  aoMudar: (produtos: Produto[], doCache: boolean) => void,
   aoFalhar?: (erro: Error) => void,
 ): () => void {
   return onSnapshot(
     colecaoProdutos(inventoryId),
-    (snap) => aoMudar(snap.docs.map(paraProduto)),
+    (snap) => aoMudar(snap.docs.map(paraProduto), snap.metadata.fromCache),
     (erro) => {
       console.error('[produtos] Listener falhou:', erro);
       aoFalhar?.(erro);

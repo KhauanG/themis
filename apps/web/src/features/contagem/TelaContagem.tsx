@@ -190,7 +190,15 @@ export function TelaContagem() {
         </div>
       </div>
 
-      {carregandoProdutos && produtos.length === 0 ? (
+      {/*
+        `carregandoProdutos` sozinho, sem `&& produtos.length === 0`.
+
+        A condição antiga nunca era verdadeira ao reabrir o app: o cache do Firestore já
+        tinha a lista, então o esqueleto não aparecia e a tela liberava com dado do
+        aparelho. Era o que fazia surgir item duplicado e contagem inflada até o servidor
+        responder. Ver `podeLiberarTela` em @themis/shared.
+      */}
+      {carregandoProdutos ? (
         <Esqueleto linhas={6} />
       ) : lista.length === 0 ? (
         <div className="vazio">

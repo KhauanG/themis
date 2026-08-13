@@ -4,6 +4,7 @@ import { useAuth } from '../../contexts/AuthContext.js';
 import { useToast } from '../../contexts/ToastContext.js';
 import { Icone } from '../../components/Icone.js';
 import { Modal } from '../../components/Modal.js';
+import { Esqueleto } from '../../components/Esqueleto.js';
 import {
   atualizarEstoqueSistema,
   criarProduto,
@@ -38,8 +39,16 @@ interface Ocupado {
 }
 
 export function TelaProdutos() {
-  const { estoqueAtual, produtos, ciclo, contextoLog, progresso, configuracoes, somenteLeitura } =
-    useEstoque();
+  const {
+    estoqueAtual,
+    produtos,
+    carregandoProdutos,
+    ciclo,
+    contextoLog,
+    progresso,
+    configuracoes,
+    somenteLeitura,
+  } = useEstoque();
   const { mostrar } = useToast();
   const { permissoes } = useAuth();
 
@@ -281,6 +290,26 @@ export function TelaProdutos() {
   }
 
   const pct = ocupado?.total ? Math.round(((ocupado.feitos ?? 0) / ocupado.total) * 100) : null;
+
+  /*
+    Segura a tela inteira enquanto a lista não é confiável.
+
+    Aqui não é só estética: esta tela mostra `produtos.length` ao lado de "Apagar todos os
+    produtos" e alimenta o "Corrigir estoque". Agir sobre uma contagem vinda do cache — que
+    pode estar dias atrasada, ou conter os produtos de uma importação anterior — é caro de
+    um jeito que não dá para desfazer. Ver `podeLiberarTela` em @themis/shared.
+  */
+  if (carregandoProdutos) {
+    return (
+      <section className="pilha-g">
+        <div>
+          <h1 className="titulo-tela">Produtos e estoque</h1>
+          <p className="subtitulo">{estoqueAtual?.nome ?? '—'} · carregando…</p>
+        </div>
+        <Esqueleto linhas={6} />
+      </section>
+    );
+  }
 
   return (
     <section className="pilha-g">

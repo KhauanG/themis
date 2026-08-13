@@ -9,9 +9,11 @@ import {
   type ReactNode,
 } from 'react';
 import {
+  ESPERA_SERVIDOR_MS,
   contagemFechada,
   filtrarEstoquesPermitidos,
   foraDoErp,
+  podeLiberarTela,
   progressoContagem,
   type Inventory,
   type Produto,
@@ -216,23 +218,61 @@ export function EstoqueProvider({ children }: { children: ReactNode }) {
     setEstoqueId(existe ? salvo : (estoques[0]?.id ?? null));
   }, [estoques, estoqueId, perfil]);
 
+  /**
+   * Acompanha os produtos do estoque aberto.
+   *
+   * Dois cuidados aqui, e os dois vieram de bug relatado em campo — "aparecem itens
+   * duplicados e mais itens do que temos; ao recarregar, some".
+   *
+   * **1. Zerar a lista na troca.** `produtosBrutos` só é substituído quando o primeiro
+   * snapshot do estoque novo chega. Sem o `setProdutosBrutos([])`, a lista do estoque
+   * anterior fica na tela sob o nome do novo, durante todo o caminho de rede.
+   *
+   * **2. Não tratar o cache como verdade.** Com `persistentLocalCache`, o primeiro
+   * snapshot vem do aparelho, não do servidor. Quem apaga o estoque e reimporta a planilha
+   * gera IDs novos para os mesmos produtos; o aparelho que ainda tem os IDs antigos no
+   * cache mostra os dois conjuntos ao mesmo tempo. A decisão de liberar mora em
+   * `podeLiberarTela`, que é testada.
+   */
   useEffect(() => {
     if (!estoqueId || !usuario) {
       setProdutosBrutos([]);
+      setCarregandoProdutos(false);
       return;
     }
+
+    setProdutosBrutos([]);
     setCarregandoProdutos(true);
-    return ouvirProdutos(
+
+    let esgotou = false;
+    // Teto de espera: rede lenta é pior que rede ausente — o app se acha online e ficaria
+    // na tela de carregamento para sempre. Estourado, mostra o cache: dado velho é melhor
+    // que tela travada, e o snapshot do servidor ainda corrige quando chegar.
+    const temporizador = setTimeout(() => {
+      esgotou = true;
+      setCarregandoProdutos(false);
+    }, ESPERA_SERVIDOR_MS);
+
+    const parar = ouvirProdutos(
       estoqueId,
-      (lista) => {
+      (lista, doCache) => {
         setProdutosBrutos(lista);
-        setCarregandoProdutos(false);
+        if (podeLiberarTela({ doCache, online: navigator.onLine, esgotou })) {
+          clearTimeout(temporizador);
+          setCarregandoProdutos(false);
+        }
       },
       () => {
+        clearTimeout(temporizador);
         setCarregandoProdutos(false);
         mostrar('Não foi possível acompanhar as alterações do estoque.', 'error');
       },
     );
+
+    return () => {
+      clearTimeout(temporizador);
+      parar();
+    };
   }, [estoqueId, usuario, mostrar]);
 
   /**

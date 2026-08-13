@@ -6,6 +6,54 @@ Categorias: **Adicionado**, **Alterado**, **Corrigido**, **Removido**, **Seguran
 
 ---
 
+## 2.14.1 — 2026-08-13
+
+### Corrigido
+
+- **Itens duplicados e contagem maior que o estoque ao abrir o app.** Relato de campo:
+  "aparecem mais itens do que temos, aparecem itens duplicados; ao recarregar a página,
+  some."
+
+  O "some ao recarregar" era a pista: se houvesse documento duplicado no Firestore, o
+  recarregamento mostraria também. Era estado do **cliente**, não dado ruim no banco.
+
+  Causa: o Firestore roda com `persistentLocalCache`, então `onSnapshot` dispara **duas
+  vezes** ao abrir o app — primeiro com o que está guardado no aparelho, depois com o que o
+  servidor tem. O app tratava o primeiro disparo como final: baixava o esqueleto e liberava
+  o usuário. Nada no código consultava `snapshot.metadata.fromCache`.
+
+  O que transformava isso em *duplicata* e não só em *dado velho*: apagar o estoque e
+  reimportar a planilha gera **IDs novos** para os mesmos produtos (`importarPlanilha` usa
+  `doc()` sem id para o que não casa). O aparelho que ainda tinha os IDs antigos em cache
+  mostrava os dois conjuntos ao mesmo tempo — o mesmo produto, dois documentos.
+
+  Três correções:
+
+  1. `ouvirProdutos` passa `snapshot.metadata.fromCache` para quem consome.
+  2. `EstoqueContext` só libera a tela quando o dado é confiável, pela decisão testável
+     `podeLiberarTela`: snapshot do servidor libera; offline libera (segurar impediria a
+     contagem offline, que é o motivo de o cache existir); cache com o app online **segura**,
+     até um teto de 8s — rede lenta é pior que ausente, e sem teto a tela travaria para
+     sempre.
+  3. `EstoqueContext` zera a lista ao trocar de estoque. Sem isso, os produtos do estoque
+     anterior ficavam na tela sob o nome do novo durante todo o caminho de rede.
+
+- **A tela de contagem não mostrava o esqueleto ao reabrir o app.** A condição era
+  `carregandoProdutos && produtos.length === 0`, e com o cache preenchido o segundo termo
+  nunca era verdadeiro. Passou a ser só `carregandoProdutos`.
+
+- **`Produtos e estoque` agora espera a lista confiável.** É a tela que mostra
+  `produtos.length` ao lado de "Apagar todos os produtos" e alimenta o "Corrigir estoque" —
+  agir sobre uma contagem vinda do cache é caro de um jeito que não dá para desfazer.
+
+### Adicionado
+
+- `packages/shared/src/carregamento.ts` com `podeLiberarTela`, cobrindo as quatro
+  combinações de cache × conexão × teto. A regra estava implícita numa condição de JSX; é
+  exatamente o tipo de decisão que se inverte sem ninguém notar.
+
+---
+
 ## 2.14.0 — 2026-08-10
 
 ### Adicionado
