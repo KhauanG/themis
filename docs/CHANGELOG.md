@@ -6,6 +6,27 @@ Categorias: **Adicionado**, **Alterado**, **Corrigido**, **Removido**, **Seguran
 
 ---
 
+## 2.14.2 — 2026-08-14
+
+### Alterado
+
+- **Os botões de PDF agora baixam o arquivo.** Antes abriam a folha de compartilhamento do
+  celular (WhatsApp, Drive, e-mail), com o download só como reserva.
+
+  Era herança fiel do 1.x, que usava `@byteowls/capacitor-filesharer` — mas fiel à
+  ferramenta, não ao uso. Quem toca em "PDF da contagem" espera um arquivo; recebia um
+  seletor de aplicativo, e quem só queria guardar o relatório precisava escolher um app para
+  "compartilhar" consigo mesmo.
+
+  `exportarContagemPDF` e `exportarValidadePDF` passaram a chamar `baixar` em vez de
+  `entregarArquivo`.
+
+  ⚠️ **A planilha (.xlsx) continua no compartilhamento.** Não foi pedido, e o caso de uso é
+  outro: planilha quase sempre vai para alguém. Os dois caminhos e o porquê de cada um estão
+  documentados no topo de `apps/web/src/lib/arquivo.ts`, para ninguém unificar por engano.
+
+---
+
 ## 2.14.1 — 2026-08-13
 
 ### Corrigido

@@ -19,7 +19,7 @@ import {
   type FiltroRelatorio,
   type LinhaRelatorio,
 } from '@themis/shared';
-import { entregarArquivo, nomeDeArquivo } from './arquivo.js';
+import { baixar, nomeDeArquivo } from './arquivo.js';
 
 const DIAS_ALERTA = 30;
 
@@ -257,7 +257,9 @@ export async function exportarContagemPDF(
   });
 
   desenharRodape(doc);
-  await entregarArquivo(doc.output('blob'), nomeDeArquivo(`contagem-${contexto.estoque}`, 'pdf'));
+  // `baixar` e não `entregarArquivo`: o relatório precisa cair na pasta de downloads.
+  // Ver a nota sobre os dois caminhos em `arquivo.ts`.
+  baixar(doc.output('blob'), nomeDeArquivo(`contagem-${contexto.estoque}`, 'pdf'));
 }
 
 /**
@@ -336,6 +338,6 @@ export async function exportarValidadePDF(
   });
 
   desenharRodape(doc);
-  await entregarArquivo(doc.output('blob'), nomeDeArquivo(`validade-${contexto.estoque}`, 'pdf'));
+  baixar(doc.output('blob'), nomeDeArquivo(`validade-${contexto.estoque}`, 'pdf'));
   return comValidade.length;
 }

@@ -1,9 +1,21 @@
 /**
- * Entrega de arquivo gerado no navegador.
+ * Entrega de arquivo gerado no navegador. **Dois caminhos, escolhidos por quem chama.**
  *
- * Substitui `@capacitor/filesystem` + `@byteowls/capacitor-filesharer` do 1.x. No Android
- * o caminho preferido é o Web Share, que abre a mesma folha de compartilhamento nativa que
- * o app usava (WhatsApp, Drive, e-mail). O download é o fallback.
+ * | Função | Comportamento | Quem usa |
+ * |---|---|---|
+ * | `baixar` | sempre cai na pasta de downloads | os dois PDFs |
+ * | `entregarArquivo` | folha de compartilhamento, com download de reserva | a planilha |
+ *
+ * ⚠️ A escolha é deliberada e já foi trocada uma vez — não unifique sem perguntar.
+ *
+ * `entregarArquivo` substituiu `@capacitor/filesystem` + `@byteowls/capacitor-filesharer`
+ * do 1.x: no celular abre a mesma folha nativa que o app antigo abria (WhatsApp, Drive,
+ * e-mail). Faz sentido para a planilha, que quase sempre é mandada para alguém.
+ *
+ * Para os relatórios em PDF, não fazia: o usuário toca em "PDF da contagem" esperando um
+ * arquivo, e recebia um seletor de aplicativo. Quem só quer guardar o relatório tinha que
+ * escolher um app para "compartilhar" consigo mesmo. Por isso os PDFs chamam `baixar`
+ * direto.
  */
 
 export async function entregarArquivo(blob: Blob, nomeArquivo: string): Promise<void> {
