@@ -6,6 +6,82 @@ Categorias: **Adicionado**, **Alterado**, **Corrigido**, **Removido**, **Seguran
 
 ---
 
+## 2.15.0 — 2026-08-17
+
+Relato de campo: *"muita inconsistência, e os usuários têm que reabrir o app"*.
+
+### Corrigido
+
+- **Os quatro listeners em tempo real morriam para sempre no primeiro erro.** Era a causa
+  do "tem que reabrir o app", e valia para produtos, estoques, perfil e configurações.
+
+  `onSnapshot` **encerra a inscrição** quando chama o callback de erro — não reabre, não
+  tenta de novo. Falha de rede comum o SDK resolve sozinho por baixo; o callback só dispara
+  no que ele considera definitivo: `permission-denied`, `unauthenticated` (token que não
+  renovou a tempo numa rede de loja ruim), `resource-exhausted` (cota).
+
+  Os quatro handlers faziam a mesma coisa: `console.warn` e desistir. A partir dali o
+  aparelho parava de receber qualquer atualização, **sem nenhum sinal na tela**. Reabrir o
+  app remontava os efeitos e criava inscrições novas — daí o hábito da equipe.
+
+  Agora todas passam por `assinaturaResiliente`: retentativa com espera dobrando (1s → 60s,
+  com teto), e reabertura imediata quando a rede volta ou o app sai do plano de fundo —
+  **só se a inscrição realmente caiu**. Reinscrever uma inscrição viva a cada troca de
+  aplicativo custaria a releitura da coleção inteira, milhares de leituras por aparelho.
+
+  A queda do perfil era a mais traiçoeira: sem ele `papelDe()` devolve `'comum'`, e o master
+  perdia os itens de menu sem entender por quê.
+
+- **O congelamento agora é visível.** Depois de três falhas seguidas, a faixa do topo avisa
+  que não há atualização em tempo real e oferece recarregar. Antes a tela ficava mostrando
+  dado velho calada — pior que estar offline, porque offline o usuário sabe.
+
+  Três falhas, e não uma: as duas primeiras costumam ser a mesma rede oscilando, e alarme
+  que toca à toa é alarme que a equipe ignora quando é de verdade.
+
+- **Teste intermitente de `planilha.test.ts`**, que falhava sem padrão desde a 2.10 e já
+  tinha custado tempo de investigação em três sessões.
+
+  Diagnóstico, com medição: `lerPlanilha` faz `await import('exceljs')`, um CommonJS de
+  ~2 MB. Com a transformação em cache, o arquivo roda em 0,4s; na **primeira rodada depois
+  de qualquer arquivo mudar**, a transformação é refeita e o antivírus varre o que acabou de
+  ser escrito — passa de 5s e estoura o teto padrão do vitest.
+
+  | Condição | Resultado |
+  |---|---|
+  | 1ª rodada após arquivos mudarem | falhou, ~10s — 3 ocorrências |
+  | Rodadas seguintes, mesma árvore | passa, 0,4–1,1s |
+  | 25 rodadas seguidas, árvore congelada | 25/25 passaram |
+
+  Duas hipóteses caíram por medição antes desta: cache do Vite apagado à mão (746ms) e 20
+  processos disputando 16 CPUs (1085ms). Nenhuma reproduziu.
+
+  Teto de 30s **só neste arquivo**. Global esconderia travamento real em outro lugar.
+
+### Adicionado
+
+- `apps/web/src/lib/assinatura.ts` — `assinaturaResiliente`, usada pelos quatro listeners.
+- `packages/shared/src/reconexao.ts` — os números do backoff, com teste. Ficam no domínio
+  porque a mecânica depende de `document` e `window`, que não existem no ambiente de teste,
+  e são exatamente o que quebra em silêncio: espera que não cresce vira martelo no
+  Firestore; espera sem teto deixa o aparelho mudo por horas.
+
+### Analisado e deixado como está
+
+- **Service worker.** O `workbox` está correto — Firestore e `/api/` como `NetworkOnly`,
+  nunca cacheados; `assets` como `CacheFirst`. Não mexi na estratégia de registro: não é
+  testável neste ambiente, e erro nessa camada prende a equipe inteira num build quebrado
+  sem caminho de atualização.
+
+  ⚠️ Fica uma recomendação: com `registerType: 'autoUpdate'`, a checagem de versão nova
+  acontece **só no carregamento da página**. Um PWA que fica dias aberto não recebe
+  correção. Uma checagem periódica resolveria — mas precisa ser feita e testada com calma.
+
+- **Tamanho do cache do Firestore.** Continua no padrão de 40 MB. Aumentar sem medir o
+  tamanho real do acervo trocaria um problema conhecido por um desconhecido.
+
+---
+
 ## 2.14.2 — 2026-08-14
 
 ### Alterado

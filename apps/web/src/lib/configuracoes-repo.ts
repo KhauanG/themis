@@ -11,6 +11,7 @@
  */
 import { Timestamp, doc, getDoc, onSnapshot, setDoc, type DocumentData } from 'firebase/firestore';
 import { db } from './firebase.js';
+import { assinaturaResiliente } from './assinatura.js';
 import { withWriteTimeout } from './firestore-write.js';
 
 const DOC = 'global';
@@ -46,10 +47,17 @@ export async function carregarConfiguracoes(): Promise<Configuracoes> {
 }
 
 export function ouvirConfiguracoes(aoMudar: (c: Configuracoes) => void): () => void {
-  return onSnapshot(
-    doc(db, 'appSettings', DOC),
-    (snap) => aoMudar(paraConfiguracoes(snap.exists() ? snap.data() : undefined)),
-    (erro) => console.warn('[configuracoes] Listener falhou:', erro),
+  return assinaturaResiliente(
+    (viva, falhou) =>
+      onSnapshot(
+        doc(db, 'appSettings', DOC),
+        (snap) => {
+          viva();
+          aoMudar(paraConfiguracoes(snap.exists() ? snap.data() : undefined));
+        },
+        falhou,
+      ),
+    { label: 'configuracoes' },
   );
 }
 

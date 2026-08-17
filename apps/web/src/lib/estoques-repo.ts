@@ -32,6 +32,7 @@ import {
   withWriteTimeout,
 } from './firestore-write.js';
 import { colecaoProdutos } from './produtos-repo.js';
+import { assinaturaResiliente } from './assinatura.js';
 
 const COLECAO = 'inventories';
 const LIMITE_BATCH = 500;
@@ -69,10 +70,17 @@ export async function carregarEstoques(): Promise<Inventory[]> {
 }
 
 export function ouvirEstoques(aoMudar: (estoques: Inventory[]) => void): () => void {
-  return onSnapshot(
-    collection(db, COLECAO),
-    (snap) => aoMudar(ordenar(snap.docs.map(paraInventory))),
-    (erro) => console.error('[estoques] Listener falhou:', erro),
+  return assinaturaResiliente(
+    (viva, falhou) =>
+      onSnapshot(
+        collection(db, COLECAO),
+        (snap) => {
+          viva();
+          aoMudar(ordenar(snap.docs.map(paraInventory)));
+        },
+        falhou,
+      ),
+    { label: 'estoques' },
   );
 }
 

@@ -30,6 +30,7 @@ import {
   type Produto,
 } from '@themis/shared';
 import { db } from './firebase.js';
+import { assinaturaResiliente } from './assinatura.js';
 import { deviceId } from './dispositivo.js';
 import {
   exigirGravacao,
@@ -85,15 +86,20 @@ function paraProduto(snap: QueryDocumentSnapshot<DocumentData>): Produto {
 export function ouvirProdutos(
   inventoryId: string,
   aoMudar: (produtos: Produto[], doCache: boolean) => void,
-  aoFalhar?: (erro: Error) => void,
+  aoPerderContato?: (erro: unknown) => void,
+  aoRecuperar?: () => void,
 ): () => void {
-  return onSnapshot(
-    colecaoProdutos(inventoryId),
-    (snap) => aoMudar(snap.docs.map(paraProduto), snap.metadata.fromCache),
-    (erro) => {
-      console.error('[produtos] Listener falhou:', erro);
-      aoFalhar?.(erro);
-    },
+  return assinaturaResiliente(
+    (viva, falhou) =>
+      onSnapshot(
+        colecaoProdutos(inventoryId),
+        (snap) => {
+          viva();
+          aoMudar(snap.docs.map(paraProduto), snap.metadata.fromCache);
+        },
+        falhou,
+      ),
+    { label: `produtos/${inventoryId}`, ...(aoPerderContato && { aoPerderContato }), ...(aoRecuperar && { aoRecuperar }) },
   );
 }
 

@@ -52,6 +52,8 @@ interface EstoqueAPI {
   progresso: ProgressoContagem;
   online: boolean;
   pendentes: number;
+  /** A inscrição em tempo real caiu; o que está na tela pode estar velho. */
+  contatoPerdido: boolean;
   salvarContagem: (produto: Produto, quantidade: number, validade: string) => Promise<boolean>;
   sincronizar: () => Promise<void>;
   /** Configurações globais, em tempo real. */
@@ -84,6 +86,14 @@ export function EstoqueProvider({ children }: { children: ReactNode }) {
   const [estoqueId, setEstoqueId] = useState<string | null>(null);
   const [produtosBrutos, setProdutosBrutos] = useState<Produto[]>([]);
   const [carregandoProdutos, setCarregandoProdutos] = useState(false);
+  /**
+   * A inscrição nos produtos caiu e não voltou nas primeiras tentativas.
+   *
+   * Não é o mesmo que estar offline: offline o app sabe que está sozinho e a contagem
+   * segue normalmente pela fila. Aqui o app *acha* que está conectado, e a tela pode estar
+   * mostrando dado velho sem nenhum sinal. Era o caso em que a única saída era reabrir.
+   */
+  const [contatoPerdido, setContatoPerdido] = useState(false);
   const [online, setOnline] = useState(navigator.onLine);
   const [fila, setFila] = useState<AlteracaoPendente[]>(() => carregarFila());
   const [configuracoes, setConfiguracoes] = useState<Configuracoes>(CONFIGURACOES_PADRAO);
@@ -257,16 +267,21 @@ export function EstoqueProvider({ children }: { children: ReactNode }) {
       estoqueId,
       (lista, doCache) => {
         setProdutosBrutos(lista);
+        setContatoPerdido(false);
         if (podeLiberarTela({ doCache, online: navigator.onLine, esgotou })) {
           clearTimeout(temporizador);
           setCarregandoProdutos(false);
         }
       },
+      // Perdeu contato depois de várias tentativas. A inscrição continua tentando sozinha;
+      // o que muda aqui é o usuário passar a saber que o que está na tela pode estar velho.
+      // Antes, a tela congelava calada e a saída era reabrir o app.
       () => {
         clearTimeout(temporizador);
         setCarregandoProdutos(false);
-        mostrar('Não foi possível acompanhar as alterações do estoque.', 'error');
+        setContatoPerdido(true);
       },
+      () => setContatoPerdido(false),
     );
 
     return () => {
@@ -477,6 +492,7 @@ export function EstoqueProvider({ children }: { children: ReactNode }) {
       progresso,
       online,
       pendentes,
+      contatoPerdido,
       salvarContagem,
       sincronizar,
       contextoLog,
@@ -495,6 +511,7 @@ export function EstoqueProvider({ children }: { children: ReactNode }) {
       progresso,
       online,
       pendentes,
+      contatoPerdido,
       salvarContagem,
       sincronizar,
       contextoLog,

@@ -18,6 +18,7 @@ import {
 } from 'firebase/firestore';
 import type { UserProfile } from '@themis/shared';
 import { db } from './firebase.js';
+import { assinaturaResiliente } from './assinatura.js';
 import { withWriteTimeout } from './firestore-write.js';
 
 const COLECAO = 'users';
@@ -59,15 +60,28 @@ export async function buscarPerfil(uid: string): Promise<UserProfile | null> {
 export function ouvirPerfil(
   uid: string,
   aoMudar: (perfil: UserProfile | null) => void,
-  aoFalhar?: (erro: Error) => void,
+  aoFalhar?: (erro: unknown) => void,
 ): () => void {
-  return onSnapshot(
-    doc(db, COLECAO, uid),
-    (snap) => aoMudar(snap.exists() ? paraPerfil(snap.id, snap.data()) : null),
-    (erro) => {
-      console.warn('[usuarios] Listener do perfil falhou:', erro);
-      aoFalhar?.(erro);
-    },
+  /*
+    A queda deste listener é a mais traiçoeira das quatro: sem perfil, `papelDe()` devolve
+    'comum', e o master perde os itens de menu sem entender por quê. Por isso ele também
+    reabre sozinho — e `aoFalhar` continua sendo chamado, para o login não ficar preso na
+    tela de carregamento enquanto as retentativas acontecem.
+  */
+  return assinaturaResiliente(
+    (viva, falhou) =>
+      onSnapshot(
+        doc(db, COLECAO, uid),
+        (snap) => {
+          viva();
+          aoMudar(snap.exists() ? paraPerfil(snap.id, snap.data()) : null);
+        },
+        (erro) => {
+          aoFalhar?.(erro);
+          falhou(erro);
+        },
+      ),
+    { label: `perfil/${uid}` },
   );
 }
 

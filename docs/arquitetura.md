@@ -90,7 +90,7 @@ acontecem num lugar só.
 | `EstoqueContext` | estoque atual, produtos em tempo real, ciclo, progresso, conexão, fila |
 | `ToastContext` | mensagens ao usuário |
 
-`EstoqueContext` é o maior (249 linhas) porque concentra o listener do Firestore, a
+`EstoqueContext` é o maior (532 linhas) porque concentra o listener do Firestore, a
 sincronização da fila e a gravação de contagem. Ele expõe `contextoLog`, pronto para
 `registrar()`, para as telas não remontarem esse objeto.
 
@@ -107,8 +107,9 @@ sincronização da fila e a gravação de contagem. Ele expõe `contextoLog`, pr
 | `historico.ts` | log de ações, com fila local |
 | `fila-offline.ts` | alterações pendentes em localStorage |
 | `conectividade.ts` | detecção de conexão real |
+| `assinatura.ts` | **mantém os listeners de pé** — `onSnapshot` morre no primeiro erro |
 | `pdf.ts` / `planilha.ts` | relatórios, por import dinâmico |
-| `arquivo.ts` | Web Share com download como alternativa |
+| `arquivo.ts` | dois caminhos: download (PDF) e Web Share (planilha) |
 | `erp.ts` | cliente da API |
 
 ## A API

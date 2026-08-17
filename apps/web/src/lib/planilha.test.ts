@@ -97,7 +97,35 @@ const LINHA_ERP = [
   'Unidade',
 ];
 
-describe('lerPlanilha', () => {
+/**
+ * Teto de tempo próprio, e não o padrão de 5s do vitest.
+ *
+ * ## Por que
+ *
+ * `lerPlanilha` faz `await import('exceljs')` — um CommonJS de ~2 MB que o Vite precisa
+ * transformar. Com a transformação já em cache o arquivo inteiro roda em 0,4s. Na
+ * **primeira rodada depois de qualquer arquivo mudar**, a transformação é refeita e o
+ * antivírus do Windows varre o que acabou de ser escrito: aí passa de 5s e o teste estoura.
+ *
+ * ## O que sustenta isso
+ *
+ * | Condição | Resultado |
+ * |---|---|
+ * | 1ª rodada após arquivos mudarem | falhou, ~10s — 3 ocorrências |
+ * | Rodadas seguintes, mesma árvore | passa, 0,4–1,1s |
+ * | 25 rodadas seguidas, árvore congelada | 25/25 passaram |
+ *
+ * Duas hipóteses foram descartadas por medição antes desta: cache do Vite apagado à mão
+ * (746ms, não reproduziu) e 20 processos disputando 16 CPUs (1085ms, não reproduziu).
+ *
+ * ## Por que aqui e não no `vitest.config.ts`
+ *
+ * Subir o teto global esconderia travamento de verdade em qualquer outro teste. O custo é
+ * real e conhecido **deste** arquivo: é o único que carrega o exceljs.
+ */
+const TETO_CARGA_FRIA_MS = 30_000;
+
+describe('lerPlanilha', { timeout: TETO_CARGA_FRIA_MS }, () => {
   /**
    * A regressão que motivou tudo: a planilha do ERP usa prefixo de namespace e alvo
    * absoluto nas relações. O `exceljs` estourava com "Cannot set properties of undefined
