@@ -44,6 +44,8 @@ import { useToast } from './ToastContext.js';
 
 interface EstoqueAPI {
   estoques: Inventory[];
+  /** A lista de estoques ainda está sendo carregada — a abertura do app depende dela. */
+  carregandoEstoques: boolean;
   estoqueAtual: Inventory | null;
   trocarEstoque: (id: string) => void;
   produtos: Produto[];
@@ -83,6 +85,15 @@ export function EstoqueProvider({ children }: { children: ReactNode }) {
   const { mostrar } = useToast();
 
   const [estoquesBrutos, setEstoquesBrutos] = useState<Inventory[]>([]);
+  /**
+   * A lista de estoques ainda não chegou.
+   *
+   * Começa `true` porque a abertura do app depende dela: sem estoque escolhido não há
+   * `estoqueId`, sem `estoqueId` o efeito dos produtos nem liga `carregandoProdutos`, e a
+   * tela de contagem caía direto no estado vazio — mostrando "nenhum produto" para quem
+   * só estava esperando o app abrir.
+   */
+  const [carregandoEstoques, setCarregandoEstoques] = useState(true);
   const [estoqueId, setEstoqueId] = useState<string | null>(null);
   const [produtosBrutos, setProdutosBrutos] = useState<Produto[]>([]);
   const [carregandoProdutos, setCarregandoProdutos] = useState(false);
@@ -199,23 +210,47 @@ export function EstoqueProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!usuario) {
       setEstoquesBrutos([]);
+      setCarregandoEstoques(false);
       return;
     }
     // A carga inicial é assíncrona e pode terminar depois do desmonte; sem a trava,
     // ela sobrescreveria o estado de um provider que não existe mais.
     let vivo = true;
+    setCarregandoEstoques(true);
+
+    const pronto = () => {
+      if (vivo) setCarregandoEstoques(false);
+    };
+
+    /*
+      Teto de espera, pelo mesmo motivo dos produtos: rede lenta é pior que ausente. Sem
+      ele, um aparelho que se acha online ficaria na tela de abertura para sempre — e o
+      funcionário não teria nem como chegar na contagem offline.
+    */
+    const temporizador = setTimeout(pronto, ESPERA_SERVIDOR_MS);
+
     carregarEstoques()
       .then((lista) => {
         if (vivo) setEstoquesBrutos(lista);
       })
-      .catch((erro) => console.warn('[estoque] Carga inicial falhou:', erro));
+      .catch((erro) => console.warn('[estoque] Carga inicial falhou:', erro))
+      // Falhou ou não, a abertura destrava: com falha o listener ainda pode trazer a lista,
+      // e prender a tela num erro de rede não ajuda ninguém.
+      .finally(() => {
+        clearTimeout(temporizador);
+        pronto();
+      });
 
     const pararListener = ouvirEstoques((lista) => {
-      if (vivo) setEstoquesBrutos(lista);
+      if (!vivo) return;
+      setEstoquesBrutos(lista);
+      clearTimeout(temporizador);
+      pronto();
     });
 
     return () => {
       vivo = false;
+      clearTimeout(temporizador);
       pararListener();
     };
   }, [usuario]);
@@ -484,6 +519,7 @@ export function EstoqueProvider({ children }: { children: ReactNode }) {
   const valor = useMemo<EstoqueAPI>(
     () => ({
       estoques,
+      carregandoEstoques,
       estoqueAtual,
       trocarEstoque,
       produtos,
@@ -503,6 +539,7 @@ export function EstoqueProvider({ children }: { children: ReactNode }) {
     }),
     [
       estoques,
+      carregandoEstoques,
       estoqueAtual,
       trocarEstoque,
       produtos,

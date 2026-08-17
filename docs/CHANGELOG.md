@@ -60,6 +60,29 @@ Relato de campo: *"muita inconsistência, e os usuários têm que reabrir o app"
 
 ### Adicionado
 
+- **Tela de abertura enquanto a lista de estoques carrega.** Havia um vão: o login
+  terminava, o `EstoqueProvider` montava com a lista vazia, e como ainda não existia
+  `estoqueId` o efeito dos produtos nem chegava a ligar `carregandoProdutos`. A tela de
+  contagem caía direto no estado vazio e mostrava **"nenhum produto"** para quem só estava
+  esperando o app abrir — em rede de loja, por vários segundos.
+
+  Cobre os três momentos em que o app monta do zero: primeira abertura, recarregar a
+  página, e voltar depois de o sistema ter matado o app em segundo plano.
+
+  Voltar de um app apenas **suspenso** não passa por aqui, de propósito: o React não
+  remonta, os dados já estão na tela, e cobri-los com um carregando seria piscar à toa.
+  Esse caso é do `assinatura.ts`, que reabre o listener se ele tiver caído.
+
+  Trocar de estoque já era coberto desde a 2.14.1.
+
+  Teto de 8s, pelo mesmo motivo dos produtos: sem ele, um aparelho que se acha online
+  ficaria na abertura para sempre e o funcionário não chegaria nem na contagem offline.
+
+- **Aviso de "nenhum estoque liberado"**, no lugar de uma tela de contagem vazia e sem
+  explicação. ⚠️ Só para quem **não** pode criar estoque: quem pode precisa atravessar para
+  chegar em Estoques e criar o primeiro, e barrar ali trancaria o master fora do próprio app
+  num projeto novo.
+
 - `apps/web/src/lib/assinatura.ts` — `assinaturaResiliente`, usada pelos quatro listeners.
 - `packages/shared/src/reconexao.ts` — os números do backoff, com teste. Ficam no domínio
   porque a mecânica depende de `document` e `window`, que não existem no ambiente de teste,
