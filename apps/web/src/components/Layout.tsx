@@ -15,7 +15,7 @@ interface Aba {
 
 export function Layout() {
   const { nome, papel, permissoes, usuario, sair } = useAuth();
-  const { estoques, estoqueAtual, trocarEstoque, ciclo, progresso, online, pendentes } =
+  const { estoques, estoqueAtual, trocarEstoque, ciclo, progresso, online, pendentes, carregandoProdutos, conciliando } =
     useEstoque();
 
   const [menuAberto, setMenuAberto] = useState(false);
@@ -55,15 +55,30 @@ export function Layout() {
               )}
             </button>
 
+            {/*
+              O total só aparece com o dado conciliado.
+
+              Este cabeçalho ficava fora do esqueleto: a lista era coberta, mas o número
+              continuava na tela e **descia ao vivo** — 3300, 2900, 2100, 1600 — enquanto o
+              Firestore entregava as exclusões da importação anterior guardadas no cache.
+              Era a origem do "começa alto e vai baixando".
+            */}
             <p className="topo__contexto">
               <span>Ciclo {ciclo}</span>
-              {progresso.total > 0 && (
+              {carregandoProdutos || conciliando ? (
                 <>
                   <span aria-hidden="true">·</span>
-                  <span>
-                    {progresso.contados} de {progresso.total} contados
-                  </span>
+                  <span>sincronizando…</span>
                 </>
+              ) : (
+                progresso.total > 0 && (
+                  <>
+                    <span aria-hidden="true">·</span>
+                    <span>
+                      {progresso.contados} de {progresso.total} contados
+                    </span>
+                  </>
+                )
               )}
             </p>
           </div>

@@ -56,6 +56,8 @@ interface EstoqueAPI {
   pendentes: number;
   /** A inscrição em tempo real caiu; o que está na tela pode estar velho. */
   contatoPerdido: boolean;
+  /** O Firestore ainda concilia cache e servidor — os totais não são confiáveis. */
+  conciliando: boolean;
   salvarContagem: (produto: Produto, quantidade: number, validade: string) => Promise<boolean>;
   sincronizar: () => Promise<void>;
   /** Configurações globais, em tempo real. */
@@ -105,6 +107,18 @@ export function EstoqueProvider({ children }: { children: ReactNode }) {
    * mostrando dado velho sem nenhum sinal. Era o caso em que a única saída era reabrir.
    */
   const [contatoPerdido, setContatoPerdido] = useState(false);
+  /**
+   * O último snapshot ainda veio do cache: o Firestore não terminou de conciliar.
+   *
+   * Diferente de `carregandoProdutos`, que a tela solta no teto de 8s. Num estoque de
+   * milhares de itens em wifi de loja a conciliação passa disso, e é aí que o total
+   * aparece inflado e vai descendo — o cache tem os documentos da importação anterior, o
+   * servidor entrega as exclusões aos poucos, e o número cai de 3300 para 1600 na frente
+   * do funcionário.
+   *
+   * Enquanto isto for `true`, nenhum total vai para a tela.
+   */
+  const [conciliando, setConciliando] = useState(false);
   const [online, setOnline] = useState(navigator.onLine);
   const [fila, setFila] = useState<AlteracaoPendente[]>(() => carregarFila());
   const [configuracoes, setConfiguracoes] = useState<Configuracoes>(CONFIGURACOES_PADRAO);
@@ -288,6 +302,7 @@ export function EstoqueProvider({ children }: { children: ReactNode }) {
 
     setProdutosBrutos([]);
     setCarregandoProdutos(true);
+    setConciliando(true);
 
     let esgotou = false;
     // Teto de espera: rede lenta é pior que rede ausente — o app se acha online e ficaria
@@ -303,6 +318,8 @@ export function EstoqueProvider({ children }: { children: ReactNode }) {
       (lista, doCache) => {
         setProdutosBrutos(lista);
         setContatoPerdido(false);
+        // `doCache` só vira false quando a consulta está em dia com o servidor.
+        setConciliando(doCache);
         if (podeLiberarTela({ doCache, online: navigator.onLine, esgotou })) {
           clearTimeout(temporizador);
           setCarregandoProdutos(false);
@@ -529,6 +546,7 @@ export function EstoqueProvider({ children }: { children: ReactNode }) {
       online,
       pendentes,
       contatoPerdido,
+      conciliando,
       salvarContagem,
       sincronizar,
       contextoLog,
@@ -549,6 +567,7 @@ export function EstoqueProvider({ children }: { children: ReactNode }) {
       online,
       pendentes,
       contatoPerdido,
+      conciliando,
       salvarContagem,
       sincronizar,
       contextoLog,

@@ -24,6 +24,7 @@ export function TelaContagem() {
   const {
     produtos,
     carregandoProdutos,
+    conciliando,
     salvarContagem,
     progresso,
     somenteLeitura,
@@ -116,6 +117,22 @@ export function TelaContagem() {
         </p>
       )}
 
+      {/*
+        O painel inteiro espera o dado conciliar.
+
+        Ele ficava fora do esqueleto, que cobria só a lista. Com o cache ainda segurando os
+        documentos de uma importação anterior, o total entrava alto e ia descendo na frente
+        do funcionário — 3300 até 1600 — junto com a barra de progresso andando para trás.
+        Número que se move sozinho não é informação, é ruído que gera desconfiança na
+        contagem inteira.
+      */}
+      {carregandoProdutos || conciliando ? (
+        <div className="painel-progresso">
+          <p className="painel-progresso__numero">
+            <span className="painel-progresso__total">sincronizando…</span>
+          </p>
+        </div>
+      ) : (
       <div className="painel-progresso">
         <div className="painel-progresso__topo">
           <p className="painel-progresso__numero">
@@ -141,6 +158,7 @@ export function TelaContagem() {
           <span>{progresso.pendentes} a contar</span>
         </div>
       </div>
+      )}
 
       <div className="pilha">
         <div className="busca">

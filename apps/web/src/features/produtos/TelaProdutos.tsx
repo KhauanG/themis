@@ -43,6 +43,7 @@ export function TelaProdutos() {
     estoqueAtual,
     produtos,
     carregandoProdutos,
+    conciliando,
     ciclo,
     contextoLog,
     progresso,
@@ -299,7 +300,7 @@ export function TelaProdutos() {
     pode estar dias atrasada, ou conter os produtos de uma importação anterior — é caro de
     um jeito que não dá para desfazer. Ver `podeLiberarTela` em @themis/shared.
   */
-  if (carregandoProdutos) {
+  if (carregandoProdutos || conciliando) {
     return (
       <section className="pilha-g">
         <div>

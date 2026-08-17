@@ -58,6 +58,30 @@ Relato de campo: *"muita inconsistência, e os usuários têm que reabrir o app"
 
   Teto de 30s **só neste arquivo**. Global esconderia travamento real em outro lugar.
 
+- **O total começava alto e ia descendo — 3300 até 1600 — na frente do funcionário.**
+
+  Não era lentidão: é o cache guardando os documentos de uma importação anterior somados
+  aos novos. O servidor entrega as exclusões aos poucos, e o número cai ao vivo. Daí o
+  ~dobro no início.
+
+  A 2.14.1 já segurava a **lista** atrás do esqueleto, mas os números ficavam de fora, em
+  dois lugares: o cabeçalho do `Layout` e o painel de progresso do `TelaContagem`. O
+  esqueleto cobria a lista enquanto o total descia logo acima dele.
+
+  Havia ainda um segundo vazamento: `carregandoProdutos` é solto no teto de 8s, e num
+  catálogo de milhares de itens em wifi de loja a conciliação passa disso. Mesmo com o
+  esqueleto fora, os números continuavam se mexendo.
+
+  Agora o contexto expõe `conciliando` — verdadeiro enquanto `metadata.fromCache` indicar
+  que a consulta não está em dia com o servidor —, e **nenhum total vai para a tela**
+  enquanto ele for verdadeiro. No lugar, "sincronizando…". Vale para o cabeçalho, o painel
+  de progresso e a tela de Produtos, onde o número fica ao lado de "Apagar todos".
+
+  A lista continua utilizável nesse intervalo, de propósito: bloquear a contagem por até
+  meio minuto seria pior que mostrar itens a mais. O que sai da tela é só o número que se
+  move sozinho — porque número que se move sozinho não é informação, é motivo para
+  desconfiar da contagem inteira.
+
 ### Adicionado
 
 - **Tela de abertura enquanto a lista de estoques carrega.** Havia um vão: o login
