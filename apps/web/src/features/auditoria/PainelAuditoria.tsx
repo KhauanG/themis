@@ -81,7 +81,8 @@ const CLASSE_STATUS: Record<StatusAuditoria, string> = {
 };
 
 export function PainelAuditoria() {
-  const { produtos, estoqueAtual, ciclo, contextoLog } = useEstoque();
+  const { produtos, estoqueAtual, ciclo, contextoLog, carregandoProdutos, conciliando } =
+    useEstoque();
   const { permissoes } = useAuth();
   const { mostrar } = useToast();
 
@@ -284,7 +285,18 @@ export function PainelAuditoria() {
     [produtos],
   );
 
-  if (carregando) return <Esqueleto linhas={5} />;
+  /*
+    A tabela "ao vivo" sai da lista do contexto, e enquanto o Firestore concilia ela pode
+    conter os produtos de uma importação anterior guardados no cache. Aqui isso não é só
+    ruído visual: esta tela **exporta** PDF e planilha, e um relatório errado circula por
+    e-mail e vira decisão.
+
+    Auditoria salva não passa por aqui de propósito — é um retrato imutável, já conciliado
+    quando foi gravado.
+  */
+  if (carregando || (aoVivo && (carregandoProdutos || conciliando))) {
+    return <Esqueleto linhas={5} />;
+  }
 
   return (
     <section className="pilha-g">

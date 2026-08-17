@@ -202,7 +202,16 @@ export function EstoqueProvider({ children }: { children: ReactNode }) {
    * Derivado dos produtos, como o progresso: é a mesma verdade em qualquer aparelho, sem
    * depender de um interruptor que alguém precise lembrar de ligar.
    */
-  const rodadaFechada = useMemo(() => contagemFechada(produtos), [produtos]);
+  const rodadaFechada = useMemo(
+    // Lista provisória não fecha rodada. Um produto CONFERIDO de um ciclo antigo, ainda no
+    // cache, travaria a contagem do estoque inteiro com a mensagem "contagem encerrada" —
+    // e o funcionário ficaria parado sem entender, até a conciliação terminar.
+    //
+    // Ser permissivo aqui é seguro: quem realmente impede alterar item conferido é
+    // `podeAlterarStatusProduto` nas Security Rules. A interface esconde, a regra protege.
+    () => !carregandoProdutos && !conciliando && contagemFechada(produtos),
+    [produtos, carregandoProdutos, conciliando],
+  );
 
   const alterarConfiguracoes = useCallback(
     async (mudanca: Partial<Configuracoes>) => {

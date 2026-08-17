@@ -18,7 +18,8 @@ interface Props {
 }
 
 export function ModalFinalizar({ aberto, onFechar }: Props) {
-  const { estoqueAtual, produtos, ciclo, contextoLog, contagemFechada } = useEstoque();
+  const { estoqueAtual, produtos, ciclo, contextoLog, contagemFechada, carregandoProdutos, conciliando } =
+    useEstoque();
   const { usuario, permissoes } = useAuth();
   const { mostrar } = useToast();
 
@@ -26,6 +27,19 @@ export function ModalFinalizar({ aberto, onFechar }: Props) {
   const [salvando, setSalvando] = useState(false);
 
   const estatisticas = calcularEstatisticas(produtos);
+  /**
+   * Lista ainda não conciliada com o servidor.
+   *
+   * É a trava mais importante deste modal. Finalizar grava um **snapshot permanente** em
+   * `auditorias` e incrementa o ciclo — as duas coisas difíceis de desfazer. Feito enquanto
+   * o cache ainda tem os documentos de uma importação anterior, a auditoria nasce com
+   * milhares de produtos fantasmas e estatísticas erradas, e vira o registro oficial
+   * daquela contagem.
+   *
+   * O modal é alcançável pelo menu de **qualquer** tela, então não adianta a tela de
+   * Produtos estar protegida: a trava precisa estar aqui.
+   */
+  const listaProvisoria = carregandoProdutos || conciliando;
   const confirmado = texto.trim().toUpperCase() === CONFIRMACAO;
 
   function fechar() {
@@ -34,7 +48,7 @@ export function ModalFinalizar({ aberto, onFechar }: Props) {
   }
 
   async function finalizar() {
-    if (!confirmado || salvando || !estoqueAtual || !usuario) return;
+    if (!confirmado || salvando || listaProvisoria || !estoqueAtual || !usuario) return;
     setSalvando(true);
 
     try {
@@ -98,7 +112,7 @@ export function ModalFinalizar({ aberto, onFechar }: Props) {
             className="botao botao--perigo"
             type="button"
             onClick={() => void finalizar()}
-            disabled={!confirmado || salvando}
+            disabled={!confirmado || salvando || listaProvisoria}
           >
             {salvando ? 'Salvando...' : 'Finalizar'}
           </button>
@@ -109,6 +123,14 @@ export function ModalFinalizar({ aberto, onFechar }: Props) {
         Isso salva a contagem do <strong>ciclo {ciclo}</strong> como auditoria e abre o{' '}
         <strong>ciclo {ciclo + 1}</strong>.
       </p>
+
+      {listaProvisoria && (
+        <p className="aviso" role="alert">
+          <strong>Aguarde a sincronização.</strong> A lista deste estoque ainda está sendo
+          conciliada com o servidor, e finalizar agora gravaria a auditoria com números
+          errados. Isso leva alguns segundos.
+        </p>
+      )}
 
       {/*
         Finalizar NÃO zera a contagem — nunca zerou, nem no 1.x. Ele salva o retrato e

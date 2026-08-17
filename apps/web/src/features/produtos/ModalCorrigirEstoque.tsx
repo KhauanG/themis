@@ -33,7 +33,8 @@ interface Progresso {
  * desenho de duas confirmações do 1.x.
  */
 export function ModalCorrigirEstoque({ aberto, onFechar }: Props) {
-  const { estoqueAtual, produtos, ciclo, contextoLog, online } = useEstoque();
+  const { estoqueAtual, produtos, ciclo, contextoLog, online, carregandoProdutos, conciliando } =
+    useEstoque();
   const { mostrar } = useToast();
 
   const [etapa, setEtapa] = useState<Etapa>('inicio');
@@ -51,6 +52,16 @@ export function ModalCorrigirEstoque({ aberto, onFechar }: Props) {
 
   async function rodarDiagnostico() {
     if (!estoqueAtual) return;
+    /*
+      A tela de Produtos já barra a abertura deste modal enquanto a lista não conciliou,
+      mas a conciliação pode recomeçar com o modal aberto — uma queda de rede e a volta
+      bastam. Repetir a checagem aqui é barato, e o que está do outro lado é o estoque
+      real da loja no ERP: mandar quantidade de produto fantasma é erro que sai do app.
+    */
+    if (carregandoProdutos || conciliando) {
+      mostrar('A lista ainda está sincronizando. Aguarde alguns segundos e tente de novo.', 'warning');
+      return;
+    }
     setEtapa('diagnosticando');
     try {
       const d = await diagnosticar(estoqueAtual.id, produtos, (texto) => setProgresso({ texto }));

@@ -82,6 +82,29 @@ Relato de campo: *"muita inconsistência, e os usuários têm que reabrir o app"
   move sozinho — porque número que se move sozinho não é informação, é motivo para
   desconfiar da contagem inteira.
 
+- **Varredura completa atrás de outras informações contaminadas pelo cache.** A mesma lista
+  provisória alimentava cinco lugares além dos totais, e nenhum deles estava protegido:
+
+  | Onde | O que acontecia | Gravidade |
+  |---|---|---|
+  | **Finalizar e salvar** | gravava a auditoria com os produtos fantasmas e fechava o ciclo | **alta** — permanente |
+  | **Painel de auditoria** | tabela e exportações de PDF/planilha com a lista inflada | alta — relatório circula |
+  | **Corrigir estoque** | mandaria quantidade de produto fantasma ao ERP | alta — sai do app |
+  | **Contagem encerrada** | um `CONFERIDO` antigo no cache travava o estoque inteiro | média — bloqueia trabalho |
+  | Tela de Produtos | total ao lado de "Apagar todos" | já coberto acima |
+
+  **Finalizar** era o pior: alcançável pelo menu de qualquer tela, então proteger a tela de
+  Produtos não bastava. Agora o botão fica desabilitado com aviso enquanto a lista não
+  conciliar.
+
+  **Contagem encerrada** deixou de ser calculada com lista provisória. Ser permissivo aí é
+  seguro: quem impede alterar item conferido é `podeAlterarStatusProduto` nas Security
+  Rules. A interface esconde, a regra protege — travar a tela por causa de um fantasma do
+  cache só parava o funcionário sem motivo.
+
+  **Auditoria salva** não passa por nenhuma dessas travas, de propósito: é retrato imutável,
+  já conciliado quando foi gravado.
+
 ### Adicionado
 
 - **Tela de abertura enquanto a lista de estoques carrega.** Havia um vão: o login
