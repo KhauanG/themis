@@ -214,6 +214,19 @@ A tag vem **depois** do commit de propósito: ela precisa apontar para o commit 
 changelog escrito. Tag movida depois é pior que tag nenhuma — quem já clonou fica com outra
 ideia do que aquela versão significa.
 
+⚠️ **Não mova a tag para acumular trabalho não publicado.** A tentação aparece quando vários
+commits ficam prontos antes do push: é cômodo apagar a tag e recriá-la no commit mais
+recente. Funciona até alguém publicar no meio — e aí a tag local e a do remoto apontam para
+commits diferentes com o mesmo número. Aconteceu duas vezes com a v2.15.x.
+
+Se houver trabalho acumulado, **suba a casa da versão** em vez de mover a tag: o que já foi
+publicado fica com o número que tinha, e o novo ganha o seguinte. Para conferir antes de
+marcar:
+
+```powershell
+git ls-remote --tags origin
+```
+
 ### O que a trava cobra
 
 `npm run verificar-versao` falha se:

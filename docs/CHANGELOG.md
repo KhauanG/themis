@@ -6,15 +6,14 @@ Categorias: **Adicionado**, **Alterado**, **Corrigido**, **Removido**, **Seguran
 
 ---
 
-## 2.15.1 — 2026-08-17
+## 2.15.2 — 2026-08-17
 
-A 2.15.0 tirou a causa do congelamento. Esta trata o que a equipe via **enquanto** o
-Firestore concilia cache e servidor.
+Correção de uma regressão que a 2.15.1 levou para produção.
 
 ### Corrigido
 
-- **"Sincronizando…" ficava eterno — regressão introduzida nesta mesma versão, corrigida
-  antes de publicar.**
+- **"Sincronizando…" ficava eterno — regressão da 2.15.1, que chegou a ir para
+  produção.**
 
   O aviso era amarrado direto ao `fromCache` do último snapshot. Parece certo e não é:
   **"o snapshot do servidor não vem" é um estado que não produz evento.** Offline, o
@@ -32,6 +31,15 @@ Firestore concilia cache e servidor.
   é melhor que "…" eterno, que é o que faz o funcionário fechar e reabrir o app.
 
   Cinco testes cobrem as cinco situações.
+
+---
+
+## 2.15.1 — 2026-08-17
+
+A 2.15.0 tirou a causa do congelamento. Esta trata o que a equipe via **enquanto** o
+Firestore concilia cache e servidor.
+
+### Corrigido
 
 - **O total começava alto e ia descendo — 3300 até 1600 — na frente do funcionário.**
 
