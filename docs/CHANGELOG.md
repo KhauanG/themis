@@ -13,6 +13,26 @@ Firestore concilia cache e servidor.
 
 ### Corrigido
 
+- **"Sincronizando…" ficava eterno — regressão introduzida nesta mesma versão, corrigida
+  antes de publicar.**
+
+  O aviso era amarrado direto ao `fromCache` do último snapshot. Parece certo e não é:
+  **"o snapshot do servidor não vem" é um estado que não produz evento.** Offline, o
+  primeiro snapshot chega do cache, nenhum outro chega depois, e não existia nada para
+  desligar o aviso.
+
+  O efeito era o pior possível: "sincronizando…" para sempre, totais escondidos e o botão
+  **Finalizar travado** — justamente para quem está offline, que é o cenário principal do
+  app. A correção de um problema de exibição tinha quebrado a contagem offline.
+
+  `conciliando` passou a ser **derivado**, por `estaConciliando`, com três saídas: offline
+  não espera (o servidor não vem, e a faixa já avisa), inscrição caída não espera (nada
+  está a caminho), e há um teto absoluto de 60s — wifi de loja com portal cativo responde a
+  tudo menos ao Firestore, e o app segue se achando online. Passado o teto, número atrasado
+  é melhor que "…" eterno, que é o que faz o funcionário fechar e reabrir o app.
+
+  Cinco testes cobrem as cinco situações.
+
 - **O total começava alto e ia descendo — 3300 até 1600 — na frente do funcionário.**
 
   Não era lentidão: é o cache guardando os documentos de uma importação anterior somados

@@ -78,3 +78,59 @@ export function podeLiberarTela({ doCache, online, esgotou }: EstadoDoSnapshot):
   if (!online) return true;
   return esgotou;
 }
+
+/**
+ * Teto absoluto para continuar dizendo "sincronizando".
+ *
+ * Existe porque a conciliação pode simplesmente nunca terminar sem que nada avise: wifi de
+ * loja com portal cativo responde a tudo menos ao Firestore, e o app fica se achando
+ * online. Passado o teto, mostrar um número possivelmente atrasado é melhor que um "…"
+ * eterno — o eterno é o que faz o funcionário fechar e reabrir o app.
+ */
+export const TETO_CONCILIACAO_MS = 60_000;
+
+export interface EstadoConciliacao {
+  /** O último snapshot recebido veio do cache. */
+  snapshotDoCache: boolean;
+  /** O aparelho tem conexão real (não só interface de rede). */
+  online: boolean;
+  /** A inscrição em tempo real caiu e não voltou. */
+  contatoPerdido: boolean;
+  /** O teto absoluto estourou. */
+  esgotou: boolean;
+}
+
+/**
+ * O app ainda deve esconder os totais e dizer "sincronizando"?
+ *
+ * ## O bug que isto existe para não repetir
+ *
+ * A primeira versão amarrava isso direto ao `fromCache` do último snapshot. Parece certo e
+ * não é: **"o snapshot do servidor não vem" é um estado que não produz evento**. Offline, o
+ * primeiro snapshot chega do cache, nenhum outro chega depois, e não existe nada para
+ * desligar o aviso. Resultado em campo: "sincronizando…" eterno, totais escondidos e o
+ * botão Finalizar travado — justamente para quem está offline, que é o cenário principal
+ * do app.
+ *
+ * Daí as três saídas abaixo. Todas dizem a mesma coisa: **só faz sentido esperar quando há
+ * algo a caminho.**
+ *
+ * | Situação | Espera? | Por quê |
+ * |---|---|---|
+ * | Snapshot do servidor | não | o dado é a verdade |
+ * | Offline | não | o servidor não vem; o cache é o melhor que há, e a faixa já avisa |
+ * | Inscrição caída | não | nada está a caminho; a faixa já avisa |
+ * | Cache, online, dentro do teto | **sim** | o snapshot do servidor está vindo |
+ * | Teto estourado | não | número atrasado é melhor que "…" eterno |
+ */
+export function estaConciliando({
+  snapshotDoCache,
+  online,
+  contatoPerdido,
+  esgotou,
+}: EstadoConciliacao): boolean {
+  if (!snapshotDoCache) return false;
+  if (!online) return false;
+  if (contatoPerdido) return false;
+  return !esgotou;
+}

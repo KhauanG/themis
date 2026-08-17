@@ -11,7 +11,9 @@ import {
 import {
   ESPERA_CONCILIACAO_MS,
   ESPERA_SERVIDOR_MS,
+  TETO_CONCILIACAO_MS,
   contagemFechada,
+  estaConciliando,
   filtrarEstoquesPermitidos,
   foraDoErp,
   podeLiberarTela,
@@ -119,7 +121,16 @@ export function EstoqueProvider({ children }: { children: ReactNode }) {
    *
    * Enquanto isto for `true`, nenhum total vai para a tela.
    */
-  const [conciliando, setConciliando] = useState(false);
+  /**
+   * O último snapshot recebido veio do cache. **Dado bruto, não decisão.**
+   *
+   * A decisão é `conciliando`, mais abaixo, e passa por `estaConciliando`. A primeira
+   * versão usava este booleano direto e ficava "sincronizando…" eterno offline — ver o
+   * comentário daquela função.
+   */
+  const [snapshotDoCache, setSnapshotDoCache] = useState(false);
+  /** O teto absoluto da conciliação estourou. */
+  const [conciliacaoEsgotada, setConciliacaoEsgotada] = useState(false);
   const [online, setOnline] = useState(navigator.onLine);
   const [fila, setFila] = useState<AlteracaoPendente[]>(() => carregarFila());
   const [configuracoes, setConfiguracoes] = useState<Configuracoes>(CONFIGURACOES_PADRAO);
@@ -161,6 +172,21 @@ export function EstoqueProvider({ children }: { children: ReactNode }) {
   );
 
   const pendentes = fila.length;
+
+  /**
+   * Ainda vale esconder os totais e dizer "sincronizando"?
+   *
+   * Derivado, e não um booleano vindo do snapshot: **"o snapshot do servidor não vem" é um
+   * estado que não produz evento**. Offline, o primeiro snapshot chega do cache e nenhum
+   * outro chega depois — não existiria nada para desligar o aviso, e ele ficava eterno.
+   * A regra e o histórico estão em `estaConciliando`, com teste.
+   */
+  const conciliando = estaConciliando({
+    snapshotDoCache,
+    online,
+    contatoPerdido,
+    esgotou: conciliacaoEsgotada,
+  });
 
   // Derivado dos produtos, não de rastreamento local: é a mesma verdade em todo aparelho.
   const progresso = useMemo(() => progressoContagem(produtos), [produtos]);
@@ -312,7 +338,8 @@ export function EstoqueProvider({ children }: { children: ReactNode }) {
 
     setProdutosBrutos([]);
     setCarregandoProdutos(true);
-    setConciliando(true);
+    setSnapshotDoCache(true);
+    setConciliacaoEsgotada(false);
 
     let esgotou = false;
     // Teto de espera: rede lenta é pior que rede ausente — o app se acha online e ficaria
@@ -323,13 +350,22 @@ export function EstoqueProvider({ children }: { children: ReactNode }) {
       setCarregandoProdutos(false);
     }, ESPERA_CONCILIACAO_MS);
 
+    /*
+      Teto absoluto, separado do que solta o esqueleto. A conciliação pode nunca terminar
+      sem que nada avise — wifi de loja com portal cativo responde a tudo menos ao
+      Firestore, e o app segue se achando online. Passado isto, os números voltam à tela
+      mesmo provisórios: número atrasado é melhor que "…" eterno, que é o que faz o
+      funcionário fechar e reabrir o app.
+    */
+    const tetoAbsoluto = setTimeout(() => setConciliacaoEsgotada(true), TETO_CONCILIACAO_MS);
+
     const parar = ouvirProdutos(
       estoqueId,
       (lista, doCache) => {
         setProdutosBrutos(lista);
         setContatoPerdido(false);
         // `doCache` só vira false quando a consulta está em dia com o servidor.
-        setConciliando(doCache);
+        setSnapshotDoCache(doCache);
         if (podeLiberarTela({ doCache, online: navigator.onLine, esgotou })) {
           clearTimeout(temporizador);
           setCarregandoProdutos(false);
@@ -348,6 +384,7 @@ export function EstoqueProvider({ children }: { children: ReactNode }) {
 
     return () => {
       clearTimeout(temporizador);
+      clearTimeout(tetoAbsoluto);
       parar();
     };
   }, [estoqueId, usuario, mostrar]);
