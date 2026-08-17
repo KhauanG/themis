@@ -6,57 +6,12 @@ Categorias: **Adicionado**, **Alterado**, **Corrigido**, **Removido**, **Seguran
 
 ---
 
-## 2.15.0 — 2026-08-17
+## 2.15.1 — 2026-08-17
 
-Relato de campo: *"muita inconsistência, e os usuários têm que reabrir o app"*.
+A 2.15.0 tirou a causa do congelamento. Esta trata o que a equipe via **enquanto** o
+Firestore concilia cache e servidor.
 
 ### Corrigido
-
-- **Os quatro listeners em tempo real morriam para sempre no primeiro erro.** Era a causa
-  do "tem que reabrir o app", e valia para produtos, estoques, perfil e configurações.
-
-  `onSnapshot` **encerra a inscrição** quando chama o callback de erro — não reabre, não
-  tenta de novo. Falha de rede comum o SDK resolve sozinho por baixo; o callback só dispara
-  no que ele considera definitivo: `permission-denied`, `unauthenticated` (token que não
-  renovou a tempo numa rede de loja ruim), `resource-exhausted` (cota).
-
-  Os quatro handlers faziam a mesma coisa: `console.warn` e desistir. A partir dali o
-  aparelho parava de receber qualquer atualização, **sem nenhum sinal na tela**. Reabrir o
-  app remontava os efeitos e criava inscrições novas — daí o hábito da equipe.
-
-  Agora todas passam por `assinaturaResiliente`: retentativa com espera dobrando (1s → 60s,
-  com teto), e reabertura imediata quando a rede volta ou o app sai do plano de fundo —
-  **só se a inscrição realmente caiu**. Reinscrever uma inscrição viva a cada troca de
-  aplicativo custaria a releitura da coleção inteira, milhares de leituras por aparelho.
-
-  A queda do perfil era a mais traiçoeira: sem ele `papelDe()` devolve `'comum'`, e o master
-  perdia os itens de menu sem entender por quê.
-
-- **O congelamento agora é visível.** Depois de três falhas seguidas, a faixa do topo avisa
-  que não há atualização em tempo real e oferece recarregar. Antes a tela ficava mostrando
-  dado velho calada — pior que estar offline, porque offline o usuário sabe.
-
-  Três falhas, e não uma: as duas primeiras costumam ser a mesma rede oscilando, e alarme
-  que toca à toa é alarme que a equipe ignora quando é de verdade.
-
-- **Teste intermitente de `planilha.test.ts`**, que falhava sem padrão desde a 2.10 e já
-  tinha custado tempo de investigação em três sessões.
-
-  Diagnóstico, com medição: `lerPlanilha` faz `await import('exceljs')`, um CommonJS de
-  ~2 MB. Com a transformação em cache, o arquivo roda em 0,4s; na **primeira rodada depois
-  de qualquer arquivo mudar**, a transformação é refeita e o antivírus varre o que acabou de
-  ser escrito — passa de 5s e estoura o teto padrão do vitest.
-
-  | Condição | Resultado |
-  |---|---|
-  | 1ª rodada após arquivos mudarem | falhou, ~10s — 3 ocorrências |
-  | Rodadas seguintes, mesma árvore | passa, 0,4–1,1s |
-  | 25 rodadas seguidas, árvore congelada | 25/25 passaram |
-
-  Duas hipóteses caíram por medição antes desta: cache do Vite apagado à mão (746ms) e 20
-  processos disputando 16 CPUs (1085ms). Nenhuma reproduziu.
-
-  Teto de 30s **só neste arquivo**. Global esconderia travamento real em outro lugar.
 
 - **O total começava alto e ia descendo — 3300 até 1600 — na frente do funcionário.**
 
@@ -122,6 +77,60 @@ Relato de campo: *"muita inconsistência, e os usuários têm que reabrir o app"
 - **O esqueleto agora diz o que está fazendo.** Espera de vinte e poucos segundos sem texto
   lê como travamento, e o funcionário fecha e reabre o app — exatamente o hábito que estas
   telas existem para desfazer.
+
+---
+
+## 2.15.0 — 2026-08-17
+
+Relato de campo: *"muita inconsistência, e os usuários têm que reabrir o app"*.
+
+### Corrigido
+
+- **Os quatro listeners em tempo real morriam para sempre no primeiro erro.** Era a causa
+  do "tem que reabrir o app", e valia para produtos, estoques, perfil e configurações.
+
+  `onSnapshot` **encerra a inscrição** quando chama o callback de erro — não reabre, não
+  tenta de novo. Falha de rede comum o SDK resolve sozinho por baixo; o callback só dispara
+  no que ele considera definitivo: `permission-denied`, `unauthenticated` (token que não
+  renovou a tempo numa rede de loja ruim), `resource-exhausted` (cota).
+
+  Os quatro handlers faziam a mesma coisa: `console.warn` e desistir. A partir dali o
+  aparelho parava de receber qualquer atualização, **sem nenhum sinal na tela**. Reabrir o
+  app remontava os efeitos e criava inscrições novas — daí o hábito da equipe.
+
+  Agora todas passam por `assinaturaResiliente`: retentativa com espera dobrando (1s → 60s,
+  com teto), e reabertura imediata quando a rede volta ou o app sai do plano de fundo —
+  **só se a inscrição realmente caiu**. Reinscrever uma inscrição viva a cada troca de
+  aplicativo custaria a releitura da coleção inteira, milhares de leituras por aparelho.
+
+  A queda do perfil era a mais traiçoeira: sem ele `papelDe()` devolve `'comum'`, e o master
+  perdia os itens de menu sem entender por quê.
+
+- **O congelamento agora é visível.** Depois de três falhas seguidas, a faixa do topo avisa
+  que não há atualização em tempo real e oferece recarregar. Antes a tela ficava mostrando
+  dado velho calada — pior que estar offline, porque offline o usuário sabe.
+
+  Três falhas, e não uma: as duas primeiras costumam ser a mesma rede oscilando, e alarme
+  que toca à toa é alarme que a equipe ignora quando é de verdade.
+
+- **Teste intermitente de `planilha.test.ts`**, que falhava sem padrão desde a 2.10 e já
+  tinha custado tempo de investigação em três sessões.
+
+  Diagnóstico, com medição: `lerPlanilha` faz `await import('exceljs')`, um CommonJS de
+  ~2 MB. Com a transformação em cache, o arquivo roda em 0,4s; na **primeira rodada depois
+  de qualquer arquivo mudar**, a transformação é refeita e o antivírus varre o que acabou de
+  ser escrito — passa de 5s e estoura o teto padrão do vitest.
+
+  | Condição | Resultado |
+  |---|---|
+  | 1ª rodada após arquivos mudarem | falhou, ~10s — 3 ocorrências |
+  | Rodadas seguintes, mesma árvore | passa, 0,4–1,1s |
+  | 25 rodadas seguidas, árvore congelada | 25/25 passaram |
+
+  Duas hipóteses caíram por medição antes desta: cache do Vite apagado à mão (746ms) e 20
+  processos disputando 16 CPUs (1085ms). Nenhuma reproduziu.
+
+  Teto de 30s **só neste arquivo**. Global esconderia travamento real em outro lugar.
 
 ### Adicionado
 
