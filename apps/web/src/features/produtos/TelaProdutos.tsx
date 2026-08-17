@@ -307,7 +307,7 @@ export function TelaProdutos() {
           <h1 className="titulo-tela">Produtos e estoque</h1>
           <p className="subtitulo">{estoqueAtual?.nome ?? '—'} · carregando…</p>
         </div>
-        <Esqueleto linhas={6} />
+        <Esqueleto linhas={6} texto="Sincronizando os produtos com o servidor…" />
       </section>
     );
   }

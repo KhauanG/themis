@@ -641,3 +641,10 @@ select.campo__entrada {
   font-family: var(--fonte-numero);
   font-variant-numeric: tabular-nums;
 }
+
+/* Rótulo acima do esqueleto. Espera longa sem texto lê como travamento. */
+.esqueleto__texto {
+  padding: var(--e3) 0;
+  font-size: var(--t-menor);
+  color: var(--texto-2);
+}

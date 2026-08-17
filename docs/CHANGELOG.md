@@ -105,6 +105,24 @@ Relato de campo: *"muita inconsistência, e os usuários têm que reabrir o app"
   **Auditoria salva** não passa por nenhuma dessas travas, de propósito: é retrato imutável,
   já conciliado quando foi gravado.
 
+- **Teto de espera da lista de produtos separado, e bem maior: 25s.** Era 8s, o mesmo dos
+  estoques.
+
+  Conciliar um catálogo de milhares de documentos em wifi de loja passa de 8s com folga, e
+  soltar a tela no meio devolvia o problema pela porta dos fundos: a lista aparecia com os
+  produtos da importação anterior misturados aos atuais. Os totais já ficavam escondidos,
+  mas os **itens duplicados na lista** continuavam visíveis.
+
+  A tela de contagem fica aberta por horas; 25 segundos na abertura não pesam perto de uma
+  contagem em que ninguém acredita.
+
+  ⚠️ **Não atrasa quem está offline**: `podeLiberarTela` libera na hora quando não há
+  conexão. Segurar ali impediria a contagem offline, que é o motivo de o cache existir.
+
+- **O esqueleto agora diz o que está fazendo.** Espera de vinte e poucos segundos sem texto
+  lê como travamento, e o funcionário fecha e reabre o app — exatamente o hábito que estas
+  telas existem para desfazer.
+
 ### Adicionado
 
 - **Tela de abertura enquanto a lista de estoques carrega.** Havia um vão: o login

@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from 'react';
 import {
+  ESPERA_CONCILIACAO_MS,
   ESPERA_SERVIDOR_MS,
   contagemFechada,
   filtrarEstoquesPermitidos,
@@ -320,7 +321,7 @@ export function EstoqueProvider({ children }: { children: ReactNode }) {
     const temporizador = setTimeout(() => {
       esgotou = true;
       setCarregandoProdutos(false);
-    }, ESPERA_SERVIDOR_MS);
+    }, ESPERA_CONCILIACAO_MS);
 
     const parar = ouvirProdutos(
       estoqueId,

@@ -217,7 +217,7 @@ export function TelaContagem() {
         responder. Ver `podeLiberarTela` em @themis/shared.
       */}
       {carregandoProdutos ? (
-        <Esqueleto linhas={6} />
+        <Esqueleto linhas={6} texto="Sincronizando os produtos com o servidor…" />
       ) : lista.length === 0 ? (
         <div className="vazio">
           <p className="vazio__titulo">

@@ -26,8 +26,31 @@
  * Daí a decisão ter três entradas, e não uma.
  */
 
-/** Quanto esperar pelo servidor antes de liberar com o que veio do cache. */
+/**
+ * Quanto esperar pelo servidor antes de liberar com o que veio do cache.
+ *
+ * Vale para coleções pequenas — a lista de estoques são algumas dezenas de documentos, e
+ * 8s é folga larga. Para os produtos existe um teto próprio, bem maior: ver abaixo.
+ */
 export const ESPERA_SERVIDOR_MS = 8_000;
+
+/**
+ * Teto de espera para a lista de **produtos**.
+ *
+ * Muito maior que o dos estoques, e de propósito. Conciliar um catálogo de milhares de
+ * documentos em wifi de loja passa de 8s com folga — e soltar a tela no meio devolve
+ * exatamente o problema que este módulo existe para resolver: a lista aparece com os
+ * produtos de uma importação anterior misturados aos atuais, o funcionário vê item
+ * duplicado, e a confiança na contagem inteira vai junto.
+ *
+ * O custo de esperar é baixo e o de errar é alto. A tela de contagem fica aberta por horas;
+ * 25 segundos na abertura não pesam perto de uma contagem que ninguém acredita.
+ *
+ * ⚠️ Isto **não** atrasa quem está offline: `podeLiberarTela` libera na hora quando não há
+ * conexão, porque aí o snapshot do servidor não vem mesmo e segurar impediria a contagem
+ * offline — que é o motivo de o cache existir.
+ */
+export const ESPERA_CONCILIACAO_MS = 25_000;
 
 export interface EstadoDoSnapshot {
   /** O snapshot veio do cache local, sem confirmação do servidor. */
