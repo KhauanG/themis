@@ -33,3 +33,7 @@ produtos-invalidos.json
 *.xlsx
 *.xls
 *.csv
+
+# Indice do CodeGraph. Gerado por `codegraph init`, ~4 MB, e reconstruido
+# a partir do codigo — nao versionar.
+.codegraph/
