@@ -6,6 +6,44 @@ Categorias: **Adicionado**, **Alterado**, **Corrigido**, **Removido**, **Seguran
 
 ---
 
+## 2.18.0 — 2026-08-28
+
+### Alterado
+
+- **Qualquer um que possa contar no estoque agora abre o lote.** Na 2.17 era só admin — e
+  não por escolha de produto: a regra de `inventories` só aceitava campo fora dos quatro de
+  ciclo pelo ramo `isAdminOrMaster()`.
+
+  Quem conta é quem sabe qual lote está na mão, e depender de um admin para começar a
+  contagem virava fila no depósito.
+
+  ⚠️ **Exige publicar as Security Rules** (`npm run deploy-rules`). Enquanto elas não
+  subirem, o card aparece para todos mas a gravação é negada para quem não é admin. É a
+  única alteração desta versão que não basta subir o site.
+
+  A barreira que **continua**: `podeAcessarEstoque`. Ninguém abre lote em estoque que não
+  pode contar.
+
+### Segurança
+
+- `lote` e `loteCiclo` entraram no `hasOnly` do ramo de usuário comum em `inventories`, com
+  tipo e **teto de 40 caracteres** validados na regra. Sem o teto, um cliente adulterado
+  gravaria texto arbitrário no documento do estoque.
+
+- ⚠️ **`abrirLote` deixou de enviar `name` no payload.** Enquanto o lote era só de admin, ele
+  ia junto para satisfazer `validInventoryData`. Pelo ramo do usuário comum isso é fatal: o
+  conjunto é `hasOnly`, e `name` entra no diff sempre que o valor enviado diferir em um
+  espaço sequer — negando a escrita inteira. Mesmo formato do bug que o `createdAt`
+  regenerado causou no 1.x.
+
+  Agora o payload leva **só** `lote`, `loteCiclo` e `updatedAt`.
+
+- 9 testes de regra novos, incluindo os que fixam o que **não** mudou: o lote não vira
+  carona para renomear o estoque, não vale em estoque alheio, e não aceita tipo nem tamanho
+  fora do previsto.
+
+---
+
 ## 2.17.0 — 2026-08-28
 
 A rodada de contagem passa a ser identificada por **Lote**, digitado pela equipe, no lugar

@@ -120,7 +120,7 @@ a verdadeira.
 | `users` | próprio ou master | próprio³ | próprio³ ou master | master |
 
 ¹ com `validProductData` e `podeAlterarStatusProduto`
-² usuário comum só os quatro campos de ciclo
+² usuário comum só os campos da rodada: os quatro do ciclo mais `lote` e `loteCiclo`
 ³ sem elevar o próprio papel
 
 ### `podeAlterarStatusProduto`

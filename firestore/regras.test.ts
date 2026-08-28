@@ -187,6 +187,83 @@ describe('podeAcessarEstoque — ciclo em inventories', () => {
 });
 
 /**
+ * Lote da rodada, em `inventories`.
+ *
+ * Na 2.17 só admin abria, por limitação da própria regra. A 2.18 acrescentou `lote` e
+ * `loteCiclo` ao conjunto que o usuário comum pode alterar — quem conta é quem sabe qual
+ * lote está na mão. Estes testes fixam o que ele ganhou **e o que continua barrado**.
+ */
+describe('lote em inventories', () => {
+  const abrir = (db: ReturnType<typeof como>, id: string, lote: string) =>
+    updateDoc(doc(db, `inventories/${id}`), { lote, loteCiclo: 1, updatedAt: new Date() });
+
+  it('usuário comum abre o lote do estoque que pode contar', async () => {
+    await assertSucceeds(abrir(como('semLista'), 'X', 'LOTE A'));
+  });
+
+  it('master também abre', async () => {
+    await assertSucceeds(abrir(como('master'), 'X', 'LOTE A'));
+  });
+
+  // A barreira que continua de pé: lote é da rodada daquele estoque.
+  it('não abre lote em estoque que não pode contar', async () => {
+    await assertFails(abrir(como('soLojaY'), 'X', 'LOTE A'));
+  });
+
+  it('não autenticado não abre', async () => {
+    await assertFails(abrir(ambiente.unauthenticatedContext().firestore(), 'X', 'LOTE A'));
+  });
+
+  /*
+    O ramo do usuário comum é `hasOnly`. Liberar o lote não pode ter aberto a porta para o
+    resto do documento — renomear o estoque continua sendo de admin.
+  */
+  it('não usa o lote como carona para renomear o estoque', async () => {
+    await assertFails(
+      updateDoc(doc(como('semLista'), 'inventories/X'), {
+        lote: 'LOTE A',
+        loteCiclo: 1,
+        name: 'Nome Roubado',
+      }),
+    );
+  });
+
+  it('recusa lote que não é texto', async () => {
+    await assertFails(
+      updateDoc(doc(como('semLista'), 'inventories/X'), { lote: 42, loteCiclo: 1 }),
+    );
+  });
+
+  // Sem teto, um cliente adulterado grava um romance no documento do estoque.
+  it('recusa lote acima do limite', async () => {
+    await assertFails(
+      updateDoc(doc(como('semLista'), 'inventories/X'), { lote: 'x'.repeat(41), loteCiclo: 1 }),
+    );
+  });
+
+  it('aceita exatamente o limite', async () => {
+    await assertSucceeds(
+      updateDoc(doc(como('semLista'), 'inventories/X'), { lote: 'x'.repeat(40), loteCiclo: 1 }),
+    );
+  });
+
+  // Finalizar e abrir lote no mesmo payload continua cabendo no conjunto da rodada.
+  it('fecha o ciclo e abre o lote na mesma escrita', async () => {
+    await assertSucceeds(
+      updateDoc(doc(como('soLojaX'), 'inventories/X'), {
+        contagemCycle: 2,
+        lastFinalizedCycle: 1,
+        lastFinalizedAt: new Date(),
+        updatedAt: new Date(),
+        lote: 'LOTE B',
+        loteCiclo: 2,
+      }),
+    );
+  });
+});
+
+
+/**
  * Item conferido sai da lista de trabalho e não volta pela mão de quem só conta. É a regra
  * que sustenta o travamento da rodada — a interface só acompanha.
  */

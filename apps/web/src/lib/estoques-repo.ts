@@ -87,43 +87,40 @@ export function ouvirEstoques(aoMudar: (estoques: Inventory[]) => void): () => v
 }
 
 /**
- * Abre o lote da rodada. **Só admin ou master.**
+ * Abre o lote da rodada. **Qualquer usuário que possa contar neste estoque.**
  *
- * Grava pelo ramo `isAdminOrMaster() && validInventoryData(...)` da regra de `inventories`,
- * que aceita campos além dos obrigatórios — por isso não foi preciso publicar regra nenhuma
- * para o lote existir.
+ * ⚠️ O payload leva **só** `lote`, `loteCiclo` e `updatedAt`. Nada mais.
  *
- * ⚠️ O caminho restrito da regra (`hasOnly` dos quatro campos de ciclo), que é o único
- * aberto a usuário comum, **não** aceita `lote`. Por isso quem conta não abre o lote: quem
- * abre é quem já tinha permissão de limpar a contagem, que é a ação que inicia a rodada.
+ * A regra de `inventories` libera o usuário comum por um ramo com `hasOnly`: o conjunto de
+ * campos alterados precisa caber na lista da rodada. Mandar `name` junto — como esta função
+ * fazia enquanto o lote era só de admin — coloca `name` no diff sempre que o valor enviado
+ * diferir em um espaço sequer, e a escrita inteira é negada. É o mesmo formato do bug que o
+ * `createdAt` regenerado causou no 1.x.
  *
  * `loteCiclo` carimba o ciclo corrente: é o que faz o lote expirar sozinho ao finalizar,
  * sem precisar de uma escrita que a regra negaria. Ver `lote.ts`.
  */
-export async function abrirLote(
-  inventoryId: string,
-  lote: string,
-  ciclo: number,
-  nome: string,
-): Promise<void> {
+export async function abrirLote(inventoryId: string, lote: string, ciclo: number): Promise<void> {
   await exigirGravacao(
     setDoc(
       doc(db, COLECAO, inventoryId),
-      // `name` vai junto porque `validInventoryData` cobra `hasAll(['name'])`, e um
-      // `merge` sem ele faria a regra negar a escrita inteira.
-      { name: nome, lote: normalizarLote(lote), loteCiclo: ciclo, updatedAt: new Date() },
+      { lote: normalizarLote(lote), loteCiclo: ciclo, updatedAt: new Date() },
       { merge: true },
     ),
     { label: 'abrir lote' },
   );
 }
 
-/** Encerra o lote sem mexer no ciclo. Usado ao limpar a contagem. Só admin ou master. */
-export async function encerrarLote(inventoryId: string, nome: string): Promise<void> {
+/**
+ * Encerra o lote sem mexer no ciclo. Usado ao limpar a contagem.
+ *
+ * Mesmo cuidado com o payload: só os campos da rodada.
+ */
+export async function encerrarLote(inventoryId: string): Promise<void> {
   await exigirGravacao(
     setDoc(
       doc(db, COLECAO, inventoryId),
-      { name: nome, lote: '', updatedAt: new Date() },
+      { lote: '', updatedAt: new Date() },
       { merge: true },
     ),
     { label: 'encerrar lote' },

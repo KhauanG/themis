@@ -508,7 +508,7 @@ export function EstoqueProvider({ children }: { children: ReactNode }) {
   const abrirLoteDaRodada = useCallback(
     async (novo: string) => {
       if (!estoqueAtual) return;
-      await abrirLote(estoqueAtual.id, novo, estoqueAtual.contagemCycle ?? 1, estoqueAtual.nome ?? estoqueAtual.id);
+      await abrirLote(estoqueAtual.id, novo, estoqueAtual.contagemCycle ?? 1);
       if (contextoLog) {
         void registrar('MODIFICAR_PRODUTO', contextoLog, {
           acao: 'ABRIR_LOTE',

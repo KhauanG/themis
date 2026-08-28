@@ -103,7 +103,9 @@ service cloud.firestore {
         (!('updatedAt' in data) || data.updatedAt is timestamp) &&
         (!('contagemCycle' in data) || data.contagemCycle is number) &&
         (!('lastFinalizedCycle' in data) || data.lastFinalizedCycle is number) &&
-        (!('lastFinalizedAt' in data) || data.lastFinalizedAt is timestamp);
+        (!('lastFinalizedAt' in data) || data.lastFinalizedAt is timestamp) &&
+        (!('lote' in data) || (data.lote is string && data.lote.size() <= 40)) &&
+        (!('loteCiclo' in data) || data.loteCiclo is number);
     }
 
     // Usuário comum só pode marcar productStatus 'ATUALIZADO' e não pode tocar nos
@@ -181,8 +183,10 @@ service cloud.firestore {
     match /inventories/{inventoryId} {
       allow read: if signedIn();
       allow create: if isAdminOrMaster() && validInventoryData(request.resource.data);
-      // Update normal (nome/descrição/etc) segue admin/master; finalização de ciclo por
-      // qualquer usuário logado é permitida SOMENTE nos campos do ciclo (finalizar contagem).
+      // Update normal (nome/descrição/etc) segue admin/master. Ao usuario comum é liberado
+      // SOMENTE o conjunto de campos da rodada: os quatro do ciclo (finalizar contagem) e os
+      // dois do lote (abrir o lote da rodada). O lote e digitado por quem conta, entao quem
+      // conta precisa poder grava-lo -- por isso ele esta neste ramo, e nao so no de admin.
       // `podeAcessarEstoque` tambem aqui: fechar o ciclo de um estoque que a pessoa nao
       // pode contar e tao errado quanto contar nele. Nao vale para `create` -- estoque
       // recem-criado nao esta na lista de ninguem, e exigi-lo impediria a propria criacao.
@@ -190,9 +194,17 @@ service cloud.firestore {
         && ((isAdminOrMaster() && validInventoryData(request.resource.data))
             || (signedIn()
                 && request.resource.data.diff(resource.data).affectedKeys()
-                     .hasOnly(['contagemCycle', 'lastFinalizedCycle', 'lastFinalizedAt', 'updatedAt'])
+                     .hasOnly(['contagemCycle', 'lastFinalizedCycle', 'lastFinalizedAt',
+                               'updatedAt', 'lote', 'loteCiclo'])
                 && request.resource.data.contagemCycle is number
-                && request.resource.data.contagemCycle >= 1));
+                && request.resource.data.contagemCycle >= 1
+                // O lote e digitado por quem conta. Limitar tamanho e tipo aqui e o que
+                // impede um cliente adulterado de gravar texto arbitrario no estoque.
+                && (!('lote' in request.resource.data)
+                    || (request.resource.data.lote is string
+                        && request.resource.data.lote.size() <= 40))
+                && (!('loteCiclo' in request.resource.data)
+                    || request.resource.data.loteCiclo is number)));
       allow delete: if isMaster();
     }
 

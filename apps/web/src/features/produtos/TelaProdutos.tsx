@@ -159,7 +159,7 @@ export function TelaProdutos() {
         rodada, então o próximo toque num item volta a perguntar qual lote está sendo
         contado. Sem isto a contagem nova entraria com o rótulo da anterior.
       */
-      await encerrarLote(estoqueAtual.id, estoqueAtual.nome ?? estoqueAtual.id);
+      await encerrarLote(estoqueAtual.id);
       mostrar('Contagem limpa e lote encerrado. O próximo item vai pedir o lote novo.', 'success');
       if (contextoLog) void registrar('LIMPAR_CONTAGEM', contextoLog, { ciclo, total: produtos.length });
     } catch (erro) {

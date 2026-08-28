@@ -127,9 +127,11 @@ enquanto o carimbo bater com o `contagemCycle` corrente.
 
 Sem lote aberto, o primeiro toque num item abre o card **"Insira o Lote que está contando"**.
 
-⚠️ **Só admin e master abrem o lote.** A regra de `inventories` só aceita campo fora dos
-quatro de ciclo pelo ramo `isAdminOrMaster()`. É coerente com quem já inicia a rodada:
-limpar a contagem e reupar o estoque também são ações de admin.
+**Qualquer um que possa contar no estoque abre o lote** (desde a 2.18). A restrição que
+continua é `podeAcessarEstoque`: ninguém abre lote em estoque que não pode contar.
+
+⚠️ O payload de `abrirLote` leva **só** `lote`, `loteCiclo` e `updatedAt`. O ramo do usuário
+comum é `hasOnly` — mandar `name` junto coloca o campo no diff e nega a escrita inteira.
 
 ⚠️ **Por que finalizar expira em vez de limpar.** Finalizar é liberado para qualquer
 usuário, e escreve em `inventories` pelo ramo restrito da regra (`hasOnly` dos quatro campos
