@@ -229,6 +229,11 @@ dependências entre as camadas e os símbolos mais usados pelo resto do projeto.
 
 ⚠️ O arquivo é **gerado**. Editar à mão é trabalho perdido: a próxima geração apaga.
 
+⚠️ Este script exige **Node 22.5+** (usa `node:sqlite`), enquanto o resto do projeto roda em
+20 — que é a versão da Hostinger. Não afeta produção: `npm run mapa` não entra em
+`npm run build`, e o servidor nunca executa este arquivo. Em Node 20 ele para com uma
+mensagem dizendo isso.
+
 A ordem é sempre esta, porque o mapa lê o índice:
 
 ```powershell

@@ -4,7 +4,7 @@
 > Um mapa escrito à mão está errado no terceiro commit, e mapa errado é pior que mapa
 > nenhum: quem confia nele procura no lugar errado e conclui que a função não existe.
 
-Índice de `d1358db` · **102 arquivos**, 1047 símbolos (305 exportados), 3331 arestas.
+Índice de `027ef32` · **102 arquivos**, 1047 símbolos (305 exportados), 3331 arestas.
 
 ## Para agentes: leia isto primeiro
 

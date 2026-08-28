@@ -167,6 +167,47 @@ lista re-renderiza; historico.registrar() roda em segundo plano
 
 O passo do log **não é aguardado**: o usuário já pode contar o próximo item.
 
+## Publicação
+
+`themis.grupoicebeer.com.br`, aplicação **Node.js** na Hostinger. O deploy é **disparado por
+push no GitHub** — não há passo manual no painel.
+
+```
+git push origin main
+      │
+      ▼  a Hostinger detecta o push (source_type: git)
+npm ci --include=dev && npm run build      ← build_script: build
+      │
+      ▼
+node apps/api/dist/server.mjs              ← entry_file
+      │
+      ▼  ~2 a 3 minutos depois
+themis.grupoicebeer.com.br no ar
+```
+
+| Ajuste | Valor |
+|---|---|
+| Node no servidor | **20** (local é 24 — ver o aviso do `npm run mapa`) |
+| Script de build | `build` |
+| Ponto de entrada | `apps/api/dist/server.mjs` |
+| Origem | git |
+
+Para confirmar que uma versão subiu:
+
+```powershell
+curl.exe https://themis.grupoicebeer.com.br/api/versao
+```
+
+Devolve versão, **commit** e data do build — o commit é o que responde com precisão qual
+código está rodando.
+
+⚠️ **O ponto de entrada é `.mjs`, não `.js`.** As quatro únicas implantações que já falharam
+neste projeto (06/08/2026) foram todas por isso, antes de o caminho ser corrigido no painel.
+Desde então são 17 seguidas sem falha. O motivo da extensão está em
+[decisoes.md](decisoes.md) §Bundle em .mjs.
+
+---
+
 ## Build
 
 ```

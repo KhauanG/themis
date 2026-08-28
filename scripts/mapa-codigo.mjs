@@ -22,9 +22,26 @@
  *
  * Exige `codegraph init` rodado antes. Sem índice, falha dizendo isso.
  */
-import { DatabaseSync } from 'node:sqlite';
 import { writeFileSync, existsSync } from 'node:fs';
 import { execSync } from 'node:child_process';
+
+/*
+  `node:sqlite` só existe a partir do Node 22.5, e o `engines` do projeto aceita 20 — que é
+  a versão que a Hostinger roda. Sem esta checagem o erro seria
+  `ERR_UNKNOWN_BUILTIN_MODULE`, que não diz o que fazer.
+
+  Isto NÃO afeta produção: `npm run mapa` é ferramenta de quem desenvolve e não entra em
+  `npm run build`. O servidor nunca executa este arquivo.
+*/
+const [maior, menor] = process.versions.node.split('.').map(Number);
+if ((maior ?? 0) < 22 || ((maior ?? 0) === 22 && (menor ?? 0) < 5)) {
+  console.error(`Este script precisa do Node 22.5 ou maior (você está no ${process.version}).`);
+  console.error('Ele usa `node:sqlite`, que não existe em versões anteriores.');
+  console.error('\nO resto do projeto continua rodando no Node 20 — só o mapa exige mais.');
+  process.exit(1);
+}
+
+const { DatabaseSync } = await import('node:sqlite');
 
 const BANCO = '.codegraph/codegraph.db';
 
