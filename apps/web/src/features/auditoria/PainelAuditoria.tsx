@@ -16,6 +16,8 @@ import {
   type OrdemRelatorio,
   type SituacaoRelatorio,
   type StatusAuditoria,
+  rotuloDaAuditoriaCompleto,
+  rotuloDaRodadaCompleto
 } from '@themis/shared';
 import { useEstoque } from '../../contexts/EstoqueContext.js';
 import { useAuth } from '../../contexts/AuthContext.js';
@@ -85,7 +87,7 @@ const CLASSE_STATUS: Record<StatusAuditoria, string> = {
 const MODO_CONSOLIDADO = 'consolidado';
 
 export function PainelAuditoria() {
-  const { produtos, estoqueAtual, ciclo, contextoLog, carregandoProdutos, conciliando } =
+  const { produtos, estoqueAtual, ciclo, contextoLog, carregandoProdutos, conciliando, lote, configuracoes } =
     useEstoque();
   const { permissoes } = useAuth();
   const { mostrar } = useToast();
@@ -143,6 +145,15 @@ export function PainelAuditoria() {
   const auditoria = fonte === 'ao-vivo' ? null : salvas.find((a) => a.id === fonte);
   const aoVivo = !auditoria;
 
+  /*
+    Rótulo da rodada em andamento. Durante a transição sai "Lote X · Ciclo N"; quando um
+    master desligar `mostrarCiclo`, sobra só o lote. Ver `rotuloDaRodadaCompleto`.
+  */
+  const rodadaAtual = rotuloDaRodadaCompleto(
+    estoqueAtual ? { ...estoqueAtual, lote: lote ?? '' } : null,
+    configuracoes.mostrarCiclo,
+  );
+
   // Uma origem só para tela e exportação: antes a tabela mostrava a auditoria salva e a
   // exportação gerava o arquivo com a contagem ao vivo.
   const todas: LinhaRelatorio[] = useMemo(
@@ -162,11 +173,14 @@ export function PainelAuditoria() {
     () => ({
       estoque: estoqueAtual?.nome ?? estoqueAtual?.id ?? 'estoque',
       ciclo: auditoria?.contagemCycle ?? ciclo,
+      rodada: auditoria
+        ? rotuloDaAuditoriaCompleto(auditoria, configuracoes.mostrarCiclo)
+        : rodadaAtual,
       filtro,
       totalSemFiltro: todas.length,
       ...(auditoria ? { quando: auditoria.data } : {}),
     }),
-    [estoqueAtual, auditoria, ciclo, filtro, todas.length],
+    [estoqueAtual, auditoria, ciclo, filtro, todas.length, rodadaAtual, configuracoes.mostrarCiclo],
   );
 
   const ajustar = useCallback(
@@ -320,8 +334,8 @@ export function PainelAuditoria() {
         <label className="campo">
           <span className="campo__rotulo">Contagem</span>
           <select className="campo__entrada" value={fonte} onChange={(e) => setFonte(e.target.value)}>
-            <option value="ao-vivo">Ao vivo — ciclo {ciclo}</option>
-            <option value={MODO_CONSOLIDADO}>Consolidado — somar ciclos</option>
+            <option value="ao-vivo">Ao vivo — {rodadaAtual}</option>
+            <option value={MODO_CONSOLIDADO}>Consolidado — somar lotes</option>
             {salvas.map((a) => (
               <option key={a.id} value={a.id}>
                 {a.nome} — {a.data.toLocaleDateString('pt-BR')}
@@ -353,8 +367,8 @@ export function PainelAuditoria() {
         <h1 className="titulo-tela">Auditoria</h1>
         <p className="subtitulo">
           {aoVivo
-            ? `Contagem em andamento · ciclo ${ciclo}`
-            : `Salva em ${auditoria.data.toLocaleString('pt-BR')} · somente leitura`}
+            ? `Contagem em andamento · ${rodadaAtual}`
+            : `${rotuloDaAuditoriaCompleto(auditoria, configuracoes.mostrarCiclo)} · salva em ${auditoria.data.toLocaleString('pt-BR')} · somente leitura`}
         </p>
       </div>
 
@@ -362,8 +376,8 @@ export function PainelAuditoria() {
         <label className="campo">
           <span className="campo__rotulo">Contagem</span>
           <select className="campo__entrada" value={fonte} onChange={(e) => setFonte(e.target.value)}>
-            <option value="ao-vivo">Ao vivo — ciclo {ciclo}</option>
-            <option value={MODO_CONSOLIDADO}>Consolidado — somar ciclos</option>
+            <option value="ao-vivo">Ao vivo — {rodadaAtual}</option>
+            <option value={MODO_CONSOLIDADO}>Consolidado — somar lotes</option>
             {salvas.map((a) => (
               <option key={a.id} value={a.id}>
                 {a.nome} — {a.data.toLocaleDateString('pt-BR')}

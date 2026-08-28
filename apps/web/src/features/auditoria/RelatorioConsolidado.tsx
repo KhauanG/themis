@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
-import { consolidarCiclos, rotuloDaAuditoria, type Auditoria } from '@themis/shared';
+import { consolidarCiclos, rotuloDaAuditoriaCompleto, type Auditoria } from '@themis/shared';
 import { Icone } from '../../components/Icone.js';
 import { useToast } from '../../contexts/ToastContext.js';
+import { useEstoque } from '../../contexts/EstoqueContext.js';
 import { exportarConsolidadoPDF } from '../../lib/pdf.js';
 
 interface Props {
@@ -30,6 +31,7 @@ interface Props {
  */
 export function RelatorioConsolidado({ salvas, estoque, aoExportar }: Props) {
   const { mostrar } = useToast();
+  const { configuracoes } = useEstoque();
 
   // Todos marcados na abertura: quem entra aqui quer o quadro completo, e desmarcar o que
   // não interessa é menos trabalho que marcar um por um num estoque com vinte ciclos.
@@ -76,7 +78,7 @@ export function RelatorioConsolidado({ salvas, estoque, aoExportar }: Props) {
       <div className="vazio">
         <p className="vazio__titulo">Nenhuma contagem finalizada</p>
         <p>
-          O relatório consolidado soma ciclos já finalizados. Finalize uma contagem para ela
+          O relatório consolidado soma rodadas já finalizadas. Finalize uma contagem para ela
           aparecer aqui.
         </p>
       </div>
@@ -110,9 +112,9 @@ export function RelatorioConsolidado({ salvas, estoque, aoExportar }: Props) {
                     type="checkbox"
                     checked={marcado}
                     onChange={() => alternar(id)}
-                    aria-label={`${rotuloDaAuditoria(a)} de ${a.data.toLocaleDateString('pt-BR')}`}
+                    aria-label={`${rotuloDaAuditoriaCompleto(a, configuracoes.mostrarCiclo)} de ${a.data.toLocaleDateString('pt-BR')}`}
                   />
-                  <span className="ciclo-chip__numero">{rotuloDaAuditoria(a)}</span>
+                  <span className="ciclo-chip__numero">{rotuloDaAuditoriaCompleto(a, configuracoes.mostrarCiclo)}</span>
                   <span className="ciclo-chip__data">{a.data.toLocaleDateString('pt-BR')}</span>
                 </label>
               </li>
@@ -123,8 +125,8 @@ export function RelatorioConsolidado({ salvas, estoque, aoExportar }: Props) {
 
       {selecionadas.length === 0 ? (
         <div className="vazio">
-          <p className="vazio__titulo">Nenhum ciclo selecionado</p>
-          <p>Marque ao menos um ciclo para ver o consolidado.</p>
+          <p className="vazio__titulo">Nenhum lote selecionado</p>
+          <p>Marque ao menos um lote para ver o consolidado.</p>
         </div>
       ) : (
         <>
@@ -134,7 +136,7 @@ export function RelatorioConsolidado({ salvas, estoque, aoExportar }: Props) {
             ou como se a loja tivesse 1.700 itens.
           */}
           <p className="aviso" role="status">
-            <strong>Cada ciclo é uma medição.</strong> Um produto contado em dois ciclos entra
+            <strong>Cada rodada é uma medição.</strong> Um produto contado em duas rodadas entra
             duas vezes no total — é assim que se mede acurácia ao longo do tempo, e não é a
             quantidade de produtos do estoque.
           </p>
@@ -172,7 +174,7 @@ export function RelatorioConsolidado({ salvas, estoque, aoExportar }: Props) {
             <table className="tabela">
               <thead>
                 <tr>
-                  <th scope="col">Ciclo</th>
+                  <th scope="col">Rodada</th>
                   <th scope="col">Data</th>
                   <th scope="col" className="num">Contáveis</th>
                   <th scope="col" className="num">Medições</th>
@@ -185,7 +187,7 @@ export function RelatorioConsolidado({ salvas, estoque, aoExportar }: Props) {
               <tbody>
                 {relatorio.ciclos.map((c) => (
                   <tr key={c.auditoriaId}>
-                    <td>{c.ciclo}</td>
+                    <td>{rotuloDaAuditoriaCompleto({ lote: c.lote, contagemCycle: c.ciclo }, configuracoes.mostrarCiclo)}</td>
                     <td>{c.data.toLocaleDateString('pt-BR')}</td>
                     <td className="num">{c.total}</td>
                     <td className="num">{c.contados}</td>
@@ -200,7 +202,7 @@ export function RelatorioConsolidado({ salvas, estoque, aoExportar }: Props) {
                 <tr>
                   <td colSpan={2}>
                     <strong>
-                      Total · {totais.ciclos} {totais.ciclos === 1 ? 'ciclo' : 'ciclos'}
+                      Total · {totais.ciclos} {totais.ciclos === 1 ? 'rodada' : 'rodadas'}
                     </strong>
                   </td>
                   <td className="num"><strong>{totais.total}</strong></td>

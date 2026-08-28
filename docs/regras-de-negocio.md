@@ -141,6 +141,15 @@ Como finalizar já incrementa o ciclo, o carimbo resolve sozinho.
 O `contagemCycle` **continua existindo** como número interno: as Security Rules exigem
 `contagemCycle is number >= 1` ao criar auditoria.
 
+### Transição de Ciclo para Lote
+
+`appSettings.mostrarCiclo`, **ligado por padrão**, controla se a rodada aparece como
+`Lote X · Ciclo N` ou só `Lote X`. Um master desliga em Estoques → Configurações globais
+quando a equipe estiver usando só o lote.
+
+⚠️ Auditoria salva antes do lote mostra o ciclo **mesmo com o interruptor desligado** — é a
+única identificação que ela tem.
+
 ---
 
 `inventories/{id}.contagemCycle` — começa em 1 e sobe a cada finalização.

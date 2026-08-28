@@ -231,6 +231,7 @@ service cloud.firestore {
       allow create, update: if isAdminOrMaster() &&
         (!('modoContagem' in request.resource.data) || request.resource.data.modoContagem is bool) &&
         (!('readonlyInventories' in request.resource.data) || request.resource.data.readonlyInventories is list) &&
+        (!('mostrarCiclo' in request.resource.data) || request.resource.data.mostrarCiclo is bool) &&
         (!('lastUpdated' in request.resource.data) || request.resource.data.lastUpdated is timestamp);
       allow delete: if isMaster();
     }

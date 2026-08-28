@@ -6,6 +6,52 @@ Categorias: **Adicionado**, **Alterado**, **Corrigido**, **Removido**, **Seguran
 
 ---
 
+## 2.19.0 — 2026-08-28
+
+A aba de Auditoria ainda falava em Ciclo em quase tudo. Agora fala nos dois, com um
+interruptor para desligar o ciclo quando a equipe tiver migrado.
+
+### Corrigido
+
+- **A Auditoria mostrava Ciclo em sete lugares e Lote em um.** Só os chips do consolidado
+  tinham sido convertidos na 2.17; o subtítulo, o seletor de contagem, a coluna da tabela
+  consolidada e os dois PDFs continuavam no ciclo. Misturado sem critério é pior que
+  qualquer um dos dois puro.
+
+  Todos passaram a usar o mesmo rótulo, montado por `rotuloDaAuditoriaCompleto`.
+
+### Adicionado
+
+- **Interruptor `Mostrar o ciclo junto do lote`**, em Estoques → Configurações globais.
+  **Nasce ligado.**
+
+  Ligado, a rodada aparece como **`Lote X · Ciclo N`** — as duas referências juntas, porque
+  quem procura uma contagem da semana passada ainda tem o número do ciclo na cabeça ou no
+  papel. Desligado, sobra só o lote.
+
+  É configuração compartilhada, em `appSettings`: um master desliga uma vez e vale para a
+  equipe toda. Era o pedido — usar os dois por ora, e só lote em cerca de uma semana.
+
+  ⚠️ **Auditoria salva antes do lote mostra o ciclo mesmo com o interruptor desligado.** É a
+  única identificação que ela tem; escondê-la deixaria a linha sem nome.
+
+- `lote` entrou em `CicloConsolidado`, para a tabela consolidada rotular cada linha pela
+  rodada em vez do número.
+
+### Segurança
+
+- `mostrarCiclo` validado como booleano na regra de `appSettings`. ⚠️ **Precisa de
+  `npm run deploy-rules`** — sem isso a gravação do interruptor é negada, e ele parece não
+  funcionar. O resto da versão funciona só com o site no ar.
+
+### Notas
+
+- O PDF recebe o rótulo **pronto**, em `ContextoRelatorio.rodada`, em vez de montá-lo. Ele
+  depende de configuração global, e relatório não deve consultar configuração: desenha o que
+  recebe.
+
+---
+
 ## 2.18.0 — 2026-08-28
 
 ### Alterado

@@ -6,7 +6,9 @@ import {
   loteValido,
   normalizarLote,
   rotuloDaAuditoria,
+  rotuloDaAuditoriaCompleto,
   rotuloDaRodada,
+  rotuloDaRodadaCompleto,
 } from './lote.js';
 
 const estoque = (lote: string | undefined, loteCiclo: number | undefined, contagemCycle: number) =>
@@ -79,5 +81,32 @@ describe('rótulos', () => {
     expect(rotuloDaAuditoria({ lote: 'L-5', contagemCycle: 3 })).toBe('Lote L-5');
     expect(rotuloDaAuditoria({ contagemCycle: 3 })).toBe('Ciclo 3');
     expect(rotuloDaAuditoria({ lote: '  ', contagemCycle: 3 })).toBe('Ciclo 3');
+  });
+});
+
+describe('rótulos durante a transição', () => {
+  const comLote = { lote: 'L-9', contagemCycle: 4 };
+  const semLote = { contagemCycle: 4 };
+
+  it('ligado, mostra os dois', () => {
+    expect(rotuloDaAuditoriaCompleto(comLote, true)).toBe('Lote L-9 · Ciclo 4');
+  });
+
+  it('desligado, sobra só o lote', () => {
+    expect(rotuloDaAuditoriaCompleto(comLote, false)).toBe('Lote L-9');
+  });
+
+  /*
+    Auditoria anterior ao lote só tem o ciclo. Esconder por causa do interruptor deixaria a
+    linha sem nenhuma identificação — pior que o ruído que o interruptor existe para cortar.
+  */
+  it('auditoria sem lote mostra o ciclo mesmo com o interruptor desligado', () => {
+    expect(rotuloDaAuditoriaCompleto(semLote, false)).toBe('Ciclo 4');
+  });
+
+  it('vale igual para a rodada em andamento', () => {
+    const estoque = { lote: 'L-9', loteCiclo: 4, contagemCycle: 4 } as Parameters<typeof rotuloDaRodadaCompleto>[0];
+    expect(rotuloDaRodadaCompleto(estoque, true)).toBe('Lote L-9 · Ciclo 4');
+    expect(rotuloDaRodadaCompleto(estoque, false)).toBe('Lote L-9');
   });
 });

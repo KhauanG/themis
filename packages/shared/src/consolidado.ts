@@ -28,6 +28,8 @@ export interface CicloConsolidado {
   auditoriaId: string;
   nome: string;
   ciclo: number;
+  /** Lote da rodada. Vazio nas auditorias anteriores à funcionalidade. */
+  lote: string;
   data: Date;
   /** Produtos contáveis no ciclo (exclui os fora do ERP). */
   total: number;
@@ -84,6 +86,7 @@ function doCiclo(a: Auditoria): CicloConsolidado {
     // porque o id só existe depois de gravar. Consolidar só recebe auditoria já salva, mas
     // o padrão evita que a tela use `undefined` como chave de lista.
     auditoriaId: a.id ?? '',
+    lote: (a.lote ?? '').trim(),
     nome: a.nome,
     ciclo: a.contagemCycle,
     data: a.data,

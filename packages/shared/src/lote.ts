@@ -76,3 +76,33 @@ export function rotuloDaAuditoria(auditoria: { lote?: string | null; contagemCyc
   const lote = (auditoria.lote ?? '').trim();
   return lote ? `Lote ${lote}` : `Ciclo ${auditoria.contagemCycle}`;
 }
+
+/**
+ * Rótulo da rodada durante a transição de Ciclo para Lote.
+ *
+ * `mostrarCiclo` vem de `appSettings` e nasce **ligado**. Enquanto estiver assim, a rodada
+ * aparece como `Lote X · Ciclo N` — as duas referências juntas, porque quem procura uma
+ * contagem da semana passada ainda tem o número do ciclo na cabeça ou no papel.
+ *
+ * Desligado, sobra só o lote. Auditoria antiga, que não tem lote, **continua mostrando o
+ * ciclo mesmo assim**: é a única identificação que ela possui, e escondê-la deixaria a
+ * linha sem nome.
+ */
+export function rotuloDaRodadaCompleto(
+  estoque: Pick<Inventory, 'lote' | 'loteCiclo' | 'contagemCycle'> | null,
+  mostrarCiclo: boolean,
+): string {
+  const lote = loteDe(estoque);
+  if (!lote) return `Ciclo ${estoque?.contagemCycle ?? 1}`;
+  return mostrarCiclo ? `Lote ${lote} · Ciclo ${estoque?.contagemCycle ?? 1}` : `Lote ${lote}`;
+}
+
+/** Mesma regra para auditoria salva. */
+export function rotuloDaAuditoriaCompleto(
+  auditoria: { lote?: string | null; contagemCycle: number },
+  mostrarCiclo: boolean,
+): string {
+  const lote = (auditoria.lote ?? '').trim();
+  if (!lote) return `Ciclo ${auditoria.contagemCycle}`;
+  return mostrarCiclo ? `Lote ${lote} · Ciclo ${auditoria.contagemCycle}` : `Lote ${lote}`;
+}
