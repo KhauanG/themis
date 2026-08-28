@@ -18,6 +18,7 @@ import {
   type EstatisticasAuditoria,
   type FiltroRelatorio,
   type LinhaRelatorio,
+  type RelatorioConsolidado,
 } from '@themis/shared';
 import { baixar, nomeDeArquivo } from './arquivo.js';
 
@@ -340,4 +341,150 @@ export async function exportarValidadePDF(
   desenharRodape(doc);
   baixar(doc.output('blob'), nomeDeArquivo(`validade-${contexto.estoque}`, 'pdf'));
   return comValidade.length;
+}
+
+/**
+ * Relatório consolidado de auditoria: vários ciclos do mesmo estoque, somados.
+ *
+ * Traz o resumo do período, uma linha por ciclo e os totais. O cálculo mora em
+ * `consolidarCiclos` (@themis/shared) e é testado lá — aqui só há desenho.
+ */
+export async function exportarConsolidadoPDF(
+  relatorio: RelatorioConsolidado,
+  estoque: string,
+): Promise<void> {
+  const { jsPDF, autoTable } = await carregarJsPdf();
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' }) as Documento;
+
+  const t = relatorio.totais;
+  const primeiro = relatorio.ciclos[0];
+  const ultimo = relatorio.ciclos[relatorio.ciclos.length - 1];
+  const periodo =
+    primeiro && ultimo
+      ? `Ciclos ${primeiro.ciclo} a ${ultimo.ciclo} · ${primeiro.data.toLocaleDateString('pt-BR')} a ${ultimo.data.toLocaleDateString('pt-BR')}`
+      : 'Nenhum ciclo selecionado';
+
+  const largura = doc.internal.pageSize.getWidth();
+
+  doc.setFillColor(...COR.marca);
+  doc.rect(0, 0, largura, 3, 'F');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(18);
+  doc.setTextColor(...COR.marca);
+  doc.text('Relatório consolidado de auditoria', MARGEM, 20);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9.5);
+  doc.setTextColor(...COR.suave);
+  doc.text(`${estoque} · ${periodo}`, MARGEM, 26.5);
+
+  doc.setFontSize(8.5);
+  doc.setTextColor(...COR.fraco);
+  doc.text(`Gerado em ${new Date().toLocaleString('pt-BR')}`, largura - MARGEM, 26.5, {
+    align: 'right',
+  });
+
+  /*
+    O aviso não é rodapé opcional: sem ele, "1.700 medições" em cima de um estoque de 850
+    produtos parece erro de sistema — ou, pior, é lido como se a loja tivesse 1.700 itens.
+    Ver o topo de `consolidado.ts`.
+  */
+  doc.setFillColor(...COR.gelo);
+  doc.roundedRect(MARGEM, 31, largura - MARGEM * 2, 8, 1.5, 1.5, 'F');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.setTextColor(...COR.marca);
+  doc.text(
+    `${t.ciclos} ${t.ciclos === 1 ? 'CICLO SOMADO' : 'CICLOS SOMADOS'} — CADA CICLO É UMA MEDIÇÃO. ` +
+      'UM PRODUTO CONTADO EM DOIS CICLOS APARECE DUAS VEZES.',
+    MARGEM + 3,
+    36.3,
+  );
+
+  const inicio = 48;
+  const util = largura - MARGEM * 2;
+  const metricas: Array<[string, string, [number, number, number]]> = [
+    ['MEDIÇÕES', String(t.contados), COR.texto],
+    ['CORRETAS', String(t.corretos), COR.ok],
+    ['DIVERGENTES', String(t.incorretos), COR.alerta],
+    ['ACERTO', `${t.percentualCorretos}%`, COR.ok],
+    ['DIVERGÊNCIA', `${t.percentualIncorretos}%`, COR.alerta],
+    ['CONFERIDOS', String(t.corrigidos), COR.texto],
+  ];
+
+  const passo = util / metricas.length;
+  metricas.forEach(([rotulo, valor, cor], i) => {
+    const x = MARGEM + passo * i;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7);
+    doc.setTextColor(...COR.fraco);
+    doc.text(rotulo, x, inicio);
+    doc.setFontSize(16);
+    doc.setTextColor(...cor);
+    doc.text(valor, x, inicio + 7);
+  });
+
+  doc.setDrawColor(...COR.regua);
+  doc.setLineWidth(0.3);
+  doc.line(MARGEM, inicio + 12, largura - MARGEM, inicio + 12);
+
+  autoTable(doc, {
+    ...ESTILO_TABELA,
+    startY: inicio + 18,
+    head: [['Ciclo', 'Data', 'Contáveis', 'Medições', 'Cobertura', 'Corretas', 'Divergentes', 'Acerto', 'Conferidos', 'Fora do ERP']],
+    body: relatorio.ciclos.map((c) => [
+      String(c.ciclo),
+      c.data.toLocaleDateString('pt-BR'),
+      String(c.total),
+      String(c.contados),
+      `${c.percentualCobertura}%`,
+      String(c.corretos),
+      String(c.incorretos),
+      `${c.percentualCorretos}%`,
+      String(c.corrigidos),
+      String(c.foraDoErp),
+    ]),
+    foot: [[
+      'TOTAL',
+      `${t.ciclos} ${t.ciclos === 1 ? 'ciclo' : 'ciclos'}`,
+      String(t.total),
+      String(t.contados),
+      `${t.percentualCobertura}%`,
+      String(t.corretos),
+      String(t.incorretos),
+      `${t.percentualCorretos}%`,
+      String(t.corrigidos),
+      String(t.foraDoErp),
+    ]],
+    footStyles: {
+      fontStyle: 'bold' as const,
+      fontSize: 9,
+      textColor: COR.marca,
+      fillColor: COR.faixa,
+      lineWidth: { top: 0.3 } as never,
+      lineColor: COR.regua,
+    },
+    columnStyles: {
+      0: { halign: 'right', cellWidth: 16 },
+      1: { cellWidth: 24, textColor: COR.suave },
+      2: { halign: 'right', cellWidth: 22, textColor: COR.suave },
+      3: { halign: 'right', cellWidth: 22 },
+      4: { halign: 'right', cellWidth: 24 },
+      5: { halign: 'right', cellWidth: 22 },
+      6: { halign: 'right', cellWidth: 26 },
+      7: { halign: 'right', cellWidth: 22 },
+      8: { halign: 'right', cellWidth: 24 },
+      9: { halign: 'right', cellWidth: 24 },
+    },
+    didParseCell: (dados) => {
+      if (dados.section !== 'body') return;
+      // Divergentes em âmbar, acerto em verde: as duas colunas que se lê primeiro.
+      if (dados.column.index === 6) dados.cell.styles.textColor = COR.alerta;
+      if (dados.column.index === 7) dados.cell.styles.textColor = COR.ok;
+    },
+  });
+
+  desenharRodape(doc);
+  baixar(doc.output('blob'), nomeDeArquivo(`consolidado-${estoque}`, 'pdf'));
 }

@@ -6,6 +6,44 @@ Categorias: **Adicionado**, **Alterado**, **Corrigido**, **Removido**, **Seguran
 
 ---
 
+## 2.16.0 — 2026-08-28
+
+### Adicionado
+
+- **Relatório consolidado de auditoria.** Em Auditoria, o seletor de contagem ganhou um
+  terceiro modo: **Consolidado — somar ciclos**. Escolhe-se quantos ciclos quiser do estoque
+  aberto e o painel soma contados, corretos e incorretos, com os percentuais, por ciclo e no
+  total. Exporta em PDF paisagem, com uma linha por ciclo e a linha de total destacada.
+
+  ⚠️ **O que "somar ciclos" significa.** Cada ciclo é uma **medição independente**. Um
+  produto contado no ciclo 1 e de novo no 2 conta **duas vezes** — são duas medições, não um
+  produto duplicado.
+
+  É deliberado: é assim que se mede acurácia de inventário ao longo do tempo ("de todas as
+  contagens do período, quantas bateram com o sistema"). Deduplicar por produto responderia
+  outra pergunta, que não é a que um relatório de auditoria faz.
+
+  Como o mal-entendido é natural e caro num documento que circula, a tela diz **"medições"**
+  em vez de "itens", e o aviso vem **antes** dos números — tanto na tela quanto no PDF. Lido
+  depois, o estrago já aconteceu: "1.700 medições" num estoque de 850 produtos é interpretado
+  como erro do sistema.
+
+  As estatísticas vêm do que foi **gravado** em cada auditoria, não recalculadas do snapshot.
+  A auditoria é o retrato do que valia no fechamento; recalcular hoje aplicaria as regras de
+  hoje a um dado de meses atrás, e o número mudaria sozinho a cada alteração no cálculo.
+
+- `packages/shared/src/consolidado.ts` com `consolidarCiclos`, 9 testes.
+
+  O que eles protegem, e é a armadilha central do módulo: **o percentual do total sai das
+  somas, nunca da média dos percentuais de cada ciclo.** Um ciclo de 10 itens com 50% de
+  divergência e um de 1.000 com 0,1% dão média 25,05% — número que parece razoável e está
+  errado. O certo é 6 em 1.010, ou 0,6%. Há teste que falha se alguém trocar por média.
+
+  Também tolera auditoria antiga sem o bloco `corrigidos`, que nasceu depois do 1.x: sem
+  isso, consolidar um período antigo estouraria no meio do relatório.
+
+---
+
 ## 2.15.2 — 2026-08-17
 
 Correção de uma regressão que a 2.15.1 levou para produção.

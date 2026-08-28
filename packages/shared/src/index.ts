@@ -11,3 +11,4 @@ export * from './erp-payload.js';
 export * from './planilha-colunas.js';
 export * from './carregamento.js';
 export * from './reconexao.js';
+export * from './consolidado.js';

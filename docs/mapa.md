@@ -4,7 +4,7 @@
 > Um mapa escrito à mão está errado no terceiro commit, e mapa errado é pior que mapa
 > nenhum: quem confia nele procura no lugar errado e conclui que a função não existe.
 
-Índice de `027ef32` · **102 arquivos**, 1047 símbolos (305 exportados), 3331 arestas.
+Índice de `6853a91` · **106 arquivos**, 1104 símbolos (314 exportados), 3600 arestas.
 
 ## Para agentes: leia isto primeiro
 
@@ -33,14 +33,15 @@ Contagem de imports entre áreas. Serve para checar se a arquitetura ainda vale:
 
 | De | Para | Imports |
 |---|---|---:|
-| PWA · telas | Domínio compartilhado | 61 |
-| PWA · telas | PWA · acesso a dados (lib) | 48 |
-| PWA · acesso a dados (lib) | Domínio compartilhado | 41 |
+| PWA · telas | Domínio compartilhado | 63 |
+| PWA · telas | PWA · acesso a dados (lib) | 49 |
+| PWA · acesso a dados (lib) | Domínio compartilhado | 42 |
 | PWA · estado global | PWA · acesso a dados (lib) | 26 |
-| PWA · telas | PWA · estado global | 25 |
+| PWA · telas | PWA · estado global | 26 |
 | PWA · estado global | Domínio compartilhado | 17 |
-| PWA · telas | PWA · componentes | 15 |
+| PWA · telas | PWA · componentes | 16 |
 | PWA · raiz | PWA · telas | 7 |
+| PWA · acesso a dados (lib) | Scripts de manutenção | 6 |
 | PWA · raiz | PWA · estado global | 5 |
 | PWA · raiz | PWA · componentes | 4 |
 | PWA · componentes | PWA · estado global | 4 |
@@ -49,6 +50,7 @@ Contagem de imports entre áreas. Serve para checar se a arquitetura ainda vale:
 | Scripts de manutenção | Domínio compartilhado | 2 |
 | PWA · componentes | PWA · telas | 1 |
 | PWA · componentes | PWA · raiz | 1 |
+| Configuração | Scripts de manutenção | 1 |
 
 ---
 
@@ -61,7 +63,7 @@ acoplamento. Mexer em qualquer um destes tem alcance largo.
 |---|---|---:|
 | `Produto` | packages/shared/src/types.ts | 62 |
 | `problemasDeProduto` | packages/shared/src/validacao.ts | 27 |
-| `registrar` | apps/web/src/lib/historico.ts | 21 |
+| `registrar` | apps/web/src/lib/historico.ts | 22 |
 | `descreverEvento` | packages/shared/src/historico-descricao.ts | 20 |
 | `statusDe` | packages/shared/src/auditoria.ts | 19 |
 | `montarEnvio` | packages/shared/src/erp-payload.ts | 19 |
@@ -122,6 +124,16 @@ _Quando a lista de produtos pode ser mostrada como verdade._
 | `TETO_CONCILIACAO_MS` | constant | 90 | Teto absoluto para continuar dizendo "sincronizando". |
 | `EstadoConciliacao` | interface | 92 |  |
 | `estaConciliando` | function | 126 | O app ainda deve esconder os totais e dizer "sincronizando"? |
+
+**`packages/shared/src/consolidado.ts`**
+
+| Símbolo | Tipo | Linha | O quê |
+|---|---|---:|---|
+| `CicloConsolidado` | interface | 27 | Uma linha do relatório: o resumo de um ciclo. |
+| `TotaisConsolidados` | interface | 50 |  |
+| `RelatorioConsolidado` | interface | 66 |  |
+| `percentual` | function | 73 | Uma casa decimal, como o resto do projeto. |
+| `consolidarCiclos` | function | 116 | Consolida as auditorias escolhidas. |
 
 **`packages/shared/src/erp-payload.ts`**
 
@@ -412,9 +424,10 @@ _Quando a lista de produtos pode ser mostrada como verdade._
 
 | Símbolo | Tipo | Linha | O quê |
 |---|---|---:|---|
-| `ContextoRelatorio` | interface | 53 |  |
-| `exportarContagemPDF` | function | 185 |  |
-| `exportarValidadePDF` | function | 273 | Relatório de validades. |
+| `ContextoRelatorio` | interface | 54 |  |
+| `exportarContagemPDF` | function | 186 |  |
+| `exportarValidadePDF` | function | 274 | Relatório de validades. |
+| `exportarConsolidadoPDF` | function | 352 | Relatório consolidado de auditoria: vários ciclos do mesmo estoque, somados. |
 
 **`apps/web/src/lib/planilha-formato.ts`**
 
@@ -562,7 +575,17 @@ _Quando a lista de produtos pode ser mostrada como verdade._
 
 | Símbolo | Tipo | Linha | O quê |
 |---|---|---:|---|
-| `PainelAuditoria` | function | 83 |  |
+| `PainelAuditoria` | function | 87 |  |
+
+**`apps/web/src/features/auditoria/RelatorioConsolidado.tsx`**
+
+_Relatório consolidado: escolhe ciclos do estoque e soma._
+
+| Símbolo | Tipo | Linha | O quê |
+|---|---|---:|---|
+| `RelatorioConsolidado` | function | 31 |  |
+| `alternar` | function | 49 |  |
+| `exportar` | function | 60 |  |
 
 **`apps/web/src/features/auth/Login.tsx`**
 

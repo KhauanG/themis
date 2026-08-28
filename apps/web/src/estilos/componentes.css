@@ -648,3 +648,63 @@ select.campo__entrada {
   font-size: var(--t-menor);
   color: var(--texto-2);
 }
+
+/* ================= Relatório consolidado ================= */
+
+.consolidado__topo {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--e3);
+  margin-bottom: var(--e2);
+}
+
+/* Envolve: num estoque com vinte ciclos, uma linha só viraria rolagem horizontal. */
+.consolidado__ciclos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e2);
+}
+
+.ciclo-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--e2);
+  min-height: var(--toque);
+  padding: var(--e2) var(--e3);
+  border: 1px solid var(--borda-suave);
+  border-radius: var(--raio-total);
+  background: var(--superficie);
+  cursor: pointer;
+  transition: border-color var(--transicao), background var(--transicao);
+}
+
+.ciclo-chip:hover {
+  border-color: var(--borda);
+}
+
+.ciclo-chip--ativo {
+  border-color: var(--acento);
+  background: var(--superficie-2);
+}
+
+.ciclo-chip__numero {
+  font-size: var(--t-menor);
+  font-weight: var(--peso-medio);
+}
+
+.ciclo-chip__data {
+  font-size: var(--t-micro);
+  color: var(--texto-2);
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+  Linha de total destacada e grudada no fim da tabela. É o número que se lê primeiro num
+  relatório consolidado — perdê-la no meio das linhas de ciclo derrota o documento.
+*/
+.tabela tfoot td {
+  border-top: 2px solid var(--borda);
+  border-bottom: none;
+  background: var(--superficie-2);
+}

@@ -77,6 +77,25 @@ em [regras-de-negocio.md](regras-de-negocio.md) §Ciclo.
 
 ---
 
+## Relatório consolidado de auditoria
+
+`features/auditoria/RelatorioConsolidado.tsx` — terceiro modo do seletor de contagem, em
+Auditoria. **Mesma permissão do painel** (admin, auditor, master).
+
+Escolhe quantos ciclos quiser do estoque aberto e soma contados, corretos e incorretos, com
+percentuais por ciclo e no total. Exporta em PDF paisagem.
+
+⚠️ **Cada ciclo é uma medição.** Um produto contado em dois ciclos entra duas vezes no
+total. É assim que se mede acurácia ao longo do tempo — mas é o mal-entendido natural de
+quem lê o número solto, e por isso a tela diz "medições" e o aviso vem antes dos números.
+O raciocínio completo está no topo de `packages/shared/src/consolidado.ts`.
+
+Os filtros de linha e a ordenação por coluna **não aparecem** neste modo: ele responde
+"como a acurácia se comportou ao longo dos ciclos", não "quais itens divergiram nesta
+contagem".
+
+---
+
 ## Painel de auditoria
 
 `features/auditoria/PainelAuditoria.tsx` — auditor, admin, master.

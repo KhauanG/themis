@@ -26,7 +26,8 @@ codegraph_explore(query: "<símbolos ou pergunta>", projectPath: "C:/Projetos/Th
 Para uma visão geral de quais módulos existem e o que exportam: [docs/mapa.md](docs/mapa.md).
 
 ⚠️ O índice é uma fotografia e **não se atualiza sozinho**. Se o que ele devolver não bater
-com o código, está velho — `codegraph init` reindexa em segundos. Detalhes em
+com o código, está velho — `codegraph sync` atualiza em segundos (`init` só serve na primeira vez e
+não reindexa). Detalhes em
 [docs/desenvolvimento.md](docs/desenvolvimento.md) §CodeGraph.
 
 ## Antes de escrever código

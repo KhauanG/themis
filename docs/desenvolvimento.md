@@ -173,7 +173,8 @@ porque include tem precedencia sobre omit.
 | `npm run versao -- patch` | sobe a versão e abre a seção do changelog |
 | `npm run versao:marcar` | cria a tag git da versão atual |
 | `npm run verificar-versao` | confere versão x changelog |
-| `codegraph init` | (re)indexa o código para o CodeGraph — **rode depois de mudar arquivos** |
+| `codegraph init` | cria o índice do CodeGraph — **só na primeira vez** |
+| `codegraph sync` | atualiza o índice — **rode depois de mudar arquivos** |
 | `npm run mapa` | regenera `docs/mapa.md` a partir do índice |
 | `npm run auditar-produtos` | varredura de produtos legados (só leitura) |
 | `npx tsx scripts/verificar-planilha.mts <arquivo>` | testa a leitura de uma planilha real |
@@ -208,14 +209,23 @@ gerado. Índice velho é pior que índice nenhum: ele responde com confiança so
 que mudou de assinatura, ou aponta uma linha que não existe mais — e quem confiou parte de
 premissa falsa sem perceber.
 
-Rode `codegraph init` de novo depois de:
+```powershell
+codegraph sync
+```
+
+⚠️ **`sync`, não `init`.** `init` só cria o índice na primeira vez; rodado de novo ele
+responde "Already initialized" e **não atualiza nada** — quem confiar nisso segue
+consultando um índice velho achando que reindexou. Para reconstruir do zero, `codegraph
+index`.
+
+Rode `codegraph sync` depois de:
 
 - adicionar, renomear ou apagar arquivo;
 - mudar assinatura de função exportada;
 - puxar trabalho de outra pessoa (`git pull`);
 - qualquer refatoração que mexa em mais de um punhado de arquivos.
 
-Na dúvida, rode: custa segundos.
+Na dúvida, rode: é incremental e custa cerca de um segundo.
 
 ### O mapa em markdown
 
@@ -237,7 +247,7 @@ mensagem dizendo isso.
 A ordem é sempre esta, porque o mapa lê o índice:
 
 ```powershell
-codegraph init      # 1. reindexa o código
+codegraph sync      # 1. atualiza o índice
 npm run mapa        # 2. regenera docs/mapa.md
 ```
 

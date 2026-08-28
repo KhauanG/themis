@@ -21,6 +21,7 @@ import { useEstoque } from '../../contexts/EstoqueContext.js';
 import { useAuth } from '../../contexts/AuthContext.js';
 import { useToast } from '../../contexts/ToastContext.js';
 import { Esqueleto } from '../../components/Esqueleto.js';
+import { RelatorioConsolidado } from './RelatorioConsolidado.js';
 import { Icone } from '../../components/Icone.js';
 import { listarAuditorias } from '../../lib/auditorias-repo.js';
 import { desfazerConferido, marcarConferido } from '../../lib/produtos-repo.js';
@@ -79,6 +80,9 @@ const CLASSE_STATUS: Record<StatusAuditoria, string> = {
   // como "errado" nem como "ok".
   'FORA DO ERP': 'etiqueta etiqueta--acento',
 };
+
+/** Valor do seletor que abre o relatório consolidado. Não é id de auditoria. */
+const MODO_CONSOLIDADO = 'consolidado';
 
 export function PainelAuditoria() {
   const { produtos, estoqueAtual, ciclo, contextoLog, carregandoProdutos, conciliando } =
@@ -298,6 +302,51 @@ export function PainelAuditoria() {
     return <Esqueleto linhas={5} />;
   }
 
+  /*
+    O consolidado sai antes da tabela de produtos, e não dentro dela.
+
+    Ele responde outra pergunta: não "quais itens divergiram nesta contagem", mas "como a
+    acurácia se comportou ao longo dos ciclos". Os filtros de linha, a ordenação por coluna
+    e as exportações de item não se aplicam — mantê-los na tela sugeriria que sim.
+  */
+  if (fonte === MODO_CONSOLIDADO) {
+    return (
+      <section className="pilha-g">
+        <div>
+          <h1 className="titulo-tela">Auditoria</h1>
+          <p className="subtitulo">Relatório consolidado · {estoqueAtual?.nome ?? '—'}</p>
+        </div>
+
+        <label className="campo">
+          <span className="campo__rotulo">Contagem</span>
+          <select className="campo__entrada" value={fonte} onChange={(e) => setFonte(e.target.value)}>
+            <option value="ao-vivo">Ao vivo — ciclo {ciclo}</option>
+            <option value={MODO_CONSOLIDADO}>Consolidado — somar ciclos</option>
+            {salvas.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.nome} — {a.data.toLocaleDateString('pt-BR')}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <RelatorioConsolidado
+          salvas={salvas}
+          estoque={estoqueAtual?.nome ?? estoqueAtual?.id ?? 'estoque'}
+          aoExportar={(ciclos) => {
+            if (contextoLog) {
+              void registrar('EXPORTAR_PLANILHA', contextoLog, {
+                tipo: 'consolidado',
+                origem: MODO_CONSOLIDADO,
+                ciclos,
+              });
+            }
+          }}
+        />
+      </section>
+    );
+  }
+
   return (
     <section className="pilha-g">
       <div>
@@ -314,6 +363,7 @@ export function PainelAuditoria() {
           <span className="campo__rotulo">Contagem</span>
           <select className="campo__entrada" value={fonte} onChange={(e) => setFonte(e.target.value)}>
             <option value="ao-vivo">Ao vivo — ciclo {ciclo}</option>
+            <option value={MODO_CONSOLIDADO}>Consolidado — somar ciclos</option>
             {salvas.map((a) => (
               <option key={a.id} value={a.id}>
                 {a.nome} — {a.data.toLocaleDateString('pt-BR')}
