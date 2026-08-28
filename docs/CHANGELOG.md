@@ -6,6 +6,66 @@ Categorias: **Adicionado**, **Alterado**, **Corrigido**, **Removido**, **Seguran
 
 ---
 
+## 2.17.0 — 2026-08-28
+
+A rodada de contagem passa a ser identificada por **Lote**, digitado pela equipe, no lugar
+do Ciclo numérico automático.
+
+### Adicionado
+
+- **Lote no lugar do Ciclo.** O rótulo da rodada agora é escrito por quem trabalha, e é por
+  ele que a contagem é localizada depois. Aparece no cabeçalho, no nome da auditoria salva e
+  no relatório consolidado.
+
+  Depois de **limpar a contagem**, de **excluir e reupar o estoque** ou de **finalizar**, o
+  primeiro toque num item abre o card **"Insira o Lote que está contando"**. Só então a
+  contagem libera — para todos, sem recarregar.
+
+  Botões renomeados: **Limpar contagem e reiniciar lote** e **Excluir estoque e reiniciar
+  Lote**.
+
+  A trava dos itens conferidos **não mudou**: continua encerrando a rodada até limpar a
+  contagem ou desfazer as conferências.
+
+### Alterado
+
+- **`contagemCycle` continua existindo, agora como número interno.** Não foi removido
+  porque as Security Rules em produção exigem `contagemCycle is number >= 1` ao criar
+  auditoria — tirá-lo obrigaria a publicar regras, que ficou de fora por decisão.
+
+  O ciclo aparece só no card do lote, como referência do histórico. Quem usa o app vê Lote.
+
+- **Auditoria antiga não perde referência.** `rotuloDaRodada` cai para "Ciclo N" quando não
+  há lote: o acervo tem contagens anteriores a esta funcionalidade, e rotulá-las "Lote —"
+  apagaria a única identificação que elas têm.
+
+### Notas de implementação
+
+- **Como finalizar encerra o lote sem publicar regra.** Finalizar é liberado para qualquer
+  usuário, mas `finalizarCiclo` escreve em `inventories` pelo ramo restrito da regra, que
+  aceita **apenas** os quatro campos de ciclo (`hasOnly`). Um `lote: ''` a mais no payload
+  seria negado — mesmo formato do bug que o `createdAt` regenerado causou no 1.x.
+
+  Solução: o lote carrega o **ciclo em que foi aberto** (`loteCiclo`) e vale enquanto esse
+  carimbo bater com o `contagemCycle` corrente. Finalizar já incrementa o ciclo, então o
+  lote expira sozinho. Nenhum campo novo no payload restrito, nenhuma regra publicada.
+
+- **Só admin e master abrem o lote**, e não é escolha de interface: a regra de `inventories`
+  só aceita campo fora dos quatro de ciclo pelo ramo `isAdminOrMaster()`. Para o funcionário
+  comum o card explica a quem pedir, em vez de mostrar um campo que o banco recusaria — o
+  mesmo erro que o Histórico teve antes da 2.12.
+
+  É coerente com quem já inicia a rodada: limpar a contagem e reupar o estoque também são
+  ações de admin.
+
+- A trava existe em **três** pontos, porque há três portas: o toque no item, o leitor de
+  código de barras (que abre o produto por outro caminho) e `salvarContagem` no contexto
+  (que a fila offline reexecuta).
+
+- 12 testes em `packages/shared/src/lote.test.ts`.
+
+---
+
 ## 2.16.0 — 2026-08-28
 
 ### Adicionado

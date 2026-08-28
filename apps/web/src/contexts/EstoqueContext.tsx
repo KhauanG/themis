@@ -14,6 +14,8 @@ import {
   TETO_CONCILIACAO_MS,
   contagemFechada,
   estaConciliando,
+  loteAtivo,
+  loteDe,
   filtrarEstoquesPermitidos,
   foraDoErp,
   podeLiberarTela,
@@ -22,7 +24,7 @@ import {
   type Produto,
   type ProgressoContagem,
 } from '@themis/shared';
-import { carregarEstoques, ouvirEstoques } from '../lib/estoques-repo.js';
+import { abrirLote, carregarEstoques, ouvirEstoques } from '../lib/estoques-repo.js';
 import { atualizarProduto, drenarFila, ouvirProdutos, type BaseCliente } from '../lib/produtos-repo.js';
 import { drenarHistorico, registrar } from '../lib/historico.js';
 import {
@@ -59,6 +61,12 @@ interface EstoqueAPI {
   pendentes: number;
   /** A inscrição em tempo real caiu; o que está na tela pode estar velho. */
   contatoPerdido: boolean;
+  /** Lote em vigor, ou `null` quando a rodada ainda não tem um. */
+  lote: string | null;
+  /** Há lote aberto? Sem ele ninguém conta — ver `lote.ts`. */
+  temLote: boolean;
+  /** Abre o lote da rodada. Só admin/master passa na regra. */
+  abrirLoteDaRodada: (lote: string) => Promise<void>;
   /** O Firestore ainda concilia cache e servidor — os totais não são confiáveis. */
   conciliando: boolean;
   salvarContagem: (produto: Produto, quantidade: number, validade: string) => Promise<boolean>;
@@ -172,6 +180,14 @@ export function EstoqueProvider({ children }: { children: ReactNode }) {
   );
 
   const pendentes = fila.length;
+
+  /*
+    O lote substitui o Ciclo como referência da rodada. Sem lote aberto, a contagem fica
+    travada — é o que o fluxo pede: depois de limpar ou reupar o estoque, alguém precisa
+    dizer QUAL lote está sendo contado antes de o primeiro item ser tocado.
+  */
+  const lote = useMemo(() => loteDe(estoqueAtual), [estoqueAtual]);
+  const temLote = useMemo(() => loteAtivo(estoqueAtual), [estoqueAtual]);
 
   /**
    * Ainda vale esconder os totais e dizer "sincronizando"?
@@ -489,6 +505,21 @@ export function EstoqueProvider({ children }: { children: ReactNode }) {
     [usuario, estoqueAtual, nome],
   );
 
+  const abrirLoteDaRodada = useCallback(
+    async (novo: string) => {
+      if (!estoqueAtual) return;
+      await abrirLote(estoqueAtual.id, novo, estoqueAtual.contagemCycle ?? 1, estoqueAtual.nome ?? estoqueAtual.id);
+      if (contextoLog) {
+        void registrar('MODIFICAR_PRODUTO', contextoLog, {
+          acao: 'ABRIR_LOTE',
+          lote: novo,
+          ciclo: estoqueAtual.contagemCycle ?? 1,
+        });
+      }
+    },
+    [estoqueAtual, contextoLog],
+  );
+
   const salvarContagem = useCallback(
     async (produto: Produto, quantidade: number, validade: string): Promise<boolean> => {
       if (!estoqueId) return false;
@@ -506,6 +537,16 @@ export function EstoqueProvider({ children }: { children: ReactNode }) {
        * ERP não há com o que comparar, e a contagem viraria divergência inventada no
        * relatório impresso.
        */
+      /*
+        Sem lote aberto não se conta. A tela já mostra o card antes de expandir o item, mas
+        a trava precisa estar aqui também: o leitor de código de barras abre o produto por
+        outro caminho, e a fila offline reenvia o que ficou pendente.
+      */
+      if (!temLote) {
+        mostrar('Informe o lote que está sendo contado antes de lançar quantidades.', 'warning');
+        return false;
+      }
+
       if (rodadaFechada) {
         mostrar(
           'A contagem deste estoque foi encerrada pela conferência. Limpe a contagem para começar uma nova rodada.',
@@ -577,7 +618,7 @@ export function EstoqueProvider({ children }: { children: ReactNode }) {
         return false;
       }
     },
-    [estoqueId, ciclo, mostrar, contextoLog, somenteLeitura, rodadaFechada],
+    [estoqueId, ciclo, mostrar, contextoLog, somenteLeitura, rodadaFechada, temLote],
   );
 
   const valor = useMemo<EstoqueAPI>(
@@ -594,6 +635,9 @@ export function EstoqueProvider({ children }: { children: ReactNode }) {
       pendentes,
       contatoPerdido,
       conciliando,
+      lote,
+      temLote,
+      abrirLoteDaRodada,
       salvarContagem,
       sincronizar,
       contextoLog,
@@ -615,6 +659,9 @@ export function EstoqueProvider({ children }: { children: ReactNode }) {
       pendentes,
       contatoPerdido,
       conciliando,
+      lote,
+      temLote,
+      abrirLoteDaRodada,
       salvarContagem,
       sincronizar,
       contextoLog,

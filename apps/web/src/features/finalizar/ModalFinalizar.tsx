@@ -18,7 +18,7 @@ interface Props {
 }
 
 export function ModalFinalizar({ aberto, onFechar }: Props) {
-  const { estoqueAtual, produtos, ciclo, contextoLog, contagemFechada, carregandoProdutos, conciliando } =
+  const { estoqueAtual, produtos, ciclo, contextoLog, contagemFechada, carregandoProdutos, conciliando, lote } =
     useEstoque();
   const { usuario, permissoes } = useAuth();
   const { mostrar } = useToast();
@@ -52,12 +52,15 @@ export function ModalFinalizar({ aberto, onFechar }: Props) {
     setSalvando(true);
 
     try {
-      const nomeAuditoria = `${estoqueAtual.nome ?? estoqueAtual.id} - Ciclo ${ciclo}`;
+      // Nome pelo lote quando há: é o rótulo pelo qual a equipe procura a contagem.
+      const rodada = lote ? `Lote ${lote}` : `Ciclo ${ciclo}`;
+      const nomeAuditoria = `${estoqueAtual.nome ?? estoqueAtual.id} - ${rodada}`;
       const auditoria = montarAuditoria({
         nome: nomeAuditoria,
         inventoryId: estoqueAtual.id,
         contagemCycle: ciclo,
         produtos,
+        lote,
       });
 
       // A auditoria é salva primeiro. Se o ciclo não fechar depois, o dado da contagem
@@ -120,8 +123,9 @@ export function ModalFinalizar({ aberto, onFechar }: Props) {
       }
     >
       <p>
-        Isso salva a contagem do <strong>ciclo {ciclo}</strong> como auditoria e abre o{' '}
-        <strong>ciclo {ciclo + 1}</strong>.
+        Isso salva {lote ? <>o <strong>Lote {lote}</strong></> : <>a contagem do <strong>ciclo {ciclo}</strong></>}{' '}
+        como auditoria e <strong>encerra o lote</strong> — a próxima contagem vai pedir um
+        lote novo.
       </p>
 
       {listaProvisoria && (

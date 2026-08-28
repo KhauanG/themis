@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { consolidarCiclos, type Auditoria } from '@themis/shared';
+import { consolidarCiclos, rotuloDaAuditoria, type Auditoria } from '@themis/shared';
 import { Icone } from '../../components/Icone.js';
 import { useToast } from '../../contexts/ToastContext.js';
 import { exportarConsolidadoPDF } from '../../lib/pdf.js';
@@ -87,7 +87,7 @@ export function RelatorioConsolidado({ salvas, estoque, aoExportar }: Props) {
     <div className="pilha-g">
       <div>
         <div className="consolidado__topo">
-          <p className="rotulo-secao">Ciclos somados</p>
+          <p className="rotulo-secao">Lotes somados</p>
           <button
             className="botao botao--texto botao--mini"
             type="button"
@@ -110,9 +110,9 @@ export function RelatorioConsolidado({ salvas, estoque, aoExportar }: Props) {
                     type="checkbox"
                     checked={marcado}
                     onChange={() => alternar(id)}
-                    aria-label={`Ciclo ${a.contagemCycle} de ${a.data.toLocaleDateString('pt-BR')}`}
+                    aria-label={`${rotuloDaAuditoria(a)} de ${a.data.toLocaleDateString('pt-BR')}`}
                   />
-                  <span className="ciclo-chip__numero">Ciclo {a.contagemCycle}</span>
+                  <span className="ciclo-chip__numero">{rotuloDaAuditoria(a)}</span>
                   <span className="ciclo-chip__data">{a.data.toLocaleDateString('pt-BR')}</span>
                 </label>
               </li>

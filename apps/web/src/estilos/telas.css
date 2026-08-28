@@ -1129,3 +1129,10 @@
   font-size: var(--t-menor);
   line-height: 1.45;
 }
+
+/* Lote em vigor, acima da barra de progresso. Contexto discreto: quem conta precisa saber
+   em que lote está, mas não é o número que ele acompanha. */
+.contagem__lote {
+  font-size: var(--t-menor);
+  color: var(--texto-2);
+}

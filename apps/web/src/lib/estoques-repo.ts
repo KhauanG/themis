@@ -24,7 +24,7 @@ import {
   type DocumentData,
   type QueryDocumentSnapshot,
 } from 'firebase/firestore';
-import type { Inventory } from '@themis/shared';
+import { normalizarLote, type Inventory } from '@themis/shared';
 import { db } from './firebase.js';
 import {
   exigirGravacao,
@@ -53,6 +53,8 @@ function paraInventory(snap: QueryDocumentSnapshot<DocumentData>): Inventory {
     nome: (d['name'] as string) ?? (d['nome'] as string) ?? snap.id,
     descricao: (d['description'] as string) ?? (d['descricao'] as string) ?? '',
     contagemCycle: (d['contagemCycle'] as number) ?? 1,
+    lote: (d['lote'] as string) ?? '',
+    loteCiclo: d['loteCiclo'] as number | undefined,
     lastFinalizedCycle: d['lastFinalizedCycle'] as number | undefined,
     lastFinalizedAt: paraData(d['lastFinalizedAt']),
     createdAt: paraData(d['createdAt']),
@@ -81,6 +83,50 @@ export function ouvirEstoques(aoMudar: (estoques: Inventory[]) => void): () => v
         falhou,
       ),
     { label: 'estoques' },
+  );
+}
+
+/**
+ * Abre o lote da rodada. **Só admin ou master.**
+ *
+ * Grava pelo ramo `isAdminOrMaster() && validInventoryData(...)` da regra de `inventories`,
+ * que aceita campos além dos obrigatórios — por isso não foi preciso publicar regra nenhuma
+ * para o lote existir.
+ *
+ * ⚠️ O caminho restrito da regra (`hasOnly` dos quatro campos de ciclo), que é o único
+ * aberto a usuário comum, **não** aceita `lote`. Por isso quem conta não abre o lote: quem
+ * abre é quem já tinha permissão de limpar a contagem, que é a ação que inicia a rodada.
+ *
+ * `loteCiclo` carimba o ciclo corrente: é o que faz o lote expirar sozinho ao finalizar,
+ * sem precisar de uma escrita que a regra negaria. Ver `lote.ts`.
+ */
+export async function abrirLote(
+  inventoryId: string,
+  lote: string,
+  ciclo: number,
+  nome: string,
+): Promise<void> {
+  await exigirGravacao(
+    setDoc(
+      doc(db, COLECAO, inventoryId),
+      // `name` vai junto porque `validInventoryData` cobra `hasAll(['name'])`, e um
+      // `merge` sem ele faria a regra negar a escrita inteira.
+      { name: nome, lote: normalizarLote(lote), loteCiclo: ciclo, updatedAt: new Date() },
+      { merge: true },
+    ),
+    { label: 'abrir lote' },
+  );
+}
+
+/** Encerra o lote sem mexer no ciclo. Usado ao limpar a contagem. Só admin ou master. */
+export async function encerrarLote(inventoryId: string, nome: string): Promise<void> {
+  await exigirGravacao(
+    setDoc(
+      doc(db, COLECAO, inventoryId),
+      { name: nome, lote: '', updatedAt: new Date() },
+      { merge: true },
+    ),
+    { label: 'encerrar lote' },
   );
 }
 

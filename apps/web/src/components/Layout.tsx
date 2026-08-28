@@ -15,7 +15,7 @@ interface Aba {
 
 export function Layout() {
   const { nome, papel, permissoes, usuario, sair } = useAuth();
-  const { estoques, estoqueAtual, trocarEstoque, ciclo, progresso, online, pendentes, carregandoProdutos, conciliando } =
+  const { estoques, estoqueAtual, trocarEstoque, ciclo, progresso, online, pendentes, carregandoProdutos, conciliando, lote } =
     useEstoque();
 
   const [menuAberto, setMenuAberto] = useState(false);
@@ -64,7 +64,9 @@ export function Layout() {
               Era a origem do "começa alto e vai baixando".
             */}
             <p className="topo__contexto">
-              <span>Ciclo {ciclo}</span>
+              {/* O Lote substitui o Ciclo como referência da rodada. Sem lote, mostra
+                  o ciclo — auditoria antiga e rodada recém-limpa só têm ele. */}
+              <span>{lote ? `Lote ${lote}` : `Ciclo ${ciclo}`}</span>
               {carregandoProdutos || conciliando ? (
                 <>
                   <span aria-hidden="true">·</span>

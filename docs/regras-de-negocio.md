@@ -110,6 +110,37 @@ comum finaliza mas não reabre. O modal de Finalizar avisa disso antes de confir
 
 
 
+## Lote
+
+O **Lote** é o rótulo da rodada, digitado pela equipe, e substituiu o Ciclo como referência
+humana. É por ele que uma contagem é localizada depois.
+
+Vive em `inventories/{id}.lote`, com `loteCiclo` carimbando o ciclo em que foi aberto. Vale
+enquanto o carimbo bater com o `contagemCycle` corrente.
+
+| Ação | Efeito no lote |
+|---|---|
+| Limpar contagem e reiniciar lote | encerra (`lote: ''`) |
+| Excluir estoque e reiniciar Lote | o estoque some; o lote vai junto |
+| Finalizar e salvar | **expira** — o ciclo avança e o carimbo deixa de bater |
+| Contar, conferir, importar | não mexe |
+
+Sem lote aberto, o primeiro toque num item abre o card **"Insira o Lote que está contando"**.
+
+⚠️ **Só admin e master abrem o lote.** A regra de `inventories` só aceita campo fora dos
+quatro de ciclo pelo ramo `isAdminOrMaster()`. É coerente com quem já inicia a rodada:
+limpar a contagem e reupar o estoque também são ações de admin.
+
+⚠️ **Por que finalizar expira em vez de limpar.** Finalizar é liberado para qualquer
+usuário, e escreve em `inventories` pelo ramo restrito da regra (`hasOnly` dos quatro campos
+de ciclo). Um `lote: ''` a mais seria negado — mesmo formato do bug do `createdAt` no 1.x.
+Como finalizar já incrementa o ciclo, o carimbo resolve sozinho.
+
+O `contagemCycle` **continua existindo** como número interno: as Security Rules exigem
+`contagemCycle is number >= 1` ao criar auditoria.
+
+---
+
 `inventories/{id}.contagemCycle` — começa em 1 e sobe a cada finalização.
 
 Finalizar faz, **nesta ordem**:

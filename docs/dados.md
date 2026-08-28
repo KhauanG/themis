@@ -104,7 +104,9 @@ Na escrita, o 2.0 grava as duas grafias de `nome` para o 1.x continuar lendo.
 |---|---|---|
 | `name` | string | **em inglês** — exigido por `validInventoryData`, 1 a 100 caracteres |
 | `description` | string | **em inglês** |
-| `contagemCycle` | number | ciclo corrente, começa em 1 |
+| `contagemCycle` | number | ciclo corrente, começa em 1 — **número interno** desde a 2.17 |
+| `lote` | string | rótulo da rodada, digitado pela equipe. Substitui o ciclo na tela |
+| `loteCiclo` | number | ciclo em que o lote foi aberto; é o que o faz expirar ao finalizar |
 | `lastFinalizedCycle` | number | último ciclo fechado |
 | `lastFinalizedAt` | timestamp | |
 | `createdAt` | timestamp | **nunca regenerar** — ver abaixo |

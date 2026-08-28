@@ -12,3 +12,4 @@ export * from './planilha-colunas.js';
 export * from './carregamento.js';
 export * from './reconexao.js';
 export * from './consolidado.js';
+export * from './lote.js';

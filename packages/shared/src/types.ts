@@ -114,6 +114,13 @@ export interface Inventory {
   lastFinalizedAt?: Date | null;
   createdAt?: Date | null;
   updatedAt?: Date | null;
+  /**
+   * Rótulo da rodada, digitado pela equipe. Substitui o Ciclo como referência humana.
+   * Vale enquanto `loteCiclo` bater com `contagemCycle` — ver `lote.ts`.
+   */
+  lote?: string;
+  /** Ciclo em que o lote foi aberto. É o que faz finalizar expirar o lote sozinho. */
+  loteCiclo?: number;
 }
 
 /** `users/{uid}` — perfil e papéis. Ausência de flag = usuário comum. */
@@ -190,6 +197,8 @@ export interface Auditoria {
   estatisticas: EstatisticasAuditoria;
   createdBy: string;
   createdAt: Date;
+  /** Lote em vigor no fechamento. Ausente nas auditorias anteriores à funcionalidade. */
+  lote?: string;
 }
 
 /**

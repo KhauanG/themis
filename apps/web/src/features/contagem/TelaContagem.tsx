@@ -16,6 +16,7 @@ import { Icone } from '../../components/Icone.js';
 import { ModalEditarProduto } from '../produtos/ModalEditarProduto.js';
 import { CardProduto } from './CardProduto.js';
 import { LeitorCodigo } from './LeitorCodigo.js';
+import { CardLote } from './CardLote.js';
 
 /** Quantos itens a lista mostra por vez. Estoques passam de 2000 produtos. */
 const PAGINA = 40;
@@ -25,6 +26,8 @@ export function TelaContagem() {
     produtos,
     carregandoProdutos,
     conciliando,
+    temLote,
+    lote,
     salvarContagem,
     progresso,
     somenteLeitura,
@@ -38,6 +41,7 @@ export function TelaContagem() {
   const [visiveis, setVisiveis] = useState(PAGINA);
   const [lendoCodigo, setLendoCodigo] = useState(false);
   const [editando, setEditando] = useState<Produto | null>(null);
+  const [pedindoLote, setPedindoLote] = useState(false);
 
   const lista = useMemo(
     () =>
@@ -70,9 +74,26 @@ export function TelaContagem() {
   const podeReabrirConferido = permissoes.corrigirContagem;
   const abas = useMemo(() => filtrosVisiveis(verSistema), [verSistema]);
 
-  const alternar = useCallback((produtoId: string) => {
-    setExpandido((atual) => (atual === produtoId ? null : produtoId));
-  }, []);
+  /*
+    O toque no item é onde o lote é cobrado. Sem lote aberto, em vez de expandir o card do
+    produto, abre o pedido do lote — é o fluxo pedido: depois de limpar ou reupar o estoque,
+    o primeiro toque pergunta qual lote está sendo contado.
+
+    Fechar um card já aberto continua funcionando sem lote: é só recolher, não conta nada.
+  */
+  const alternar = useCallback(
+    (produtoId: string) => {
+      setExpandido((atual) => {
+        if (atual === produtoId) return null;
+        if (!temLote) {
+          setPedindoLote(true);
+          return atual;
+        }
+        return produtoId;
+      });
+    },
+    [temLote],
+  );
 
   const trocarFiltro = useCallback((novo: FiltroContagem) => {
     setFiltro(novo);
@@ -89,6 +110,13 @@ export function TelaContagem() {
       setFiltro('all');
       setVisiveis(PAGINA);
 
+      // O leitor abre o produto por fora do `alternar`; sem esta checagem ele seria a
+      // porta dos fundos para contar sem lote.
+      if (!temLote) {
+        setPedindoLote(true);
+        return;
+      }
+
       const achado = produtos.find((p) => String(p.codigoBarras ?? p.CodigoBarras ?? '') === codigo);
       // Abre direto o card do produto lido: é o passo seguinte que o funcionário faria.
       // Produto fora do ERP não abre — o card explica o motivo no lugar do formulário.
@@ -98,7 +126,7 @@ export function TelaContagem() {
           (statusContagemDe(achado) === 'CONFERIDO' && !podeReabrirConferido));
       setExpandido(achado && !travado ? achado.id : null);
     },
-    [produtos, podeReabrirConferido],
+    [produtos, podeReabrirConferido, temLote],
   );
 
   const fecharLeitor = useCallback(() => setLendoCodigo(false), []);
@@ -109,6 +137,19 @@ export function TelaContagem() {
         Conferiu, fechou. O aviso vem antes de tudo porque explica por que os cards não
         abrem — sem ele o funcionário toca item por item achando que o app travou.
       */}
+      {!temLote && !carregandoProdutos && (
+        <p className="aviso" role="status">
+          <strong>Sem lote aberto.</strong> Toque em qualquer item para informar o lote desta
+          rodada — é por ele que a contagem será localizada depois.
+        </p>
+      )}
+
+      {temLote && lote && (
+        <p className="contagem__lote">
+          Contando o <strong>Lote {lote}</strong>
+        </p>
+      )}
+
       {contagemFechada && (
         <p className="aviso" role="status">
           <strong>Contagem encerrada.</strong> Este estoque já teve itens conferidos, então
@@ -261,6 +302,8 @@ export function TelaContagem() {
       )}
 
       {lendoCodigo && <LeitorCodigo onLer={aoLerCodigo} onFechar={fecharLeitor} />}
+
+      <CardLote aberto={pedindoLote} onFechar={() => setPedindoLote(false)} />
 
       <ModalEditarProduto produto={editando} onFechar={() => setEditando(null)} />
     </section>

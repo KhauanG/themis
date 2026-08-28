@@ -36,6 +36,8 @@ export interface DadosNovaAuditoria {
   inventoryId: string;
   contagemCycle: number;
   produtos: readonly Produto[];
+  /** Lote da rodada. Ausente em auditoria anterior à funcionalidade. */
+  lote?: string | null;
 }
 
 export function montarAuditoria(dados: DadosNovaAuditoria): Omit<Auditoria, 'id'> {
@@ -44,6 +46,9 @@ export function montarAuditoria(dados: DadosNovaAuditoria): Omit<Auditoria, 'id'
     nome: dados.nome,
     inventoryId: dados.inventoryId,
     contagemCycle: dados.contagemCycle,
+    // Grava o lote junto: é por ele que a contagem será localizada depois, e a auditoria
+    // é o único lugar onde ele sobrevive à finalização (que expira o lote do estoque).
+    ...(dados.lote ? { lote: dados.lote } : {}),
     data: agora,
     produtos: montarSnapshotProdutos([...dados.produtos]),
     estatisticas: calcularEstatisticas([...dados.produtos]),

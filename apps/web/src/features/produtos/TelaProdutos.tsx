@@ -12,6 +12,7 @@ import {
   importarProdutos,
   limparContagem,
 } from '../../lib/produtos-repo.js';
+import { encerrarLote } from '../../lib/estoques-repo.js';
 import { buscarEstoqueDoErp, hashDaLoja } from '../../lib/erp.js';
 import { lerPlanilha } from '../../lib/planilha.js';
 import { registrar } from '../../lib/historico.js';
@@ -153,7 +154,13 @@ export function TelaProdutos() {
     setOcupado({ texto: 'Limpando contagem' });
     try {
       await limparContagem(estoqueAtual.id, produtos);
-      mostrar('Contagem limpa.', 'success');
+      /*
+        Encerra o lote junto, e é o ponto do fluxo novo: limpar a contagem reinicia a
+        rodada, então o próximo toque num item volta a perguntar qual lote está sendo
+        contado. Sem isto a contagem nova entraria com o rótulo da anterior.
+      */
+      await encerrarLote(estoqueAtual.id, estoqueAtual.nome ?? estoqueAtual.id);
+      mostrar('Contagem limpa e lote encerrado. O próximo item vai pedir o lote novo.', 'success');
       if (contextoLog) void registrar('LIMPAR_CONTAGEM', contextoLog, { ciclo, total: produtos.length });
     } catch (erro) {
       console.error('[produtos] Limpeza falhou:', erro);
@@ -440,7 +447,7 @@ export function TelaProdutos() {
               <Icone nome="aviso" />
             </span>
             <span className="acao__texto">
-              <span className="acao__titulo">Limpar contagem</span>
+              <span className="acao__titulo">Limpar contagem e reiniciar lote</span>
               <span className="acao__descricao">Zera quantidade, status e validade de todos</span>
             </span>
           </button>
@@ -527,7 +534,7 @@ export function TelaProdutos() {
 
       <Modal
         aberto={confirmarLimpeza}
-        titulo="Limpar contagem"
+        titulo="Limpar contagem e reiniciar lote"
         onFechar={() => setConfirmarLimpeza(false)}
         rodape={
           <>

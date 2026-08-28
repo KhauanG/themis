@@ -397,7 +397,7 @@ export function TelaEstoques() {
 
       <Modal
         aberto={excluindo !== null}
-        titulo="Excluir estoque"
+        titulo="Excluir estoque e reiniciar Lote"
         onFechar={() => {
           setExcluindo(null);
           setConfirmacao('');
