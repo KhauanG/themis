@@ -134,6 +134,27 @@ git push origin desenvolvimento
 Pull request para `main`. O CI roda typecheck, lint e testes. Ao mesclar, a Hostinger
 publica.
 
+### Quem publica
+
+**O push é sempre executado pelo agente — e sempre a pedido do humano.**
+
+As duas metades importam:
+
+- o humano **não** roda os comandos; pede, e o agente publica;
+- o agente **não** publica por iniciativa própria, nem quando a versão está fechada,
+  verificada e obviamente pronta.
+
+⚠️ Terminar o trabalho **não** é autorização para publicar. `git push origin main` dispara
+o deploy em produção, onde uma equipe pode estar contando naquele minuto. Quem sabe se é
+hora é quem está com a operação na mão, não quem escreveu o código.
+
+O que o agente faz ao terminar: deixa commit e tag prontos, `npm run verificar` verde, e
+**avisa que está pronto para publicar**. Só isso. Depois espera.
+
+Publicar Security Rules (`npm run deploy-rules`) e índices (`npm run deploy-indexes`) segue
+a mesma regra, com um agravante: elas valem no instante em que sobem, para todos os
+aparelhos, e o rollback é mais lento que o de um build.
+
 ### Antes de commitar
 
 - [ ] `npm run verificar` passou

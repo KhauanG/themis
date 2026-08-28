@@ -30,6 +30,20 @@ com o código, está velho — `codegraph sync` atualiza em segundos (`init` só
 não reindexa). Detalhes em
 [docs/desenvolvimento.md](docs/desenvolvimento.md) §CodeGraph.
 
+## Publicar é a pedido, sempre
+
+**O push é executado por você, mas só quando o humano pedir.**
+
+Terminar a versão não autoriza publicar. `git push origin main` dispara o deploy em
+produção, onde a equipe pode estar contando naquele minuto — quem sabe se é hora é quem
+está com a operação na mão.
+
+Ao terminar: deixe commit e tag prontos, `npm run verificar` verde, e **diga que está
+pronto para publicar**. Espere o pedido.
+
+Vale igual para `npm run deploy-rules` e `npm run deploy-indexes`, com um agravante: valem
+no instante em que sobem, para todos os aparelhos, e o rollback é mais lento.
+
 ## Antes de escrever código
 
 1. Leia [docs/README.md](docs/README.md) — é o mapa
