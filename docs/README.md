@@ -27,6 +27,7 @@ Mapa do projeto. Comece por aqui.
 | Documento | Responde |
 |---|---|
 | [visao-geral.md](visao-geral.md) | O que é o Themis, para quem, em que contexto roda |
+| [mapa.md](mapa.md) | **Gerado.** O que cada módulo exporta, dependências, símbolos mais usados |
 | [arquitetura.md](arquitetura.md) | Como o projeto é montado e por quê |
 | [dados.md](dados.md) | Coleções do Firestore, campos, tipos, armadilhas do modelo |
 | [funcionalidades.md](funcionalidades.md) | Cada tela, o que faz, quem pode |

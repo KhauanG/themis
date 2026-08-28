@@ -13,6 +13,22 @@ O app Themis 1.x (APK) **saiu de produção em 2026-08-10**. Os dados dele ficar
 tem documentos com duas grafias de campo e perfis com flags legadas, e a **leitura** precisa
 continuar tolerando os dois. Gravar já é livre.
 
+## Para se localizar no código
+
+O repositório é indexado pelo **CodeGraph**. Uma chamada devolve o fonte verbatim dos
+símbolos relevantes, os caminhos de chamada entre eles e quem quebra se você mexer — use
+antes de grep ou de abrir arquivo:
+
+```
+codegraph_explore(query: "<símbolos ou pergunta>", projectPath: "C:/Projetos/Themis 2.0")
+```
+
+Para uma visão geral de quais módulos existem e o que exportam: [docs/mapa.md](docs/mapa.md).
+
+⚠️ O índice é uma fotografia e **não se atualiza sozinho**. Se o que ele devolver não bater
+com o código, está velho — `codegraph init` reindexa em segundos. Detalhes em
+[docs/desenvolvimento.md](docs/desenvolvimento.md) §CodeGraph.
+
 ## Antes de escrever código
 
 1. Leia [docs/README.md](docs/README.md) — é o mapa

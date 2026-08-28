@@ -173,12 +173,78 @@ porque include tem precedencia sobre omit.
 | `npm run versao -- patch` | sobe a versão e abre a seção do changelog |
 | `npm run versao:marcar` | cria a tag git da versão atual |
 | `npm run verificar-versao` | confere versão x changelog |
+| `codegraph init` | (re)indexa o código para o CodeGraph — **rode depois de mudar arquivos** |
+| `npm run mapa` | regenera `docs/mapa.md` a partir do índice |
 | `npm run auditar-produtos` | varredura de produtos legados (só leitura) |
 | `npx tsx scripts/verificar-planilha.mts <arquivo>` | testa a leitura de uma planilha real |
 | `npx tsx scripts/diagnosticar-erp.mts <hashLoja>` | mostra a resposta crua do ERP (só leitura) |
 | `npm run testar-regras` | roda as Security Rules contra o emulador (exige JDK 21+) |
 | `npm run deploy-rules` | publica as Security Rules |
 | `npm run deploy-indexes` | publica os índices |
+
+---
+
+## CodeGraph
+
+O projeto é indexado pelo [CodeGraph](https://github.com/colbymchenry/codegraph): um grafo
+dos símbolos, arquivos e chamadas, em SQLite dentro de `.codegraph/`. Uma consulta devolve o
+fonte verbatim dos símbolos relevantes, os caminhos de chamada entre eles e **quem quebra se
+você mexer** — no lugar de um ciclo de grep e leitura.
+
+### Rodar pela primeira vez
+
+```powershell
+codegraph init
+```
+
+Leva poucos segundos. O índice fica em `.codegraph/` (~4 MB) e **não é versionado** — é
+gerado a partir do próprio código, e commitá-lo incharia o repositório com algo que nasce
+desatualizado. Já está no `.gitignore`.
+
+### ⚠️ Quando rodar de novo
+
+**O índice não se atualiza sozinho.** Ele é uma fotografia do código no momento em que foi
+gerado. Índice velho é pior que índice nenhum: ele responde com confiança sobre uma função
+que mudou de assinatura, ou aponta uma linha que não existe mais — e quem confiou parte de
+premissa falsa sem perceber.
+
+Rode `codegraph init` de novo depois de:
+
+- adicionar, renomear ou apagar arquivo;
+- mudar assinatura de função exportada;
+- puxar trabalho de outra pessoa (`git pull`);
+- qualquer refatoração que mexa em mais de um punhado de arquivos.
+
+Na dúvida, rode: custa segundos.
+
+### O mapa em markdown
+
+```powershell
+npm run mapa
+```
+
+Regenera [mapa.md](mapa.md) a partir do índice: o que cada módulo exporta, a direção das
+dependências entre as camadas e os símbolos mais usados pelo resto do projeto. Serve para
+**se orientar** — quem quer detalhe consulta o índice.
+
+⚠️ O arquivo é **gerado**. Editar à mão é trabalho perdido: a próxima geração apaga.
+
+A ordem é sempre esta, porque o mapa lê o índice:
+
+```powershell
+codegraph init      # 1. reindexa o código
+npm run mapa        # 2. regenera docs/mapa.md
+```
+
+### Consultar
+
+Com o MCP ligado, a ferramenta se chama `codegraph_explore`. Pelo terminal:
+
+```powershell
+codegraph explore "estaConciliando podeLiberarTela EstoqueContext"
+```
+
+Aceita nomes de símbolo, nomes de arquivo ou uma pergunta em português.
 
 ---
 
