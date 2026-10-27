@@ -217,8 +217,8 @@ avisa antes de confirmar e pede para não fechar a janela.
 saldo para ele, então a única base de comparação é o `estoqueSistema` da última importação —
 e correção calculada sobre dado velho é escrita no estoque real a partir de comparação que
 não vale. A fase 3 também nunca confirmaria: o item continua ausente na releitura e viraria
-pendência eterna. Eles são **conferidos normalmente** (a divergência existe, só não dá para
-corrigir daqui) e aparecem numa lista própria, antes e depois da confirmação. O caminho é
+pendência eterna. Eles **continuam contados** (`ATUALIZADO`: a divergência existe, só não dá
+para corrigir daqui) e aparecem numa lista própria, antes e depois da confirmação. O caminho é
 resolver o cadastro no Nuvem3. *Difere do 1.x, que enviava todos.*
 
 **3. Verificar se aplicou.** Espera 1,5 s, lê o ERP de novo e confere item a item se o
@@ -228,11 +228,14 @@ saldo ficou igual ao enviado. O que não refletiu vira pendência, listada com "
 > Sem a fase 3, um envio aceito pelo ERP mas não aplicado passa despercebido — e o estoque
 > fica errado com todo mundo achando que foi corrigido.
 
-Ao fim, **fecha a conferência** de todos os contados: `CONFERIDO`, com `corrigidoIncorreto`
-e `corrigidoCritico` conforme o caso. Os itens saem da lista de trabalho do funcionário.
+Ao fim, **fecha a conferência** dos contados que o ERP aceitou e dos que bateram:
+`CONFERIDO`, com `corrigidoIncorreto` e `corrigidoCritico` conforme o caso. Os itens saem da
+lista de trabalho do funcionário.
 
-⚠️ O fechamento acontece **mesmo se o ERP falhar**: o usuário já confirmou que quer fechar,
-e a conferência registra o que foi verificado, não o que o ERP aceitou.
+⚠️ O que o ERP recusou continua contado (`ATUALIZADO`), aparece na mensagem final e volta na
+próxima correção. O mesmo vale para o divergente sem `IdProduto` (listado como "sem ID do
+ERP") e para o que está fora do ERP. Conferir o recusado o tiraria da lista de trabalho com
+o ERP ainda errado.
 
 A confirmação aparece **entre as fases 1 e 2**, com os números já corrigidos pela leitura.
 Perguntar antes mostraria dados velhos.
@@ -263,7 +266,7 @@ na API" na tela de contagem. Não dá para corrigir o que o ERP não tem.
 A referência é o `sendToERP` do 1.x. Ele rodou anos em produção e é a única prova do que a
 Nuvem3 aceita — não dá para descobrir o resto testando contra o estoque real da empresa.
 
-A API repete o envio até **4 vezes**, com 1s entre tentativas, e trata `200` com
+A API repete o envio até **2 vezes (45 s cada)**, com 1s entre tentativas, e trata `200` com
 `{ success: false }` no corpo como recusa. Ambos vêm do 1.x.
 
 #### A leitura do estoque

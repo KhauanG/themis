@@ -15,8 +15,10 @@
  *     reenvio — é o "fallback robusto" do 1.x. Sem ele, um envio aceito pelo ERP mas não
  *     aplicado passa despercebido, e o estoque fica errado achando que foi corrigido.
  *
- * O fechamento da conferência acontece **mesmo se o ERP falhar**: o usuário já confirmou
- * que quer fechar, e a conferência registra o que foi verificado, não o que o ERP aceitou.
+ * O fechamento confere só o que bateu e o que o ERP aceitou. Divergente que o ERP recusou,
+ * sem `IdProduto` ou fora do ERP continua ATUALIZADO: aparece na mensagem final e volta na
+ * próxima correção (o `diagnosticar` pega só ATUALIZADO). Conferir o recusado o tiraria da
+ * lista de trabalho com o ERP ainda errado.
  *
  * Exige conexão. Offline, os lotes do Firestore ficariam pendentes para sempre.
  */
@@ -73,6 +75,10 @@ export interface PendenciaErp {
 
 export interface ResultadoCorrecao {
   enviados: number;
+  /**
+   * Divergentes que o ERP recusou, pelo nome, e os sem `IdProduto` como
+   * `"<nome> (sem ID do ERP)"`. Nenhum deles é conferido: continuam ATUALIZADO.
+   */
   falhasNoEnvio: string[];
   /**
    * Divergentes que ficaram de fora do envio por não estarem na listagem do ERP.
@@ -187,6 +193,8 @@ export async function executarCorrecao(
 
   let enviados = 0;
   const falhasNoEnvio: string[] = [];
+  // Lista de permitidos: só o que o ERP aceitou entra no fechamento.
+  const aceitos = new Set<string>();
 
   // ---------- Fase 2: enviar as divergências ----------
   for (const [indice, p] of paraOErp.entries()) {
@@ -196,10 +204,19 @@ export async function executarCorrecao(
     // foi assim que o payload acabou com metade dos campos e o id em texto.
     const resultado = await enviarAoErp(montarEnvio(p, hashLoja));
 
-    if (resultado.ok) enviados++;
-    else falhasNoEnvio.push(nomeDe(p));
+    if (resultado.ok) {
+      enviados++;
+      aceitos.add(p.id);
+    } else {
+      falhasNoEnvio.push(nomeDe(p));
+    }
 
     if (indice < paraOErp.length - 1) await pausa(PAUSA_ENTRE_ENVIOS_MS);
+  }
+
+  // Sem `IdProduto` não há o que enviar, mas a divergência existe: avisa em vez de conferir.
+  for (const p of enviaveis) {
+    if (idProdutoDe(p) == null) falhasNoEnvio.push(`${nomeDe(p)} (sem ID do ERP)`);
   }
 
   // ---------- Fase 3: verificar se o ERP aplicou ----------
@@ -240,7 +257,8 @@ export async function executarCorrecao(
   // ---------- Fechamento da conferência ----------
   aoProgredir('Fechando a conferência');
   const idsDivergentes = new Set(divergentes.map((p) => p.id));
-  const fechados = await fecharConferencia(inventoryId, contados, idsDivergentes);
+  const paraConferir = contados.filter((p) => !idsDivergentes.has(p.id) || aceitos.has(p.id));
+  const fechados = await fecharConferencia(inventoryId, paraConferir, idsDivergentes);
 
   return {
     enviados,

@@ -403,7 +403,8 @@ Antes ela deixava abrir, digitar e salvar, e o erro só aparecia no fim.
 Admin e master podem. **Desfazer** no painel de auditoria devolve o item para `ATUALIZADO`,
 e ele volta para a contagem.
 
-Depois de "Corrigir estoque", todo item contado vira `CONFERIDO`:
+Depois de "Corrigir estoque", todo item contado vira `CONFERIDO`, menos o que o ERP recusou
+(também ficam como `ATUALIZADO` o divergente sem `IdProduto` e o fora do ERP):
 
 | | `corrigidoIncorreto` | Significado |
 |---|---|---|

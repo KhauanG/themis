@@ -296,8 +296,8 @@ export function ModalCorrigirEstoque({ aberto, onFechar }: Props) {
             <p className="aviso aviso--perigo">
               {naoEnviaveis} {naoEnviaveis === 1 ? 'divergência não será enviada' : 'divergências não serão enviadas'} ao
               ERP: {naoEnviaveis === 1 ? 'o produto não está' : 'os produtos não estão'} na
-              listagem da loja. {naoEnviaveis === 1 ? 'Ele' : 'Eles'} será conferido normalmente,
-              mas o saldo no ERP continua como está — resolva o cadastro no Nuvem3.
+              listagem da loja. {naoEnviaveis === 1 ? 'Ele continua contado' : 'Eles continuam contados'},
+              e o saldo no ERP fica como está — resolva o cadastro no Nuvem3.
             </p>
           )}
 
@@ -305,16 +305,16 @@ export function ModalCorrigirEstoque({ aberto, onFechar }: Props) {
             <p className="aviso">Nenhum item com contagem em aberto para conferir.</p>
           ) : enviaveis === 0 ? (
             <p>
-              Nada será enviado ao ERP. Os {diagnostico.contados.length} itens contados serão
-              marcados como conferidos e saem da lista de trabalho.
+              Nada será enviado ao ERP. Os {diagnostico.contados.length - naoEnviaveis} itens que
+              bateram serão marcados como conferidos e saem da lista de trabalho.
             </p>
           ) : (
             <>
               <p>
                 {enviaveis} {enviaveis === 1 ? 'divergência vai' : 'divergências vão'} para o
-                ERP, <strong>uma por vez</strong>, com meio segundo entre elas. Depois, os{' '}
-                {diagnostico.contados.length} itens contados são marcados como conferidos e
-                saem da lista de trabalho.
+                ERP, <strong>uma por vez</strong>, com meio segundo entre elas. Depois, os itens
+                que bateram e os que o ERP aceitar são marcados como conferidos e saem da lista
+                de trabalho; o que o ERP recusar continua contado.
               </p>
 
               {minutosEstimados >= 2 && (
@@ -360,15 +360,25 @@ export function ModalCorrigirEstoque({ aberto, onFechar }: Props) {
           </ul>
 
           {resultado.falhasNoEnvio.length > 0 && (
-            <p className="aviso aviso--perigo">
-              {resultado.falhasNoEnvio.length} itens não foram aceitos pelo ERP. A conferência
-              foi fechada mesmo assim — reenvie depois.
-            </p>
+            <>
+              <p className="aviso aviso--perigo">
+                {resultado.falhasNoEnvio.length} itens não foram aceitos pelo ERP e continuam como
+                contados. Rode Corrigir estoque de novo para reenviar.
+              </p>
+              <ul className="lista-simples">
+                {resultado.falhasNoEnvio.slice(0, 20).map((nome, i) => (
+                  <li key={`${nome}-${i}`}>{nome}</li>
+                ))}
+                {resultado.falhasNoEnvio.length > 20 && (
+                  <li>e mais {resultado.falhasNoEnvio.length - 20}…</li>
+                )}
+              </ul>
+            </>
           )}
 
           {/*
-            Repetido aqui de propósito. O item foi conferido e sumiu da lista de trabalho,
-            mas continua divergente no ERP. Se este aviso não aparecer, ninguém vai atrás.
+            Repetido aqui de propósito. O item continua contado e divergente no ERP. Se este
+            aviso não aparecer, ninguém vai atrás.
           */}
           {resultado.naoEnviadosForaDoErp.length > 0 && (
             <>
