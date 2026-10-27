@@ -259,7 +259,7 @@ trabalho do funcionário, senão ele recontaria algo decidido.
 
 ⚠️ **"Negativos", "Corrigidos OK" e "Corrigidos com erro" não aparecem para o papel `comum`** —
 "Negativos" é o saldo do sistema; as outras dizem se a contagem bateu com ele, que é a diferença
-por outro nome. Ver §Contagem às cegas.
+por outro nome. Se o cargo cair com uma delas aberta, a lista volta para "Todos". Ver §Contagem às cegas.
 
 ⚠️ **"A contar" exclui os fora do ERP.** Eles não são contáveis; mantê-los ali manda a
 equipe procurar na prateleira o que precisa ser resolvido no cadastro, e a aba nunca zera.

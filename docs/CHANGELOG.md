@@ -44,7 +44,7 @@ Corrigir deixam de dar por feito o que o banco ou o ERP não aceitou.
   são recusados com mensagem. Acima de 999.999, a mensagem lembra que pode ser um código de
   barras lido no campo da quantidade.
 - **Negativos usa o saldo do sistema**, e só admin, master e auditor veem a aba. Quem só conta
-  não vê.
+  não vê. Se o cargo cair com Negativos ou Corrigidos aberta, a lista volta para Todos.
 - **Tempo limite do ERP: 45 s por tentativa, 2 tentativas, teto de 100 s no site.**
 
 ### Segurança

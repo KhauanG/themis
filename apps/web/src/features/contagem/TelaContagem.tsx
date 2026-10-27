@@ -43,25 +43,29 @@ export function TelaContagem() {
   const [editando, setEditando] = useState<Produto | null>(null);
   const [pedindoLote, setPedindoLote] = useState(false);
 
+  /**
+   * Contagem às cegas: as abas "Negativos", "Corrigidos OK" e "Corrigidos com erro" dizem algo
+   * do saldo do sistema ou se a contagem bateu com ele — é a diferença dita de outro jeito.
+   * Somem para quem só conta.
+   */
+  const verSistema = permissoes.verEstoqueSistema;
+  const abas = useMemo(() => filtrosVisiveis(verSistema), [verSistema]);
+  // Perdeu a permissão com uma dessas abas aberta: a lista não pode continuar filtrada por ela.
+  const filtroAtivo = abas.some((a) => a.id === filtro) ? filtro : 'all';
+
   const lista = useMemo(
     () =>
-      filtrarProdutos(produtos, filtro, {
+      filtrarProdutos(produtos, filtroAtivo, {
         busca,
         // Na aba "Contados", o mais recente primeiro: é a ordem em que o funcionário
         // quer conferir o que acabou de contar.
-        maisRecentesPrimeiro: filtro === 'updated',
+        maisRecentesPrimeiro: filtroAtivo === 'updated',
       }),
-    [produtos, filtro, busca],
+    [produtos, filtroAtivo, busca],
   );
 
   const mostrados = useMemo(() => lista.slice(0, visiveis), [lista, visiveis]);
   const contagens = useMemo(() => contarPorFiltro(produtos), [produtos]);
-
-  /**
-   * Contagem às cegas: as abas "Corrigidos OK" e "Corrigidos com erro" dizem se a contagem
-   * bateu com o sistema — é a diferença dita de outro jeito. Somem para quem só conta.
-   */
-  const verSistema = permissoes.verEstoqueSistema;
 
   /**
    * O **booleano**, não o objeto `permissoes`, nas dependências do callback do leitor.
@@ -72,7 +76,6 @@ export function TelaContagem() {
    * do leitor reabre sem parar.
    */
   const podeReabrirConferido = permissoes.corrigirContagem;
-  const abas = useMemo(() => filtrosVisiveis(verSistema), [verSistema]);
 
   /*
     O toque no item é onde o lote é cobrado. Sem lote aberto, em vez de expandir o card do
@@ -229,16 +232,16 @@ export function TelaContagem() {
             {abas.map((f) => {
               const total = contagens[f.id];
               // Aba sem item só polui; some, exceto "Todos" e a que está selecionada.
-              if (total === 0 && f.id !== filtro && f.id !== 'all') return null;
+              if (total === 0 && f.id !== filtroAtivo && f.id !== 'all') return null;
               return (
                 <button
                   key={f.id}
                   type="button"
                   className={
-                    filtro === f.id ? 'segmentado__item segmentado__item--ativo' : 'segmentado__item'
+                    filtroAtivo === f.id ? 'segmentado__item segmentado__item--ativo' : 'segmentado__item'
                   }
                   onClick={() => trocarFiltro(f.id)}
-                  aria-pressed={filtro === f.id}
+                  aria-pressed={filtroAtivo === f.id}
                 >
                   {f.rotulo}
                   <span className="segmentado__contador">{total}</span>
@@ -262,7 +265,7 @@ export function TelaContagem() {
       ) : lista.length === 0 ? (
         <div className="vazio">
           <p className="vazio__titulo">
-            {busca ? 'Nada encontrado' : mensagemVazio(filtro)}
+            {busca ? 'Nada encontrado' : mensagemVazio(filtroAtivo)}
           </p>
           {busca && <p>Nenhum produto corresponde a “{busca}”.</p>}
         </div>
