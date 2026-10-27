@@ -7,7 +7,7 @@ import { useToast } from '../../contexts/ToastContext.js';
 import { Icone } from '../../components/Icone.js';
 import { Modal } from '../../components/Modal.js';
 import { criarEstoque, excluirEstoque, renomearEstoque } from '../../lib/estoques-repo.js';
-import { carregarHashes, salvarHashes, testarHash } from '../../lib/erp.js';
+import { carregarHashes, salvarHashDaLoja, testarHash } from '../../lib/erp.js';
 import { registrar } from '../../lib/historico.js';
 
 type Formulario = { id: string | null; nome: string; descricao: string; hashLoja: string };
@@ -26,13 +26,21 @@ export function TelaEstoques() {
   const [ocupado, setOcupado] = useState('');
   const [hashes, setHashes] = useState<Map<string, string>>(new Map());
   const [testando, setTestando] = useState(false);
+  // Leitura dos hashes falhou: salvar fica bloqueado (a tela não sabe o que há no banco).
+  const [erroHashes, setErroHashes] = useState(false);
 
   const editando = form?.id != null;
 
   const recarregarHashes = useCallback(() => {
     carregarHashes()
-      .then(setHashes)
-      .catch((erro) => console.warn('[estoques] Não foi possível ler os hashes:', erro));
+      .then((lidos) => {
+        setHashes(lidos);
+        setErroHashes(false);
+      })
+      .catch((erro) => {
+        console.warn('[estoques] Não foi possível ler os hashes:', erro);
+        setErroHashes(true);
+      });
   }, []);
 
   useEffect(recarregarHashes, [recarregarHashes]);
@@ -43,11 +51,13 @@ export function TelaEstoques() {
    * na hora de corrigir que falta a amarração com o ERP.
    */
   async function salvarHashDoEstoque(inventoryId: string, hash: string) {
-    const novo = new Map(hashes);
-    if (hash.trim() === '') novo.delete(inventoryId);
-    else novo.set(inventoryId, hash.trim());
-    await salvarHashes(novo);
-    setHashes(novo);
+    await salvarHashDaLoja(inventoryId, hash);
+    setHashes((atual) => {
+      const novo = new Map(atual);
+      if (hash.trim() === '') novo.delete(inventoryId);
+      else novo.set(inventoryId, hash.trim());
+      return novo;
+    });
   }
 
   /** Travar ou destravar a contagem de um estoque. Reflete em todos os aparelhos. */
@@ -198,6 +208,13 @@ export function TelaEstoques() {
       {ocupado && (
         <p className="aviso aviso--info" role="status">
           {ocupado}
+        </p>
+      )}
+
+      {erroHashes && (
+        <p className="aviso aviso--perigo" role="alert">
+          Não foi possível ler os HashLoja. Salvar fica bloqueado para não gravar por cima do que
+          não foi lido. Recarregue a página.
         </p>
       )}
 
@@ -357,7 +374,7 @@ export function TelaEstoques() {
               className="botao botao--primario"
               type="button"
               onClick={() => void salvar()}
-              disabled={!form?.nome.trim() || Boolean(ocupado)}
+              disabled={!form?.nome.trim() || Boolean(ocupado) || erroHashes}
             >
               {editando ? 'Salvar' : 'Criar'}
             </button>

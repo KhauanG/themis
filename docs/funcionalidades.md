@@ -238,9 +238,10 @@ Perguntar antes mostraria dados velhos.
 
 Exige conexão: offline os lotes do Firestore ficariam pendentes para sempre.
 
-O `HashLoja` vem de `hashConfigs`. Produtos que o ERP não conhece são contabilizados,
-avisados e marcados com `apiNotFound` — que alimenta a aba "Não encontrados na API" na tela
-de contagem. Não dá para corrigir o que o ERP não tem.
+O `HashLoja` vem de `hashConfigs`. Salvar grava só a chave daquele estoque. Se a leitura
+dos hashes falhar, Estoques avisa e bloqueia o salvar. Produtos que o ERP não conhece são
+contabilizados, avisados e marcados com `apiNotFound` — que alimenta a aba "Não encontrados
+na API" na tela de contagem. Não dá para corrigir o que o ERP não tem.
 
 #### O contrato com o ERP
 

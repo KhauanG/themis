@@ -7,7 +7,7 @@
  * O `HashLoja` vem da coleção `hashConfigs` — é o que amarra o estoque do Themis à loja
  * no ERP.
  */
-import { doc, getDoc, setDoc, type DocumentData } from 'firebase/firestore';
+import { deleteField, doc, getDoc, setDoc, type DocumentData } from 'firebase/firestore';
 import { chavesDeIdProduto, type EnvioEstoque } from '@themis/shared';
 import { db } from './firebase.js';
 import { urlApi } from './api.js';
@@ -188,7 +188,7 @@ export async function buscarEstoqueDoErp(hashLoja: string): Promise<ResultadoBus
  *
  * ⚠️ **É um documento só**, `hashConfigs/inventoryHashes`, com um mapa
  * `{ inventoryId: hash }` no campo `hashes` — não uma coleção de documentos por loja.
- * Documentos antigos usam `inventoryHashes` no lugar de `hashes`; os dois são lidos.
+ * Documentos antigos usam `inventoryHashes` no lugar de `hashes`; os dois são lidos, juntos.
  *
  * Sem o hash, o ERP não sabe de qual loja se está falando: nem a leitura de estoque nem a
  * correção funcionam.
@@ -200,9 +200,12 @@ export async function carregarHashes(): Promise<Map<string, string>> {
   const mapa = new Map<string, string>();
   if (!snap.exists()) return mapa;
 
+  // Lê os dois mapas juntos, o novo por cima: com `??` um `hashes` parcial escondia os
+  // estoques que só existiam no legado `inventoryHashes`.
   const dados = snap.data() as DocumentData;
-  const bruto = (dados['hashes'] ?? dados['inventoryHashes']) as Record<string, unknown> | undefined;
-  if (!bruto || typeof bruto !== 'object') return mapa;
+  const comoMapa = (v: unknown): Record<string, unknown> =>
+    v && typeof v === 'object' ? (v as Record<string, unknown>) : {};
+  const bruto = { ...comoMapa(dados['inventoryHashes']), ...comoMapa(dados['hashes']) };
 
   for (const [inventoryId, hash] of Object.entries(bruto)) {
     const valor = String(hash ?? '').trim();
@@ -218,22 +221,26 @@ export async function hashDaLoja(inventoryId: string): Promise<string | null> {
 }
 
 /**
- * Grava o mapa inteiro.
+ * Grava (ou apaga) o hash de **um** estoque, sem tocar nos outros.
  *
- * `merge: true` no campo `hashes` mantém o que outros estoques já tinham — gravar o
- * documento inteiro apagaria a configuração de quem não estava na tela.
+ * Por chave porque regravar o mapa a partir da tela apagava todos os hashes quando a
+ * leitura tinha falhado e a tela só tinha um mapa vazio. Apagar vale nos dois mapas
+ * (`hashes` e o legado `inventoryHashes`), senão a chave antiga voltaria pela leitura.
  */
-export async function salvarHashes(hashes: ReadonlyMap<string, string>): Promise<void> {
-  const objeto: Record<string, string> = {};
-  for (const [inventoryId, hash] of hashes) {
-    const valor = hash.trim();
-    if (valor !== '') objeto[inventoryId] = valor;
-  }
+export async function salvarHashDaLoja(inventoryId: string, hash: string): Promise<void> {
+  const valor = hash.trim();
+  const dados =
+    valor !== ''
+      ? { hashes: { [inventoryId]: valor }, updatedAt: new Date() }
+      : {
+          hashes: { [inventoryId]: deleteField() },
+          inventoryHashes: { [inventoryId]: deleteField() },
+          updatedAt: new Date(),
+        };
 
-  await withWriteTimeout(
-    setDoc(doc(db, 'hashConfigs', DOC_HASHES), { hashes: objeto, updatedAt: new Date() }),
-    { label: 'salvar hashes' },
-  );
+  await withWriteTimeout(setDoc(doc(db, 'hashConfigs', DOC_HASHES), dados, { merge: true }), {
+    label: 'salvar hash',
+  });
 }
 
 /**

@@ -36,8 +36,8 @@ import {
   initializeTestEnvironment,
   type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing';
-import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
-import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
+import { deleteField, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 let ambiente: RulesTestEnvironment;
 
@@ -412,5 +412,23 @@ describe('hashConfigs exige master', () => {
     await assertSucceeds(ler('admin'));
     await assertFails(ler('semLista'));
     await assertFails(ler('semDoc'));
+  });
+});
+
+/** Prova que o Firestore e a regra fazem o que `salvarHashDaLoja` supõe, no mesmo formato. */
+describe('hashConfigs com merge por chave', () => {
+  it('gravar ou apagar uma chave não mexe nas outras', async () => {
+    const ref = (uid: string) => doc(como(uid), 'hashConfigs/inventoryHashes');
+    await ambiente.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'hashConfigs/inventoryHashes'), { hashes: { X: 'a', Y: 'b' } });
+    });
+    await assertSucceeds(setDoc(ref('master'), { hashes: { Z: 'c' }, updatedAt: new Date() }, { merge: true }));
+    await assertSucceeds(setDoc(ref('master'), {
+      hashes: { X: deleteField() }, inventoryHashes: { X: deleteField() }, updatedAt: new Date(),
+    }, { merge: true }));
+    const dados = (await getDoc(ref('master'))).data();
+    expect(dados?.['hashes']).toEqual({ Y: 'b', Z: 'c' });
+    // Ausente ou mapa vazio servem: os dois são lidos como "nada" por carregarHashes.
+    expect(dados?.['inventoryHashes'] ?? {}).toEqual({});
   });
 });
