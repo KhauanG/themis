@@ -33,6 +33,11 @@ export function ModalFinalizar({ aberto, onFechar }: Props) {
    * transação acha a auditoria N e responde "já finalizada".
    */
   const cicloAlvo = useRef<number | null>(null);
+  /**
+   * Gravação em andamento. Ref, e não só `salvando`: Escape, fundo e X chamam `fechar` com a
+   * closure do render anterior, e o estado só chega no render seguinte.
+   */
+  const gravando = useRef(false);
 
   const estatisticas = calcularEstatisticas(produtos);
   /**
@@ -50,14 +55,24 @@ export function ModalFinalizar({ aberto, onFechar }: Props) {
   const listaProvisoria = carregandoProdutos || conciliando;
   const confirmado = texto.trim().toUpperCase() === CONFIRMACAO;
 
-  function fechar() {
+  function encerrar() {
     setTexto('');
     cicloAlvo.current = null;
     onFechar();
   }
 
+  /**
+   * Fechamento pedido pelo usuário (Escape, fundo, X, Cancelar). Não fecha com a gravação em
+   * andamento: fechar zera `cicloAlvo`, e se a transação estourar mas chegar ao servidor, o
+   * clique seguinte, já no ciclo N+1, finalizaria o ciclo que ninguém contou.
+   */
+  function fechar() {
+    if (!gravando.current) encerrar();
+  }
+
   async function finalizar() {
     if (!confirmado || salvando || listaProvisoria || !estoqueAtual || !usuario) return;
+    gravando.current = true;
     setSalvando(true);
 
     try {
@@ -95,7 +110,8 @@ export function ModalFinalizar({ aberto, onFechar }: Props) {
         mostrar(`Esta contagem já foi finalizada: o estoque está no ciclo ${r.cicloServidor}. Nada foi gravado.`, 'warning');
       }
 
-      fechar();
+      // `encerrar`, não `fechar`: aqui a gravação ainda consta como em andamento.
+      encerrar();
     } catch (erro) {
       console.error('[finalizar] Falhou:', erro);
       // Modal fica aberto e `cicloAlvo` é mantido: o próximo clique tenta o MESMO ciclo.
@@ -108,6 +124,7 @@ export function ModalFinalizar({ aberto, onFechar }: Props) {
         mostrar('Não foi possível finalizar. Nada foi gravado. Verifique a conexão e tente de novo.', 'error');
       }
     } finally {
+      gravando.current = false;
       setSalvando(false);
     }
   }
