@@ -5,9 +5,9 @@
  * mundo ao mesmo tempo, com listener em tempo real: ligar o modo contagem no escritório
  * precisa refletir no celular do depósito sem ninguém recarregar nada.
  *
- * ⚠️ A regra do Firestore aceita **apenas** `modoContagem`, `readonlyInventories` e
- * `lastUpdated` — e o campo de data chama `lastUpdated`, não `updatedAt`. Qualquer campo
- * a mais faz a escrita inteira ser negada. Escrita exige admin ou master.
+ * ⚠️ A regra do Firestore confere o tipo de `modoContagem`, `readonlyInventories`,
+ * `mostrarCiclo` e `lastUpdated` — e o campo de data chama `lastUpdated`, não `updatedAt`.
+ * Escrita exige admin ou master.
  */
 import { Timestamp, doc, getDoc, onSnapshot, setDoc, type DocumentData } from 'firebase/firestore';
 import { db } from './firebase.js';
@@ -78,21 +78,26 @@ export function ouvirConfiguracoes(aoMudar: (c: Configuracoes) => void): () => v
 }
 
 /**
- * Grava as duas chaves de uma vez.
+ * Grava as chaves que a tela conhece, de uma vez.
  *
- * Sempre as duas, nunca só uma: `setDoc` sem `merge` apagaria a outra, e com `merge` numa
- * lista o Firestore substitui o array inteiro de qualquer forma. Enviar o estado completo
- * deixa explícito o que fica gravado.
+ * Com `merge`, porque o documento tem campos que esta tela não conhece
+ * (`latestNativeAppVersion`, posto à mão no Console e lido pelo app nativo): `setDoc` sem
+ * `merge` os apagava a cada ajuste. A lista vai inteira, porque com `merge` o array é
+ * substituído, não somado.
  */
 export async function salvarConfiguracoes(config: Configuracoes): Promise<void> {
   await withWriteTimeout(
-    setDoc(doc(db, 'appSettings', DOC), {
-      modoContagem: config.modoContagem,
-      readonlyInventories: config.somenteLeitura,
-      mostrarCiclo: config.mostrarCiclo,
-      // A regra cobra `lastUpdated`; `updatedAt` seria negado.
-      lastUpdated: Timestamp.fromDate(new Date()),
-    }),
+    setDoc(
+      doc(db, 'appSettings', DOC),
+      {
+        modoContagem: config.modoContagem,
+        readonlyInventories: config.somenteLeitura,
+        mostrarCiclo: config.mostrarCiclo,
+        // A regra cobra `lastUpdated`; `updatedAt` seria negado.
+        lastUpdated: Timestamp.fromDate(new Date()),
+      },
+      { merge: true },
+    ),
     { label: 'salvar configurações' },
   );
 }
