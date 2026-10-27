@@ -75,8 +75,9 @@ Exige **HTTPS**. Sem contexto seguro a câmera não abre, e a mensagem explica i
 Mostra o resumo do ciclo e avisa quantos itens ficariam como NÃO CONTADO. Exige digitar
 **FINALIZAR**.
 
-Salva a auditoria, incrementa o ciclo, registra no histórico. Ordem e tratamento de falha
-em [regras-de-negocio.md](regras-de-negocio.md) §Ciclo.
+Salva a auditoria e incrementa o ciclo numa transação só; depois registra no histórico.
+Clicar de novo depois de um estouro de tempo avisa que a contagem já foi finalizada. Detalhes
+e tratamento de falha em [regras-de-negocio.md](regras-de-negocio.md) §Ciclo.
 
 ---
 

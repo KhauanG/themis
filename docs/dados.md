@@ -151,8 +151,10 @@ Snapshot imutável de uma contagem finalizada. Formato idêntico ao do 1.x.
 o que ela mostra hoje precisa ser o que mostrava no dia em que foi salva, mesmo que a
 regra de cálculo mude depois.
 
-⚠️ **Gravação sem retry, de propósito.** Usa `doc()` + `setDoc()` (ID gerado localmente)
-em vez de `addDoc()`. Repetir a gravação criaria auditorias duplicadas.
+⚠️ **O id é `{inventoryId}_{ciclo}`** (`idAuditoria`), gravado junto com o ciclo novo em uma
+transação (`finalizarContagem`). É o que impede duplicata: segundo clique ou segundo aparelho
+acha o documento e não grava. Só funciona porque a regra deixa regravar apenas o master.
+Auditorias do 1.x e do site até a 2.19 têm id aleatório e seguem legíveis do mesmo jeito.
 
 ---
 

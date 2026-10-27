@@ -180,18 +180,22 @@ quando a equipe estiver usando só o lote.
 
 `inventories/{id}.contagemCycle` — começa em 1 e sobe a cada finalização.
 
-Finalizar faz, **nesta ordem**:
+Finalizar é **uma transação só** (`finalizarContagem`): grava `auditorias/{inventoryId}_{ciclo}`
+e o ciclo novo juntos. Antes de gravar, a transação confere no servidor que a auditoria
+daquele ciclo não existe e que o ciclo do estoque é o da tela. Se a auditoria já existe, ou o
+ciclo mudou, o app avisa "já foi finalizada" e **não grava nada**. Sem servidor, nada é
+gravado: a transação não usa o cache. O histórico (`FINALIZAR_CONTAGEM`) entra depois do
+sucesso, e só nele.
 
-1. Monta o snapshot e grava em `auditorias`
-2. Incrementa o ciclo em transação
-3. Registra `FINALIZAR_CONTAGEM` no histórico
+O id fixo é o que protege de duplicata: dois cliques, ou dois aparelhos, esbarram na mesma
+auditoria. Depois de um estouro de tempo a gravação pode ter chegado, então o modal guarda o
+ciclo do primeiro clique e o reaproveita até fechar; um segundo clique acha a auditoria e
+informa que já foi finalizada, em vez de finalizar o ciclo seguinte. Antes eram duas
+escritas (auditoria com id aleatório, ciclo depois sem conferir) e cada clique extra criava
+uma auditoria a mais e subia o ciclo de novo.
 
-A ordem importa: se o passo 2 falhar, a auditoria **já está salva**. O contrário perderia
-o trabalho todo. Quando o passo 2 estoura o teto de tempo, o usuário recebe "auditoria
-salva, mas o ciclo não fechou" e pode repetir.
-
-O incremento é em **transação com leitura no servidor**: com 5 aparelhos, ler o ciclo da
-tela e somar 1 perderia incrementos.
+Com 5 aparelhos, ler o ciclo da tela e somar 1 perderia incrementos; a base é o ciclo lido
+dentro da transação, no servidor.
 
 ⚠️ A transação grava **só** os quatro campos de ciclo. Qualquer campo a mais faz a regra
 negar — ver [dados.md](dados.md) §inventories.

@@ -432,3 +432,14 @@ describe('hashConfigs com merge por chave', () => {
     expect(dados?.['inventoryHashes'] ?? {}).toEqual({});
   });
 });
+
+// O id fixo só evita duplicata porque a regra não deixa quem não é master regravar.
+describe('auditoria com id fixo', () => {
+  it('quem só conta cria a auditoria do ciclo, mas não a regrava', async () => {
+    const dados = {
+      nome: 'Loja X - Ciclo 1', inventoryId: 'X', data: new Date(), produtos: [], estatisticas: {}, contagemCycle: 1,
+    };
+    await assertSucceeds(setDoc(doc(como('semLista'), 'auditorias/X_1'), dados));
+    await assertFails(setDoc(doc(como('semLista'), 'auditorias/X_1'), dados));
+  });
+});

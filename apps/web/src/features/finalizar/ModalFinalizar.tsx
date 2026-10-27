@@ -1,11 +1,10 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { calcularEstatisticas } from '@themis/shared';
 import { Modal } from '../../components/Modal.js';
 import { useEstoque } from '../../contexts/EstoqueContext.js';
 import { useAuth } from '../../contexts/AuthContext.js';
 import { useToast } from '../../contexts/ToastContext.js';
-import { montarAuditoria, salvarAuditoria } from '../../lib/auditorias-repo.js';
-import { finalizarCiclo } from '../../lib/estoques-repo.js';
+import { finalizarContagem, montarAuditoria } from '../../lib/auditorias-repo.js';
 import { registrar } from '../../lib/historico.js';
 import { isWriteTimeout } from '../../lib/firestore-write.js';
 
@@ -25,6 +24,15 @@ export function ModalFinalizar({ aberto, onFechar }: Props) {
 
   const [texto, setTexto] = useState('');
   const [salvando, setSalvando] = useState(false);
+  /**
+   * Ciclo do primeiro clique em Finalizar, mantido até o modal fechar.
+   *
+   * Se a gravação estoura o tempo mas chega ao servidor, o listener já mostra o ciclo N+1 e o
+   * modal continua aberto. Sem isto, o segundo clique usaria o `ciclo` da tela (N+1) e
+   * finalizaria o ciclo seguinte, que ninguém contou. Com o ciclo do primeiro clique, a
+   * transação acha a auditoria N e responde "já finalizada".
+   */
+  const cicloAlvo = useRef<number | null>(null);
 
   const estatisticas = calcularEstatisticas(produtos);
   /**
@@ -44,6 +52,7 @@ export function ModalFinalizar({ aberto, onFechar }: Props) {
 
   function fechar() {
     setTexto('');
+    cicloAlvo.current = null;
     onFechar();
   }
 
@@ -52,50 +61,52 @@ export function ModalFinalizar({ aberto, onFechar }: Props) {
     setSalvando(true);
 
     try {
+      const cicloDaTentativa = (cicloAlvo.current ??= ciclo);
       // Nome pelo lote quando há: é o rótulo pelo qual a equipe procura a contagem.
-      const rodada = lote ? `Lote ${lote}` : `Ciclo ${ciclo}`;
+      const rodada = lote ? `Lote ${lote}` : `Ciclo ${cicloDaTentativa}`;
       const nomeAuditoria = `${estoqueAtual.nome ?? estoqueAtual.id} - ${rodada}`;
       const auditoria = montarAuditoria({
         nome: nomeAuditoria,
         inventoryId: estoqueAtual.id,
-        contagemCycle: ciclo,
+        contagemCycle: cicloDaTentativa,
         produtos,
         lote,
       });
 
-      // A auditoria é salva primeiro. Se o ciclo não fechar depois, o dado da contagem
-      // já está guardado — o contrário perderia o trabalho todo.
-      const auditoriaId = await salvarAuditoria(auditoria);
+      // Uma transação só: a auditoria e o ciclo novo entram juntos, ou nenhum dos dois.
+      const r = await finalizarContagem(auditoria);
 
-      try {
-        await finalizarCiclo(estoqueAtual.id, ciclo);
+      if (r.situacao === 'finalizada') {
         mostrar('Contagem finalizada e salva.', 'success');
-      } catch (erroCiclo) {
-        if (isWriteTimeout(erroCiclo)) {
-          mostrar(
-            'Auditoria salva, mas o ciclo não fechou por falta de conexão. Finalize de novo quando a internet voltar.',
-            'warning',
-          );
-        } else {
-          throw erroCiclo;
+        if (contextoLog) {
+          void registrar('FINALIZAR_CONTAGEM', contextoLog, {
+            auditoriaId: r.auditoriaId,
+            ciclo: r.cicloFinalizado,
+            contados: estatisticas.contados,
+            naoContados: estatisticas.naoContados,
+            incorretos: estatisticas.incorretos,
+            foraDoErp: estatisticas.foraDoErp,
+          });
         }
-      }
-
-      if (contextoLog) {
-        void registrar('FINALIZAR_CONTAGEM', contextoLog, {
-          auditoriaId,
-          ciclo,
-          contados: estatisticas.contados,
-          naoContados: estatisticas.naoContados,
-          incorretos: estatisticas.incorretos,
-          foraDoErp: estatisticas.foraDoErp,
-        });
+      } else if (r.situacao === 'ja-finalizada') {
+        // Segundo clique depois de estouro, ou outro aparelho: já está salva, sem histórico novo.
+        mostrar('Esta contagem já foi finalizada e está salva. Nada foi gravado de novo.', 'success');
+      } else {
+        mostrar(`Esta contagem já foi finalizada: o estoque está no ciclo ${r.cicloServidor}. Nada foi gravado.`, 'warning');
       }
 
       fechar();
     } catch (erro) {
       console.error('[finalizar] Falhou:', erro);
-      mostrar('Não foi possível finalizar. Verifique a conexão e tente de novo.', 'error');
+      // Modal fica aberto e `cicloAlvo` é mantido: o próximo clique tenta o MESMO ciclo.
+      if (isWriteTimeout(erro)) {
+        mostrar(
+          'O servidor não respondeu a tempo. Confira a conexão e clique em Finalizar de novo: se a contagem já tiver sido salva, o app avisa.',
+          'warning',
+        );
+      } else {
+        mostrar('Não foi possível finalizar. Nada foi gravado. Verifique a conexão e tente de novo.', 'error');
+      }
     } finally {
       setSalvando(false);
     }

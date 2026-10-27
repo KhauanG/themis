@@ -15,7 +15,6 @@ import {
   orderBy,
   query,
   where,
-  setDoc,
   type DocumentData,
   type QueryDocumentSnapshot,
 } from 'firebase/firestore';
@@ -27,7 +26,7 @@ import {
 } from '@themis/shared';
 import { db } from './firebase.js';
 import { deviceId } from './dispositivo.js';
-import { withWriteTimeout } from './firestore-write.js';
+import { runTransactionWithTimeout, withWriteTimeout } from './firestore-write.js';
 
 const COLECAO = 'auditorias';
 
@@ -58,19 +57,66 @@ export function montarAuditoria(dados: DadosNovaAuditoria): Omit<Auditoria, 'id'
 }
 
 /**
- * Grava a auditoria e devolve o id.
- *
- * `doc()` + `setDoc()` em vez de `addDoc()`: o ID é gerado localmente, então fica
- * disponível de imediato mesmo se o ack do servidor demorar. E **não há retry** aqui de
- * propósito — repetir a gravação criaria auditorias duplicadas.
+ * Id fixo por estoque e ciclo. É o que faz um segundo clique, ou um segundo aparelho,
+ * encontrar a auditoria que já existe em vez de criar outra. Auditorias do 1.x e do site
+ * até a 2.19 têm id aleatório e continuam legíveis: o id só importa na hora de gravar.
  */
-export async function salvarAuditoria(auditoria: Omit<Auditoria, 'id'>): Promise<string> {
-  const ref = doc(collection(db, COLECAO));
-  await withWriteTimeout(
-    setDoc(ref, { ...auditoria, data: Timestamp.fromDate(auditoria.data), createdAt: Timestamp.fromDate(auditoria.createdAt) }),
-    { label: 'salvar auditoria' },
+export function idAuditoria(inventoryId: string, ciclo: number): string {
+  return `${inventoryId}_${ciclo}`;
+}
+
+export type ResultadoFinalizacao =
+  | { situacao: 'finalizada'; auditoriaId: string; cicloFinalizado: number; proximoCiclo: number }
+  | { situacao: 'ja-finalizada'; auditoriaId: string; cicloFinalizado: number }
+  | { situacao: 'ciclo-mudou'; cicloServidor: number };
+
+/**
+ * Grava a auditoria e sobe o ciclo na MESMA transação.
+ *
+ * Antes eram duas escritas: a auditoria (id aleatório) e depois o ciclo, sem conferir se ele
+ * tinha mudado. Dois cliques, ou dois aparelhos, duplicavam a auditoria e subiam o ciclo duas
+ * vezes; e se o ciclo falhasse depois da auditoria, o app mandava finalizar de novo e criava
+ * mais uma. Numa transação só, ou entram as duas coisas ou nenhuma.
+ *
+ * Lê a auditoria do ciclo SEMPRE, antes de qualquer escrita: depois de um estouro de tempo a
+ * gravação pode ter chegado ao servidor, e aí o próximo clique tem que achá-la e dizer "já
+ * finalizada", não finalizar o ciclo seguinte. Só quem é master regrava `auditorias` (regra),
+ * então o id fixo não é sobrescrito por quem apenas conta.
+ */
+export async function finalizarContagem(auditoria: Omit<Auditoria, 'id'>): Promise<ResultadoFinalizacao> {
+  const ciclo = auditoria.contagemCycle;
+  const auditoriaId = idAuditoria(auditoria.inventoryId, ciclo);
+  const refAuditoria = doc(db, COLECAO, auditoriaId);
+  const refEstoque = doc(db, 'inventories', auditoria.inventoryId);
+
+  return runTransactionWithTimeout(
+    async (tx): Promise<ResultadoFinalizacao> => {
+      const snapAuditoria = await tx.get(refAuditoria);
+      const snapEstoque = await tx.get(refEstoque);
+
+      if (snapAuditoria.exists()) return { situacao: 'ja-finalizada', auditoriaId, cicloFinalizado: ciclo };
+
+      const bruto = snapEstoque.data()?.['contagemCycle'];
+      const cicloServidor = typeof bruto === 'number' && bruto >= 1 ? bruto : ciclo;
+      if (cicloServidor !== ciclo) return { situacao: 'ciclo-mudou', cicloServidor };
+
+      const agora = new Date();
+      tx.set(refAuditoria, {
+        ...auditoria,
+        data: Timestamp.fromDate(auditoria.data),
+        createdAt: Timestamp.fromDate(auditoria.createdAt),
+      });
+      // Só os campos que a regra libera para usuário comum. Nada além disso.
+      tx.set(
+        refEstoque,
+        { contagemCycle: ciclo + 1, lastFinalizedCycle: ciclo, lastFinalizedAt: agora, updatedAt: agora },
+        { merge: true },
+      );
+      return { situacao: 'finalizada', auditoriaId, cicloFinalizado: ciclo, proximoCiclo: ciclo + 1 };
+    },
+    // Sobe até 30 s: a auditoria pode passar de 1 MB num wifi de loja e os 12 s padrão estourariam à toa.
+    { label: 'finalizar contagem', ms: 30_000 },
   );
-  return ref.id;
 }
 
 function paraAuditoria(snap: QueryDocumentSnapshot<DocumentData>): Auditoria {

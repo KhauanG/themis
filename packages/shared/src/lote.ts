@@ -12,7 +12,7 @@
  * bater com o `contagemCycle` corrente.
  *
  * Isso resolve um conflito real: Finalizar é liberado para qualquer usuário, mas
- * `finalizarCiclo` escreve em `inventories` pelo ramo restrito da regra, que aceita
+ * `finalizarContagem` escreve em `inventories` pelo ramo restrito da regra, que aceita
  * **apenas** os quatro campos de ciclo (`hasOnly`). Um `lote: ''` a mais no payload seria
  * negado — é o mesmo formato do bug que o `createdAt` regenerado causou no 1.x.
  *

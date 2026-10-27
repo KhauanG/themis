@@ -26,11 +26,7 @@ import {
 } from 'firebase/firestore';
 import { normalizarLote, type Inventory } from '@themis/shared';
 import { db } from './firebase.js';
-import {
-  exigirGravacao,
-  runTransactionWithTimeout,
-  withWriteTimeout,
-} from './firestore-write.js';
+import { exigirGravacao, withWriteTimeout } from './firestore-write.js';
 import { colecaoProdutos } from './produtos-repo.js';
 import { assinaturaResiliente } from './assinatura.js';
 
@@ -124,50 +120,6 @@ export async function encerrarLote(inventoryId: string): Promise<void> {
       { merge: true },
     ),
     { label: 'encerrar lote' },
-  );
-}
-
-export interface ResultadoFinalizacao {
-  cicloFinalizado: number;
-  proximoCiclo: number;
-}
-
-/**
- * Fecha o ciclo de contagem.
- *
- * Em transação porque 4-5 aparelhos podem finalizar quase ao mesmo tempo: ler o ciclo da
- * tela e somar 1 perderia incrementos. O valor do servidor é a base.
- */
-export async function finalizarCiclo(
-  inventoryId: string,
-  cicloLocal: number,
-): Promise<ResultadoFinalizacao> {
-  const ref = doc(db, COLECAO, inventoryId);
-
-  return runTransactionWithTimeout(
-    async (tx) => {
-      const snap = await tx.get(ref);
-      const dados = snap.exists() ? snap.data() : null;
-      const cicloServidor =
-        dados && typeof dados['contagemCycle'] === 'number' && dados['contagemCycle'] >= 1
-          ? (dados['contagemCycle'] as number)
-          : cicloLocal;
-
-      // Só os campos que a regra libera para usuário comum. Nada além disso.
-      tx.set(
-        ref,
-        {
-          contagemCycle: cicloServidor + 1,
-          lastFinalizedCycle: cicloServidor,
-          lastFinalizedAt: new Date(),
-          updatedAt: new Date(),
-        },
-        { merge: true },
-      );
-
-      return { cicloFinalizado: cicloServidor, proximoCiclo: cicloServidor + 1 };
-    },
-    { label: 'finalizar ciclo' },
   );
 }
 
