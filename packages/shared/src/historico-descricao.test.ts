@@ -49,6 +49,42 @@ describe('descreverEvento — contagem', () => {
     });
     expect(r.mudancas).toHaveLength(0);
   });
+
+  // Formato que o app grava (EscritaContagem.kt:78-92) e que o acervo do 1.x tem.
+  it('lê o registro gravado pelo app', () => {
+    const r = descreverEvento('MODIFICAR_PRODUTO', {
+      productId: 'p1',
+      productName: 'Skol Lata 350ml',
+      barcode: '7891',
+      oldQuantity: 12,
+      newQuantity: 15,
+      oldBarcode: '7890',
+      newBarcode: '7891',
+      oldDataValidade: '',
+      newDataValidade: '2026-09-01',
+    });
+    expect(r.alvo).toBe('Skol Lata 350ml');
+    expect(r.mudancas).toEqual([
+      { campo: 'Quantidade', de: '12', para: '15' },
+      { campo: 'Validade', de: '—', para: '01/09/2026' },
+      { campo: 'Código de barras', de: '7890', para: '7891' },
+    ]);
+  });
+
+  it('código de barras igual não vira mudança', () => {
+    const r = descreverEvento('MODIFICAR_PRODUTO', {
+      productName: 'Brahma', oldQuantity: 1, newQuantity: 2, oldBarcode: '789', newBarcode: '789',
+    });
+    expect(r.mudancas.map((m) => m.campo)).toEqual(['Quantidade']);
+  });
+
+  it('o formato do site vence quando os dois aparecem', () => {
+    const r = descreverEvento('MODIFICAR_PRODUTO', {
+      produto: 'Do site', productName: 'Do app', de: 1, para: 2, oldQuantity: 9, newQuantity: 9,
+    });
+    expect(r.alvo).toBe('Do site');
+    expect(r.mudancas).toEqual([{ campo: 'Quantidade', de: '1', para: '2' }]);
+  });
 });
 
 describe('descreverEvento — cadastro', () => {

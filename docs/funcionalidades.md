@@ -325,7 +325,7 @@ desenha o que sai de lá.
 
 | Ação | Detalhes guardados |
 |---|---|
-| Contou produto | produto, quantidade de → para, validade de → para, ciclo |
+| Contou produto | produto, quantidade de → para, validade de → para, código de barras (registro do app), ciclo |
 | Conferiu item | produto, se a divergência se confirmou, contado, sistema |
 | Cadastrou produto | nome, código, saldo, origem |
 | Editou produto | nome, código, saldo e código do ERP, cada um de → para |

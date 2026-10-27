@@ -111,10 +111,21 @@ export function descreverEvento(acao: AcaoHistorico, detalhes: Detalhes = {}): D
 
   switch (acao) {
     case 'MODIFICAR_PRODUTO': {
-      adicionar(mudanca('Quantidade', d['de'], d['para']));
-      adicionar(mudanca('Validade', d['validadeDe'], d['validadePara'], data));
+      // O site grava produto/de/para; o app (e o acervo do 1.x) grava productName/old*/new*.
+      // O formato do site vence quando os dois aparecem.
+      adicionar(mudanca('Quantidade', d['de'] ?? d['oldQuantity'], d['para'] ?? d['newQuantity']));
+      adicionar(
+        mudanca(
+          'Validade',
+          d['validadeDe'] ?? d['oldDataValidade'],
+          d['validadePara'] ?? d['newDataValidade'],
+          data,
+        ),
+      );
+      adicionar(mudanca('Código de barras', d['oldBarcode'], d['newBarcode']));
       if (d['ciclo'] !== undefined) fatos.push(`Ciclo ${texto(d['ciclo'])}`);
-      return { alvo: d['produto'] ? String(d['produto']) : undefined, mudancas, fatos };
+      const alvo = d['produto'] || d['productName'];
+      return { alvo: alvo ? String(alvo) : undefined, mudancas, fatos };
     }
 
     case 'EDITAR_PRODUTO': {
