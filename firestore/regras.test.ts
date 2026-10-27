@@ -405,4 +405,12 @@ describe('hashConfigs exige master', () => {
       setDoc(doc(como('master'), 'hashConfigs/inventoryHashes'), { hashes: { X: 'abc' } }),
     );
   });
+
+  it('só cargo alto lê hash', async () => {
+    const ler = (uid: string) => getDoc(doc(como(uid), 'hashConfigs/inventoryHashes'));
+    await assertSucceeds(ler('master'));
+    await assertSucceeds(ler('admin'));
+    await assertFails(ler('semLista'));
+    await assertFails(ler('semDoc'));
+  });
 });

@@ -219,7 +219,8 @@ service cloud.firestore {
     }
 
     match /hashConfigs/{configId} {
-      allow read: if signedIn();
+      // O hash é credencial do ERP: só cargo alto lê. Quem só conta nunca precisa dele.
+      allow read: if isAdminOrMaster();
       allow create, update: if isMaster() &&
         (('hashes' in request.resource.data && request.resource.data.hashes is map) ||
          ('inventoryHashes' in request.resource.data && request.resource.data.inventoryHashes is map));
