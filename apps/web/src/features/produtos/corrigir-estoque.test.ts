@@ -38,6 +38,9 @@ describe('executarCorrecao — fechamento da conferência', () => {
     expect(vi.mocked(fecharConferencia).mock.calls[0]![1].map((p) => p.id)).toEqual(['a', 'c']);
     expect(r.falhasNoEnvio).toEqual(['Recusado', 'SemId (sem ID do ERP)']);
     expect(r.enviados).toBe(1);
+    // O recusado não pode aparecer também como "aceito mas não refletiu" (nem entre os confirmados).
+    expect(r.pendentes).toEqual([]);
+    expect(r.confirmados).toBe(1);
     vi.useRealTimers();
   });
 });

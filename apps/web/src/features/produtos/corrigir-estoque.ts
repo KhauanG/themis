@@ -235,7 +235,9 @@ export async function executarCorrecao(
       // Não conseguir verificar não invalida o envio; só não dá para afirmar que deu certo.
       verificacaoIndisponivel = true;
     } else {
-      for (const p of paraOErp) {
+      // Só o que o ERP aceitou: o recusado ainda tem o saldo antigo e apareceria como "aceito
+      // mas não refletiu", além de entrar no reenvio.
+      for (const p of paraOErp.filter((x) => aceitos.has(x.id))) {
         // O valor **como foi enviado** (inteiro, nunca negativo), não o físico cru: é ele
         // que o ERP recebeu, e é contra ele que a comparação faz sentido.
         const enviado = montarEnvio(p, hashLoja).Quantidade;

@@ -221,8 +221,8 @@ pendência eterna. Eles **continuam contados** (`ATUALIZADO`: a divergência exi
 para corrigir daqui) e aparecem numa lista própria, antes e depois da confirmação. O caminho é
 resolver o cadastro no Nuvem3. *Difere do 1.x, que enviava todos.*
 
-**3. Verificar se aplicou.** Espera 1,5 s, lê o ERP de novo e confere item a item se o
-saldo ficou igual ao enviado. O que não refletiu vira pendência, listada com "enviado" e
+**3. Verificar se aplicou.** Espera 1,5 s, lê o ERP de novo e confere item a item, só dos
+que o ERP aceitou, se o saldo ficou igual ao enviado. O que não refletiu vira pendência, listada com "enviado" e
 "no ERP", com botão de **reenviar**.
 
 > Sem a fase 3, um envio aceito pelo ERP mas não aplicado passa despercebido — e o estoque
