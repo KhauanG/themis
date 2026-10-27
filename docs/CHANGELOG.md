@@ -51,6 +51,8 @@ Corrigir deixam de dar por feito o que o banco ou o ERP não aceitou.
 
 - `hashConfigs` só é lido por admin e master. A regra já está publicada desde 2026-10-27; esta
   versão apenas alinha o repositório com o que está no ar.
+- **A API recusa `Quantidade` acima de 999.999** no envio ao ERP, o mesmo teto da contagem.
+  Uma chamada direta não manda mais um código de barras como saldo.
 
 ### Notas
 

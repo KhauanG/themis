@@ -54,7 +54,8 @@ const schemaAtualizacao = {
       IdProduto: { type: 'integer', minimum: 1 },
       HashLoja: { type: 'string', minLength: 1 },
       // Quantidade negativa nunca é contagem válida e o ERP a rejeita silenciosamente.
-      Quantidade: { type: 'number', minimum: 0 },
+      // Teto = `LIMITE_QUANTIDADE` de packages/shared/src/quantidade.ts (a API não importa o shared).
+      Quantidade: { type: 'number', minimum: 0, maximum: 999_999 },
       // Vazio é permitido: o 1.x só exigia que o campo existisse, e produto sem código de
       // barras é comum no cadastro. Exigir `minLength: 1` bloquearia envio que o 1.x fazia.
       CodigoBarras: { type: 'string' },

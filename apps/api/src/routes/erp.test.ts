@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest';
-import { erroDeNegocio, jsonDoErp, normalizarItensDoErp } from './erp.js';
+import Fastify from 'fastify';
+import { describe, expect, it, vi } from 'vitest';
+import { erroDeNegocio, jsonDoErp, normalizarItensDoErp, rotasErp } from './erp.js';
 
 /**
  * O ERP responde **HTTP 200 com erro no corpo** quando recusa a atualização por regra dele.
@@ -195,4 +196,29 @@ describe('jsonDoErp', () => {
   it('texto que não é JSON por dentro continua texto', () => expect(jsonDoErp('"OK"')).toBe('OK'));
 
   it('corpo que não é JSON lança, como antes', () => expect(() => jsonDoErp('<html>')).toThrow());
+});
+
+// O site já recusa acima de 999.999; a API é a fronteira, e uma chamada direta não pode
+// mandar ao ERP um código de barras como quantidade.
+describe('POST /api/erp/estoque — teto da Quantidade', () => {
+  it('recusa acima de 999.999 sem chamar o ERP', async () => {
+    // Nunca o ERP de verdade: se o schema deixar passar, o handler chama este `fetch`.
+    const fetchFalso = vi.fn(async () => new Response('', { status: 200 }));
+    vi.stubGlobal('fetch', fetchFalso);
+    const app = Fastify();
+    await app.register(rotasErp);
+    const resposta = await app.inject({
+      method: 'POST',
+      url: '/api/erp/estoque',
+      payload: {
+        IdProduto: 1, HashLoja: 'H', Quantidade: 1_000_000, CodigoBarras: '', NomeProduto: 'x',
+        EstoqueMinimo: 0, PrecoVenda: 0, PrecoCusto: 0,
+      },
+    });
+    await app.close();
+    vi.unstubAllGlobals();
+
+    expect(resposta.statusCode).toBe(400);
+    expect(fetchFalso).not.toHaveBeenCalled();
+  });
 });

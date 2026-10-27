@@ -263,7 +263,7 @@ na API" na tela de contagem. Não dá para corrigir o que o ERP não tem.
 |---|---|---|
 | `IdProduto` | inteiro | **Não é texto.** API .NET recusa `"123"` num campo `int`. |
 | `HashLoja` | texto | Vem de `hashConfigs/inventoryHashes`. |
-| `Quantidade` | inteiro ≥ 0 | Arredondada; negativo é grampeado em zero. |
+| `Quantidade` | inteiro de 0 a 999.999 | Arredondada; negativo é grampeado em zero. A API recusa acima de 999.999 (400). |
 | `CodigoBarras` | texto | Pode ser vazio — produto sem código existe. |
 | `NomeProduto` | texto | |
 | `EstoqueMinimo` | inteiro | Sempre `0`. O Themis não gerencia mínimo. |
