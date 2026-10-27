@@ -6,6 +6,58 @@ Categorias: **Adicionado**, **Alterado**, **Corrigido**, **Removido**, **Seguran
 
 ---
 
+## 2.20.0 — 2026-10-27
+
+Correções urgentes da Etapa 0: o site deixa de apagar dados sem avisar (configurações e
+hashes do ERP), o histórico passa a mostrar a contagem feita pelo app, e Finalizar e
+Corrigir deixam de dar por feito o que o banco ou o ERP não aceitou.
+
+### Corrigido
+
+- **Salvar configurações apagava `latestNativeAppVersion`.** A gravação agora é com merge e
+  mantém os campos que a tela não conhece.
+- **Salvar um HashLoja apagava os outros.** Gravar um estoque escreve só a chave dele;
+  excluir remove a chave dos dois mapas (`hashes` e o legado `inventoryHashes`), então o hash
+  antigo não ressuscita. Se a leitura dos hashes falhar, a tela de Estoques bloqueia o salvar
+  em vez de gravar em cima de um mapa que não conseguiu ler.
+- **O histórico não mostrava a contagem gravada pelo app**, nem o código de barras dela. Agora
+  mostra as duas coisas.
+- **Finalizar podia duplicar a auditoria e subir o ciclo duas vezes.** A auditoria
+  `{inventoryId}_{ciclo}` e o ciclo novo são gravados numa transação só. Se o primeiro clique
+  estourar o tempo e a gravação tiver entrado, o segundo clique acha a auditoria e informa que
+  a contagem "já foi finalizada", em vez de finalizar o ciclo seguinte. O modal não fecha
+  enquanto grava.
+- **Corrigir estoque marcava como CONFERIDO o que o ERP recusou.** Agora só vira CONFERIDO o
+  que bateu ou o que o ERP aceitou. Item recusado e item sem ID no ERP continuam contados e
+  aparecem listados. Na releitura, o item recusado deixa de aparecer como "aceito".
+- **A API não enxergava recusa do ERP embrulhada em string JSON.** Passou a ler como recusa, e
+  o item continua ATUALIZADO.
+
+### Alterado
+
+- **Quantidade contada é número inteiro de 0 a 999.999.** Decimal, negativo, vazio e texto
+  são recusados com mensagem. Acima de 999.999, a mensagem lembra que pode ser um código de
+  barras lido no campo da quantidade.
+- **Negativos usa o saldo do sistema**, e só admin, master e auditor veem a aba. Quem só conta
+  não vê.
+- **Tempo limite do ERP: 45 s por tentativa, 2 tentativas, teto de 100 s no site.**
+
+### Segurança
+
+- `hashConfigs` só é lido por admin e master. A regra já está publicada desde 2026-10-27; esta
+  versão apenas alinha o repositório com o que está no ar.
+
+### Notas
+
+- ⚠️ **Trocar `ERP_TIMEOUT_MS` para `45000` no painel da Hostinger, junto com a publicação.**
+  Se ficar em `10000`, cada envio faz 2 tentativas de 10 s, o que é **menos** que antes
+  (4 × 10 s).
+- **Não precisa de `deploy-rules`.** A regra do repositório é a que já está publicada.
+- Auditorias novas têm o id `{inventoryId}_{ciclo}`. As antigas, com id aleatório, ficam como
+  estão.
+
+---
+
 ## 2.19.0 — 2026-08-28
 
 A aba de Auditoria ainda falava em Ciclo em quase tudo. Agora fala nos dois, com um
