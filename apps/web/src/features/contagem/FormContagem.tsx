@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { sistemaDe, validadeDe, type Produto } from '@themis/shared';
+import { sistemaDe, validadeDe, validarQuantidade, type Produto } from '@themis/shared';
 
 interface Props {
   produto: Produto;
@@ -38,6 +38,7 @@ export function FormContagem({
   );
   const [validade, setValidade] = useState(validadeDe(produto) ?? '');
   const [salvando, setSalvando] = useState(false);
+  const [tentou, setTentou] = useState(false);
 
   // Marca de tempo de quando o formulário abriu. Se o documento mudar enquanto ele está
   // aberto, outro aparelho contou o mesmo item — avisar antes é melhor que deixar o
@@ -45,16 +46,16 @@ export function FormContagem({
   const abertoEm = useRef(marcaDeTempo(produto));
   const mudouNoServidor = marcaDeTempo(produto) > abertoEm.current;
 
-  const valor = Number(quantidade.replace(',', '.'));
-  const valido = quantidade.trim() !== '' && Number.isFinite(valor);
+  const validacao = validarQuantidade(quantidade);
   const sistema = sistemaDe(produto);
-  const diferenca = valido ? valor - sistema : null;
+  const diferenca = validacao.ok ? validacao.valor - sistema : null;
 
   async function salvar() {
-    if (!valido || salvando) return;
+    setTentou(true);
+    if (!validacao.ok || salvando) return;
     setSalvando(true);
     try {
-      const ok = await onSalvar(valor, validade);
+      const ok = await onSalvar(validacao.valor, validade);
       if (ok) onCancelar();
     } finally {
       setSalvando(false);
@@ -74,9 +75,9 @@ export function FormContagem({
           <span className="campo__rotulo">Quantidade contada</span>
           <input
             className="campo__entrada campo__entrada--numero"
-            type="number"
-            inputMode="decimal"
-            step="any"
+            type="text"
+            inputMode="numeric"
+            autoComplete="off"
             value={quantidade}
             onChange={(e) => setQuantidade(e.target.value)}
             onFocus={(e) => e.target.select()}
@@ -116,6 +117,12 @@ export function FormContagem({
         </label>
       </div>
 
+      {!validacao.ok && (tentou || quantidade.trim() !== '') && (
+        <p className="aviso aviso--perigo" role="alert" style={{ marginBottom: 'var(--e4)' }}>
+          {validacao.mensagem}
+        </p>
+      )}
+
       {somenteLeitura && (
         <p className="aviso" role="status" style={{ marginBottom: 'var(--e4)' }}>
           Este estoque está em modo somente leitura. A contagem está travada.
@@ -135,7 +142,7 @@ export function FormContagem({
           className="botao botao--primario"
           type="button"
           onClick={() => void salvar()}
-          disabled={!valido || salvando || somenteLeitura}
+          disabled={!validacao.ok || salvando || somenteLeitura}
         >
           {salvando ? 'Salvando…' : 'Salvar'}
         </button>

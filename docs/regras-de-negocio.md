@@ -31,6 +31,32 @@ contagem zerada pelo valor antigo.
 
 Funções: `fisicoDe`, `sistemaDe`.
 
+## Quantidade contada
+
+```
+t = texto.trim()
+t vazio                  → recusa: obrigatória
+só dígitos (0-9)         → Number(t); acima de 999.999 → recusa: muito alta; senão vale
+dígitos com . ou ,       → recusa: só inteiro
+qualquer outro           → recusa: inválida
+```
+
+A contagem é **inteiro de 0 a 999.999**. O teto existe por causa do leitor físico: ele
+digita no campo focado os 13 dígitos do código de barras (às vezes com tab ou quebra de
+linha) e dá Enter, e isso já foi gravado como quantidade. Acima do teto a mensagem lembra
+disso. `0012` vale 12; `1e3` e `+5` são inválidos. O app nativo usa os mesmos textos
+(`MENSAGEM_QUANTIDADE`); mudou a tabela aqui, muda lá.
+
+| Texto | Resultado |
+| --- | --- |
+| *(vazio ou só espaços)* | `Quantidade é obrigatória!` |
+| `0`, ` 12 `, `999999` | vale: 0, 12, 999.999 |
+| `1000000`, `7891234567890` | `Quantidade muito alta (acima de 999.999). Se um código de barras foi lido no campo, apague e digite a quantidade contada.` |
+| `2,5`, `2.5`, `1.234` | `Quantidade deve ser um número inteiro, sem vírgula nem ponto.` |
+| `-1`, `abc` | `Quantidade inválida!` |
+
+Função: `validarQuantidade` em `quantidade.ts`.
+
 ---
 
 ## Status de auditoria

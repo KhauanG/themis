@@ -48,7 +48,9 @@ diferença. Borda esquerda verde = contado, azul = conferido.
 Etiqueta de validade: **âmbar** a 30 dias do vencimento, **vermelha** se vencido.
 
 Aberto, expande o formulário: **quantidade** (campo grande, centralizado, seleciona ao
-focar) e **validade mais curta**. Enter salva.
+focar) e **validade mais curta**. Enter salva, só com quantidade válida (inteiro de 0 a
+999.999; ver [regras-de-negocio.md](regras-de-negocio.md) §Quantidade contada). Valor
+recusado mostra o motivo abaixo dos campos e desabilita o Salvar.
 
 ⚠️ O formulário é componente separado (`FormContagem`) que monta ao abrir — ver
 [armadilhas.md](armadilhas.md) §O campo perde o que está sendo digitado.
