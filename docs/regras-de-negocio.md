@@ -217,7 +217,7 @@ Em lotes de 500 — o limite do Firestore.
 | A contar | `productStatus == null` e **não** `apiNotFound` |
 | Contados | `productStatus == 'ATUALIZADO'` |
 | Sem código | `!temCodigoBarras` |
-| Negativos | `físico < 0` |
+| Negativos | `sistema < 0` — só admin, master e auditor |
 | Corrigidos OK | `CONFERIDO` e `corrigidoIncorreto != true` |
 | Corrigidos com erro | `CONFERIDO` e `corrigidoIncorreto == true` |
 | Fora do ERP | `apiNotFound == true` |
@@ -225,8 +225,9 @@ Em lotes de 500 — o limite do Firestore.
 ⚠️ **"Contados" esconde `CONFERIDO`**: item já resolvido pelo admin sai da lista de
 trabalho do funcionário, senão ele recontaria algo decidido.
 
-⚠️ **"Corrigidos OK" e "Corrigidos com erro" não aparecem para o papel `comum`** — dizem se
-a contagem bateu com o sistema, que é a diferença por outro nome. Ver §Contagem às cegas.
+⚠️ **"Negativos", "Corrigidos OK" e "Corrigidos com erro" não aparecem para o papel `comum`** —
+"Negativos" é o saldo do sistema; as outras dizem se a contagem bateu com ele, que é a diferença
+por outro nome. Ver §Contagem às cegas.
 
 ⚠️ **"A contar" exclui os fora do ERP.** Eles não são contáveis; mantê-los ali manda a
 equipe procurar na prateleira o que precisa ser resolvido no cadastro, e a aba nunca zera.
@@ -291,7 +292,7 @@ Some para o papel `comum`:
 |---|---|
 | Card do produto | a diferença `+N`/`-N`, a etiqueta `ok`, o `sistema N` do não contado |
 | Formulário de contagem | a linha `Sistema: N · diferença` |
-| Abas | "Corrigidos OK" e "Corrigidos com erro" |
+| Abas | "Negativos", "Corrigidos OK" e "Corrigidos com erro" |
 | Finalizar contagem | os totais "Corretos" e "Divergentes" |
 
 Fica: quantidade contada, etiqueta `contado`, `Contados`/`Não contados` no fechamento. São

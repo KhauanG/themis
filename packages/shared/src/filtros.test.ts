@@ -4,6 +4,7 @@ import {
   contagemFechada,
   contarPorFiltro,
   filtrarProdutos,
+  filtrosVisiveis,
   mensagemVazio,
   progressoContagem,
 } from './filtros.js';
@@ -37,8 +38,15 @@ describe('filtrarProdutos', () => {
     expect(filtrarProdutos(produtos, 'no-barcode').map((x) => x.id)).toEqual(['b']);
   });
 
-  it('negativos usam o estoque físico', () => {
-    expect(filtrarProdutos(produtos, 'negative').map((x) => x.id)).toEqual(['c']);
+  it('negativos usam o estoque do sistema, não o contado', () => {
+    const lista = [
+      p({ id: 'contado', nome: 'A', quantidade: -3 }),
+      p({ id: 'sistema', nome: 'B', estoqueSistema: -2 }),
+      p({ id: 'legado', nome: 'C', EstoqueAtual: -1 }),
+      p({ id: 'zero', nome: 'D', estoqueSistema: 0 }),
+    ];
+    expect(filtrarProdutos(lista, 'negative').map((x) => x.id)).toEqual(['sistema', 'legado']);
+    expect(contarPorFiltro(lista).negative).toBe(2);
   });
 
   it('separa corrigidos corretos de incorretos', () => {
@@ -192,5 +200,13 @@ describe('contagemFechada', () => {
   it('reabre quando o status é removido', () => {
     const depoisDeLimpar = [p({ id: 'a', quantidade: 0 })];
     expect(contagemFechada(depoisDeLimpar)).toBe(false);
+  });
+});
+
+// Contagem às cegas: o saldo do sistema abaixo de zero é o número do sistema.
+describe('filtrosVisiveis', () => {
+  it('Negativos some para quem só conta', () => {
+    expect(filtrosVisiveis(false).map((f) => f.id)).not.toContain('negative');
+    expect(filtrosVisiveis(true).map((f) => f.id)).toContain('negative');
   });
 });

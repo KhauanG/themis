@@ -34,8 +34,9 @@ produtos, não de rastreamento local, então é igual em todos os aparelhos.
 
 Busca por nome ou código de barras, sem diferenciar caixa nem acento.
 
-Oito abas com contador. **Aba vazia some**, exceto "Todos" e a selecionada — aba zerada só
-polui. Critérios em [regras-de-negocio.md](regras-de-negocio.md) §Filtros.
+Oito abas com contador para quem vê o sistema; quem só conta não vê Negativos nem os dois
+Corrigidos. **Aba vazia some**, exceto "Todos" e a selecionada — aba zerada só polui.
+Critérios em [regras-de-negocio.md](regras-de-negocio.md) §Filtros.
 
 Lista paginada de 40 em 40, com "Mostrar mais". Estoques passam de 2000 produtos.
 

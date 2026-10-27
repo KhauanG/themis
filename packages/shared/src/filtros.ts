@@ -11,7 +11,7 @@
  * do funcionário, senão ele recontaria algo decidido.
  */
 import type { FiltroContagem, Produto } from './types.js';
-import { fisicoDe, foraDoErp, statusContagemDe } from './produto.js';
+import { foraDoErp, sistemaDe, statusContagemDe } from './produto.js';
 
 export interface OpcaoFiltro {
   id: FiltroContagem;
@@ -21,8 +21,8 @@ export interface OpcaoFiltro {
    * A aba conta ao usuário se a contagem dele bateu com o sistema.
    *
    * Quem conta, conta às cegas: não pode ver o saldo do sistema nem a diferença, senão
-   * "confere" o número em vez de contar. "Corrigidos com erro" é a diferença dita de outro
-   * jeito — a aba some para quem só conta.
+   * "confere" o número em vez de contar. "Negativos" é o saldo do sistema, "Corrigidos com
+   * erro" é a diferença dita de outro jeito — a aba some para quem só conta.
    */
   revelaDivergencia?: boolean;
 }
@@ -32,7 +32,12 @@ export const FILTROS: OpcaoFiltro[] = [
   { id: 'pendentes', rotulo: 'A contar', vazio: 'Tudo contado neste ciclo' },
   { id: 'updated', rotulo: 'Contados', vazio: 'Nenhum item foi contado nesta rodada' },
   { id: 'no-barcode', rotulo: 'Sem código', vazio: 'Nenhum produto sem código de barras' },
-  { id: 'negative', rotulo: 'Negativos', vazio: 'Nenhum produto com estoque negativo' },
+  {
+    id: 'negative',
+    rotulo: 'Negativos',
+    vazio: 'Nenhum produto com estoque negativo',
+    revelaDivergencia: true,
+  },
   {
     id: 'conferido-correto',
     rotulo: 'Corrigidos OK',
@@ -78,7 +83,7 @@ function passaNoFiltro(p: Produto, filtro: FiltroContagem): boolean {
     case 'api-not-found':
       return p.apiNotFound === true;
     case 'negative':
-      return fisicoDe(p) < 0;
+      return sistemaDe(p) < 0;
   }
 }
 
@@ -153,7 +158,7 @@ export function contarPorFiltro(produtos: readonly Produto[]): Record<FiltroCont
 
     if (!p.temCodigoBarras) contagem['no-barcode']++;
     if (p.apiNotFound === true) contagem['api-not-found']++;
-    if (fisicoDe(p) < 0) contagem.negative++;
+    if (sistemaDe(p) < 0) contagem.negative++;
   }
 
   return contagem;
