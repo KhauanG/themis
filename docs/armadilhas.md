@@ -191,7 +191,8 @@ app reenviar item que o ERP já gravou.
 servidor seguia trabalhando e o app já tinha contado como erro.
 
 **Evitar.** Mexeu no orçamento de retry da API? Ajuste `TIMEOUT_MS` em `lib/erp.ts` junto.
-Os dois números são um só.
+Os dois números são um só. Com os tetos certos, um 504 do proxy ainda dá falha com o ERP
+aplicando: por isso a fase 3 do Corrigir relê também o recusado.
 
 ---
 

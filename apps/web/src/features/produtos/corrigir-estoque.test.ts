@@ -43,4 +43,32 @@ describe('executarCorrecao — fechamento da conferência', () => {
     expect(r.confirmados).toBe(1);
     vi.useRealTimers();
   });
+
+  // Estouro ou 504 do proxy: o ERP aplicou e a API respondeu falha. Sem a releitura do
+  // recusado, o item ficava ATUALIZADO, a correção seguinte o via como "bateu" e o conferia
+  // com corrigidoIncorreto false. Mesmo caminho do recusado cujo saldo antigo já era o enviado.
+  it('recusado com o saldo enviado na releitura conta como aceito', async () => {
+    vi.useFakeTimers();
+    const a = item('a', 'Aplicou', 1, 5, 3);
+    const b = item('b', 'NaoAplicou', 2, 7, 1);
+    vi.mocked(enviarAoErp).mockResolvedValue({ ok: false, erro: 'Tempo esgotado ao contatar o ERP' });
+    vi.mocked(buscarEstoqueDoErp).mockResolvedValue({
+      ok: true, estoque: new Map([['1', 5], ['2', 1]]), itens: 2, recebidos: 2, semId: 0, campos: [], omiteZerados: false,
+    });
+
+    const promessa = executarCorrecao('E1', {
+      hashLoja: 'H', contados: [a, b], divergentes: [a, b], foraDoErp: [], semCorrespondencia: 0, saldosAtualizados: 0,
+    }, () => {});
+    await vi.runAllTimersAsync();
+    const r = await promessa;
+
+    const [, fechados, idsDivergentes] = vi.mocked(fecharConferencia).mock.lastCall!;
+    expect(fechados.map((p) => p.id)).toEqual(['a']);
+    expect(idsDivergentes.has('a')).toBe(true);
+    expect(r.falhasNoEnvio).toEqual(['NaoAplicou']);
+    expect(r.confirmados).toBe(1);
+    expect(r.enviados).toBe(1);
+    expect(r.pendentes).toEqual([]);
+    vi.useRealTimers();
+  });
 });

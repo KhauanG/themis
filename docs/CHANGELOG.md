@@ -30,6 +30,10 @@ Corrigir deixam de dar por feito o que o banco ou o ERP não aceitou.
 - **Corrigir estoque marcava como CONFERIDO o que o ERP recusou.** Agora só vira CONFERIDO o
   que bateu ou o que o ERP aceitou. Item recusado e item sem ID no ERP continuam contados e
   aparecem listados. Na releitura, o item recusado deixa de aparecer como "aceito".
+- **Corrigir estoque perdia a divergência do item que o ERP aplicou mas respondeu como falha**
+  (estouro ou 504 do proxy). Ele ficava ATUALIZADO, e a correção seguinte o conferia como
+  "bateu". Agora a releitura confere também o recusado: com o valor enviado no ERP, conta
+  como aceito e é conferido com a divergência.
 - **A API não enxergava recusa do ERP embrulhada em string JSON.** Passou a ler como recusa, e
   o item continua ATUALIZADO.
 

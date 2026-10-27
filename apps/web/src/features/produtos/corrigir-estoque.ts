@@ -15,10 +15,10 @@
  *     reenvio — é o "fallback robusto" do 1.x. Sem ele, um envio aceito pelo ERP mas não
  *     aplicado passa despercebido, e o estoque fica errado achando que foi corrigido.
  *
- * O fechamento confere só o que bateu e o que o ERP aceitou. Divergente que o ERP recusou,
- * sem `IdProduto` ou fora do ERP continua ATUALIZADO: aparece na mensagem final e volta na
- * próxima correção (o `diagnosticar` pega só ATUALIZADO). Conferir o recusado o tiraria da
- * lista de trabalho com o ERP ainda errado.
+ * O fechamento confere só o que bateu e o que o ERP aceitou (ou o recusado que a releitura
+ * mostra aplicado). Divergente que o ERP recusou, sem `IdProduto` ou fora do ERP continua
+ * ATUALIZADO: aparece na mensagem final e volta na próxima correção (o `diagnosticar` pega só
+ * ATUALIZADO). Conferir o recusado o tiraria da lista de trabalho com o ERP ainda errado.
  *
  * Exige conexão. Offline, os lotes do Firestore ficariam pendentes para sempre.
  */
@@ -73,11 +73,15 @@ export interface PendenciaErp {
   noSistema: number;
 }
 
+/** Marca, em `falhasNoEnvio`, o divergente que não foi enviado por não ter `IdProduto`. */
+export const SUFIXO_SEM_ID = ' (sem ID do ERP)';
+
 export interface ResultadoCorrecao {
+  /** Aceitos pelo ERP, mais os recusados que a releitura mostrou aplicados. */
   enviados: number;
   /**
-   * Divergentes que o ERP recusou, pelo nome, e os sem `IdProduto` como
-   * `"<nome> (sem ID do ERP)"`. Nenhum deles é conferido: continuam ATUALIZADO.
+   * Divergentes que o ERP recusou (e a releitura não mostrou aplicados), pelo nome, e os sem
+   * `IdProduto` como `"<nome> (sem ID do ERP)"`. Nenhum deles é conferido: continuam ATUALIZADO.
    */
   falhasNoEnvio: string[];
   /**
@@ -192,7 +196,6 @@ export async function executarCorrecao(
   const naoEnviadosForaDoErp = divergentes.filter((p) => desconhecidos.has(p.id)).map(nomeDe);
 
   let enviados = 0;
-  const falhasNoEnvio: string[] = [];
   // Lista de permitidos: só o que o ERP aceitou entra no fechamento.
   const aceitos = new Set<string>();
 
@@ -207,16 +210,9 @@ export async function executarCorrecao(
     if (resultado.ok) {
       enviados++;
       aceitos.add(p.id);
-    } else {
-      falhasNoEnvio.push(nomeDe(p));
     }
 
     if (indice < paraOErp.length - 1) await pausa(PAUSA_ENTRE_ENVIOS_MS);
-  }
-
-  // Sem `IdProduto` não há o que enviar, mas a divergência existe: avisa em vez de conferir.
-  for (const p of enviaveis) {
-    if (idProdutoDe(p) == null) falhasNoEnvio.push(`${nomeDe(p)} (sem ID do ERP)`);
   }
 
   // ---------- Fase 3: verificar se o ERP aplicou ----------
@@ -224,7 +220,9 @@ export async function executarCorrecao(
   const pendentes: PendenciaErp[] = [];
   let verificacaoIndisponivel = false;
 
-  if (enviados > 0) {
+  // Roda mesmo com tudo recusado: o ERP às vezes aplica o que a API deu como falha (estouro,
+  // 504 do proxy), e só a releitura mostra.
+  if (paraOErp.length > 0) {
     aoProgredir('Aguardando o ERP processar');
     await pausa(ESPERA_PROCESSAMENTO_MS);
 
@@ -233,17 +231,25 @@ export async function executarCorrecao(
 
     if (!releitura.ok) {
       // Não conseguir verificar não invalida o envio; só não dá para afirmar que deu certo.
-      verificacaoIndisponivel = true;
+      // Com tudo recusado não houve envio aceito a afirmar: a lista de recusados já diz o que fazer.
+      verificacaoIndisponivel = enviados > 0;
     } else {
-      // Só o que o ERP aceitou: o recusado ainda tem o saldo antigo e apareceria como "aceito
-      // mas não refletiu", além de entrar no reenvio.
-      for (const p of paraOErp.filter((x) => aceitos.has(x.id))) {
+      for (const p of paraOErp) {
         // O valor **como foi enviado** (inteiro, nunca negativo), não o físico cru: é ele
         // que o ERP recebeu, e é contra ele que a comparação faz sentido.
         const enviado = montarEnvio(p, hashLoja).Quantidade;
         const noSistema = saldoNoErp(releitura.estoque, p);
 
-        if (noSistema === undefined) {
+        if (!aceitos.has(p.id)) {
+          // Recusado com o saldo enviado no ERP: aplicado, conta como aceito. Sem isto ele
+          // ficava ATUALIZADO e a correção seguinte o conferia como "bateu", sem a divergência.
+          // Com o saldo antigo, não é "aceito mas não refletiu": fica fora de pendentes e do reenvio.
+          if (noSistema === enviado) {
+            aceitos.add(p.id);
+            enviados++;
+            confirmados++;
+          }
+        } else if (noSistema === undefined) {
           pendentes.push({ nome: nomeDe(p), enviado, noSistema: NaN });
         } else if (noSistema === enviado) {
           confirmados++;
@@ -255,6 +261,13 @@ export async function executarCorrecao(
       await atualizarEstoqueSistema(inventoryId, contados, releitura.estoque);
     }
   }
+
+  // Depois da fase 3, que pode ter achado aplicado um recusado.
+  const falhasNoEnvio = [
+    ...paraOErp.filter((p) => !aceitos.has(p.id)).map(nomeDe),
+    // Sem `IdProduto` não há o que enviar, mas a divergência existe: avisa em vez de conferir.
+    ...enviaveis.filter((p) => idProdutoDe(p) == null).map((p) => `${nomeDe(p)}${SUFIXO_SEM_ID}`),
+  ];
 
   // ---------- Fechamento da conferência ----------
   aoProgredir('Fechando a conferência');

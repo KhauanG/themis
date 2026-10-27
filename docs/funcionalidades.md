@@ -221,9 +221,15 @@ pendência eterna. Eles **continuam contados** (`ATUALIZADO`: a divergência exi
 para corrigir daqui) e aparecem numa lista própria, antes e depois da confirmação. O caminho é
 resolver o cadastro no Nuvem3. *Difere do 1.x, que enviava todos.*
 
-**3. Verificar se aplicou.** Espera 1,5 s, lê o ERP de novo e confere item a item, só dos
-que o ERP aceitou, se o saldo ficou igual ao enviado. O que não refletiu vira pendência, listada com "enviado" e
-"no ERP", com botão de **reenviar**.
+**3. Verificar se aplicou.** Espera 1,5 s, lê o ERP de novo e confere item a item se o
+saldo ficou igual ao enviado. Aceito que não refletiu vira pendência, listada com "enviado" e
+"no ERP", com botão de **reenviar**. Recusado cujo saldo já mostra o enviado conta como
+aceito: num estouro ou 504 do proxy o ERP aplica e a API responde falha. Recusado com o saldo
+antigo não vira pendência.
+
+⚠️ Se o ERP aplicar o recusado **depois** da releitura, a correção seguinte o vê como "bateu"
+e o confere com `corrigidoIncorreto` false. Resolver exige guardar o envio de cada item
+(Etapa 2).
 
 > Sem a fase 3, um envio aceito pelo ERP mas não aplicado passa despercebido — e o estoque
 > fica errado com todo mundo achando que foi corrigido.
