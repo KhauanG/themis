@@ -186,9 +186,9 @@ app reenviar item que o ERP já gravou.
 
 **Sintoma.** Itens entram como falha de envio, mas aparecem corretos no ERP depois.
 
-**Causa.** O retry mora na API (4 tentativas × 10s + pausas ≈ 43s). Com o teto de 15s no
-navegador, o `fetch` abortava no meio da segunda tentativa — o servidor seguia trabalhando
-e o app já tinha contado como erro.
+**Causa.** O retry mora na API (2 tentativas × 45s + pausa de 1s ≈ 91s; teto do navegador
+100s). Com um teto menor no navegador, o `fetch` abortava no meio da segunda tentativa — o
+servidor seguia trabalhando e o app já tinha contado como erro.
 
 **Evitar.** Mexeu no orçamento de retry da API? Ajuste `TIMEOUT_MS` em `lib/erp.ts` junto.
 Os dois números são um só.

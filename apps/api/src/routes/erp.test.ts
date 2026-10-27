@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { erroDeNegocio, normalizarItensDoErp } from './erp.js';
+import { erroDeNegocio, jsonDoErp, normalizarItensDoErp } from './erp.js';
 
 /**
  * O ERP responde **HTTP 200 com erro no corpo** quando recusa a atualização por regra dele.
@@ -172,4 +172,27 @@ describe('normalizarItensDoErp — omiteZerados', () => {
   it('lista vazia não conclui', () => {
     expect(normalizarItensDoErp([]).omiteZerados).toBe(false);
   });
+});
+
+// Formato real do Nuvem3 em 2026-10-27: JSON dentro de uma string JSON.
+describe('jsonDoErp', () => {
+  const embrulhado = (v: unknown) => JSON.stringify(JSON.stringify(v));
+
+  it('lê JSON normal', () => expect(jsonDoErp('{"msg":"ok"}')).toEqual({ msg: 'ok' }));
+
+  it('desembrulha JSON dentro de string', () => {
+    expect(jsonDoErp(embrulhado({ msg: 'ok' }))).toEqual({ msg: 'ok' });
+    expect(erroDeNegocio(jsonDoErp(embrulhado({ msg: 'ok' })))).toBeNull();
+  });
+
+  // Antes, qualquer string passava por `erroDeNegocio` como "não é objeto" e valia como
+  // aceite, inclusive uma recusa embrulhada.
+  it('recusa dentro de string vira recusa', () =>
+    expect(erroDeNegocio(jsonDoErp(embrulhado({ erro: 'Produto inexistente' })))).toBe(
+      'Produto inexistente',
+    ));
+
+  it('texto que não é JSON por dentro continua texto', () => expect(jsonDoErp('"OK"')).toBe('OK'));
+
+  it('corpo que não é JSON lança, como antes', () => expect(() => jsonDoErp('<html>')).toThrow());
 });

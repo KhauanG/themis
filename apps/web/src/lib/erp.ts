@@ -16,11 +16,11 @@ import { withWriteTimeout } from './firestore-write.js';
 /**
  * Teto do envio, do lado do navegador.
  *
- * Precisa cobrir o **orçamento inteiro de retry do servidor** (4 tentativas de 10s mais as
- * pausas de 1s entre elas ≈ 43s). Com o teto antigo de 15s o navegador abortava no meio da
- * segunda tentativa e o item entrava como falha enquanto o ERP ainda estava respondendo.
+ * Precisa cobrir o **orçamento inteiro de retry do servidor** (2 tentativas de 45s mais 1
+ * pausa de 1s entre elas ≈ 91s). Com um teto menor o navegador abortava no meio da segunda
+ * tentativa e o item entrava como falha enquanto o ERP ainda estava respondendo.
  */
-const TIMEOUT_MS = 60_000;
+const TIMEOUT_MS = 100_000;
 
 export interface ResultadoEnvio {
   ok: boolean;

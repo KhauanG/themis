@@ -206,7 +206,7 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 | `trustProxy` | sem isso `req.ip` vira o IP do proxy e o limite vale para todos juntos |
 | CORS restrito | `CORS_ORIGINS`; mesma origem dispensa, mas fica para o caso de subdomínio |
 | Validação de schema | Fastify, em toda rota `POST` |
-| Timeout no ERP | 10s, com 502/504 separados |
+| Timeout no ERP | 45s por tentativa, com 502/504 separados |
 
 O endereço do ERP fica só no servidor, fora do bundle.
 

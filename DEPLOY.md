@@ -241,7 +241,7 @@ erro aparecer com nome em vez de virar "Firebase não conecta".
 | `NODE_ENV` | `production` |
 | `CORS_ORIGINS` | `https://themis.grupoicebeer.com.br` |
 | `ERP_API_URL` | `https://erp.nuvem3.com.br/apiv1/Estoque/EstoqueInventarioAtualizar` |
-| `ERP_TIMEOUT_MS` | `10000` |
+| `ERP_TIMEOUT_MS` | `45000` |
 | `WEBHOOK_SECRET` | segredo gerado abaixo |
 
 Gere o segredo do webhook:

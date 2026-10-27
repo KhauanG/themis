@@ -178,8 +178,12 @@ export function normalizarItensDoErp(itens: readonly unknown[]): EstoqueNormaliz
   return { itens: saida, semId, campos, naoPositivos, omiteZerados };
 }
 
-/** Tentativas totais de envio, contando a primeira. Mesmo orçamento do 1.x (1 + 3). */
-const TENTATIVAS = 4;
+/**
+ * Tentativas totais de envio, contando a primeira. Com 45s por tentativa, 4 fariam um item
+ * esperar até 3 min com o ERP travado; a operação é idempotente (mesma quantidade), então
+ * uma repetição basta.
+ */
+const TENTATIVAS = 2;
 
 /** Pausa entre tentativas. Mesmo valor do 1.x (`retryDelay`). */
 const PAUSA_ENTRE_TENTATIVAS_MS = 1000;
@@ -240,6 +244,21 @@ export function erroDeNegocio(corpo: unknown): string | null {
   return null;
 }
 
+/**
+ * Lê o corpo do ERP. O Nuvem3 (2026-10-27) responde JSON dentro de uma string JSON, e uma
+ * string nunca passa em `erroDeNegocio`: sem desembrulhar, uma recusa valia como aceite.
+ * Corpo que não é JSON lança, como o `JSON.parse` puro.
+ */
+export function jsonDoErp(corpo: string): unknown {
+  const fora: unknown = JSON.parse(corpo);
+  if (typeof fora !== 'string') return fora;
+  try {
+    return JSON.parse(fora);
+  } catch {
+    return fora;
+  }
+}
+
 interface TentativaEnvio {
   ok: boolean;
   /** Motivo da falha, já legível. Ausente quando `ok`. */
@@ -271,7 +290,7 @@ async function enviarUmaVez(dados: AtualizacaoEstoque): Promise<TentativaEnvio> 
 
     let json: unknown;
     try {
-      json = JSON.parse(corpo);
+      json = jsonDoErp(corpo);
     } catch {
       return { ok: false, erro: 'Resposta do ERP não é JSON', statusErp: resposta.status, corpo };
     }
@@ -295,7 +314,7 @@ export async function rotasErp(app: FastifyInstance): Promise<void> {
    * Repete até `TENTATIVAS` vezes, como o `sendStockUpdateSync` do 1.x. É seguro repetir:
    * a chamada grava uma quantidade absoluta, não um incremento — reenviar o mesmo valor dá
    * no mesmo. O retry mora aqui, e não no celular, porque quem está no depósito com wifi
-   * ruim é justamente quem não deveria segurar quatro tentativas na mão.
+   * ruim é justamente quem não deveria segurar as tentativas na mão.
    */
   app.post<{ Body: AtualizacaoEstoque }>(
     '/api/erp/estoque',
