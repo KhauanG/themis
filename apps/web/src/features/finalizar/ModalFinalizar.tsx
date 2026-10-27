@@ -25,17 +25,19 @@ export function ModalFinalizar({ aberto, onFechar }: Props) {
   const [texto, setTexto] = useState('');
   const [salvando, setSalvando] = useState(false);
   /**
-   * Ciclo do primeiro clique em Finalizar, mantido até o modal fechar.
+   * Estoque e ciclo do primeiro clique em Finalizar, mantidos até um resultado definitivo
+   * (finalizada, já finalizada, ciclo mudou). Erro, com estouro ou não, mantém.
    *
-   * Se a gravação estoura o tempo mas chega ao servidor, o listener já mostra o ciclo N+1 e o
-   * modal continua aberto. Sem isto, o segundo clique usaria o `ciclo` da tela (N+1) e
-   * finalizaria o ciclo seguinte, que ninguém contou. Com o ciclo do primeiro clique, a
-   * transação acha a auditoria N e responde "já finalizada".
+   * Se a gravação estoura o tempo mas chega ao servidor, o listener já mostra o ciclo N+1. Sem
+   * isto, o clique seguinte usaria o `ciclo` da tela (N+1) e finalizaria o ciclo seguinte, que
+   * ninguém contou. Com o alvo, a transação acha a auditoria N e responde "já finalizada" — o
+   * pior caso de um alvo mantido, e é verdade. Fechar e reabrir não o perde: o `Layout` mantém
+   * este componente montado. Recarregar a página perde.
    */
-  const cicloAlvo = useRef<number | null>(null);
+  const alvo = useRef<{ inventoryId: string; ciclo: number } | null>(null);
   /**
-   * Gravação em andamento. Ref, e não só `salvando`: Escape, fundo e X chamam `fechar` com a
-   * closure do render anterior, e o estado só chega no render seguinte.
+   * Gravação em andamento. Ref, e não só `salvando`: Escape, fundo, X e um segundo clique
+   * chegam com a closure do render anterior, e o estado só chega no render seguinte.
    */
   const gravando = useRef(false);
 
@@ -55,28 +57,29 @@ export function ModalFinalizar({ aberto, onFechar }: Props) {
   const listaProvisoria = carregandoProdutos || conciliando;
   const confirmado = texto.trim().toUpperCase() === CONFIRMACAO;
 
+  // Limpa só a palavra digitada: o alvo sobrevive ao fechamento.
   function encerrar() {
     setTexto('');
-    cicloAlvo.current = null;
     onFechar();
   }
 
   /**
    * Fechamento pedido pelo usuário (Escape, fundo, X, Cancelar). Não fecha com a gravação em
-   * andamento: fechar zera `cicloAlvo`, e se a transação estourar mas chegar ao servidor, o
-   * clique seguinte, já no ciclo N+1, finalizaria o ciclo que ninguém contou.
+   * andamento: ela continua mesmo com o modal fechado, e quem fechou acharia que cancelou.
    */
   function fechar() {
     if (!gravando.current) encerrar();
   }
 
   async function finalizar() {
-    if (!confirmado || salvando || listaProvisoria || !estoqueAtual || !usuario) return;
+    if (!confirmado || salvando || gravando.current || listaProvisoria || !estoqueAtual || !usuario) return;
     gravando.current = true;
     setSalvando(true);
 
     try {
-      const cicloDaTentativa = (cicloAlvo.current ??= ciclo);
+      // Alvo de outro estoque não vale aqui; o deste estoque começa no ciclo da tela.
+      if (alvo.current?.inventoryId !== estoqueAtual.id) alvo.current = { inventoryId: estoqueAtual.id, ciclo };
+      const cicloDaTentativa = alvo.current.ciclo;
       // Nome pelo lote quando há: é o rótulo pelo qual a equipe procura a contagem.
       const rodada = lote ? `Lote ${lote}` : `Ciclo ${cicloDaTentativa}`;
       const nomeAuditoria = `${estoqueAtual.nome ?? estoqueAtual.id} - ${rodada}`;
@@ -110,11 +113,13 @@ export function ModalFinalizar({ aberto, onFechar }: Props) {
         mostrar(`Esta contagem já foi finalizada: o estoque está no ciclo ${r.cicloServidor}. Nada foi gravado.`, 'warning');
       }
 
+      // As três situações são definitivas: o próximo Finalizar parte do ciclo da tela.
+      alvo.current = null;
       // `encerrar`, não `fechar`: aqui a gravação ainda consta como em andamento.
       encerrar();
     } catch (erro) {
       console.error('[finalizar] Falhou:', erro);
-      // Modal fica aberto e `cicloAlvo` é mantido: o próximo clique tenta o MESMO ciclo.
+      // O alvo fica: o próximo clique, agora ou depois de fechar e reabrir, tenta o MESMO ciclo.
       if (isWriteTimeout(erro)) {
         mostrar(
           'O servidor não respondeu a tempo. Confira a conexão e clique em Finalizar de novo: se a contagem já tiver sido salva, o app avisa.',

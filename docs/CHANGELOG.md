@@ -26,7 +26,8 @@ Corrigir deixam de dar por feito o que o banco ou o ERP não aceitou.
   `{inventoryId}_{ciclo}` e o ciclo novo são gravados numa transação só. Se o primeiro clique
   estourar o tempo e a gravação tiver entrado, o segundo clique acha a auditoria e informa que
   a contagem "já foi finalizada", em vez de finalizar o ciclo seguinte. O modal não fecha
-  enquanto grava.
+  enquanto grava, e guarda o ciclo do primeiro clique até um resultado definitivo, mesmo
+  depois de Cancelar e reabrir.
 - **Corrigir estoque marcava como CONFERIDO o que o ERP recusou.** Agora só vira CONFERIDO o
   que bateu ou o que o ERP aceitou. Item recusado e item sem ID no ERP continuam contados e
   aparecem listados. Na releitura, o item recusado deixa de aparecer como "aceito".

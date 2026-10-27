@@ -76,7 +76,8 @@ Mostra o resumo do ciclo e avisa quantos itens ficariam como NÃO CONTADO. Exige
 **FINALIZAR**.
 
 Salva a auditoria e incrementa o ciclo numa transação só; depois registra no histórico.
-Clicar de novo depois de um estouro de tempo avisa que a contagem já foi finalizada. Detalhes
+Clicar de novo depois de um estouro de tempo, mesmo depois de fechar e reabrir o modal, avisa
+que a contagem já foi finalizada. Detalhes
 e tratamento de falha em [regras-de-negocio.md](regras-de-negocio.md) §Ciclo.
 
 ---
