@@ -6,6 +6,39 @@ Categorias: **Adicionado**, **Alterado**, **Corrigido**, **Removido**, **Seguran
 
 ---
 
+## 2.22.0 — 2026-10-28
+
+Push B da Etapa 1. O site passa às rotas do ERP por loja e manda só a loja e o login. O HashLoja não sai mais do servidor. As rotas antigas respondem 410, e o arquivo de regra fecha `hashConfigs` para clientes.
+
+### Corrigido
+
+- **Buscar e Corrigir param antes de gravar quando o ERP não devolve nenhum produto, ou quando nenhum produto da loja casa com o ERP:** "Nada foi gravado. Confira o HashLoja do estoque.". Antes, uma listagem vazia marcava o catálogo inteiro como fora do ERP. A releitura do Corrigir passa pela mesma trava.
+- **Corrigir e Reenviar pendências param o laço com sessão vencida** (401 depois de renovar o token), **sem permissão** (403), **loja sem hash** (409) **ou servidor sem credencial** (503). Antes, cada item falhava sozinho. O que o ERP já aceitou é conferido, com a marca de divergência. O que não foi enviado continua contado. O histórico do Corrigir mostra "Interrompido antes do fim".
+
+### Alterado
+
+- **Estoques mostra "ERP ligado" ou "sem HashLoja" pela API.** Só o master vê o campo `Novo HashLoja (ERP)`. Ele começa vazio, é do tipo senha e nunca recebe o hash salvo. Vazio mantém o atual.
+- **Testar roda no servidor,** com o hash salvo ou com o candidato do campo (só master). O admin cria e edita a loja sem tocar em hash. Excluir a loja apaga o hash dela.
+- **Os testes de regra sobem o emulador em portas próprias** (Firestore 8280, websocket 9250, hub 4410, logging 4510). Outro projeto do dono usa as padrão.
+
+### Segurança
+
+- **O site manda só o id da loja e o ID token,** pedido de novo a cada chamada. O HashLoja não vai mais em URL, corpo nem tela.
+- **O site não lê nem grava mais `hashConfigs` pelo SDK.**
+- **As rotas antigas** (`GET /api/erp/estoque/:x` e `POST /api/erp/estoque`) **respondem 410** "O Themis foi atualizado. Recarregue a página.". Não leem nem repassam nada.
+- **`hashConfigs` fechado para clientes na regra** (`allow read, write: if false`). Só a API lê e grava, com a conta de serviço.
+
+### Notas
+
+- ⚠️ **`npm run deploy-rules` só depois de conferir o site 2.22.0 no ar.** Antes disso, uma aba na 2.21 ainda lê `hashConfigs` pelo SDK. Até o `deploy-rules`, o arquivo de regra da `main` fica à frente do publicado.
+- Antes do deploy, admins e masters terminam qualquer Corrigir ou Reenviar pendências e fecham o site, e só abrem de novo depois da conferência (menu `Themis 2.22.0`). Recarregar antes do deploy traz a 2.21 de novo. Uma aba antiga recebe 410 e pede para recarregar.
+- `scripts/diagnosticar-erp.mts` lê o hash da variável `HASH_LOJA` (uso no topo do script) e não imprime mais a URL com o hash.
+- Sem variável nova no painel: a credencial é a da 2.21.0.
+- Depois do `deploy-rules`: cópia da regra no app nativo e limpeza única do histórico (`limpar-hash-antigo.mjs`).
+- Volta atrás depois do `deploy-rules`: republicar a regra da 2.21.0 antes de voltar o site.
+
+---
+
 ## 2.21.0 — 2026-10-28
 
 Push A da Etapa 1. A API passa a conferir login e cargo nas rotas do ERP e a guardar o HashLoja no servidor. O site não muda nesta versão: ele passa às rotas novas na 2.22.0.
