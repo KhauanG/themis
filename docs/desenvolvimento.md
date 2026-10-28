@@ -15,6 +15,8 @@ Copy-Item apps\api\.env.example apps\api\.env
 ```
 
 Preencha `apps/web/.env` com a config do Firebase e `apps/api/.env` com o `WEBHOOK_SECRET`.
+`FIREBASE_SERVICE_ACCOUNT_B64` fica vazio no computador de desenvolvimento: as rotas do ERP
+respondem 503 e o resto funciona.
 
 > **PowerShell 5.1 não aceita `&&`.** Um comando por linha. Onde precisa encadear, existe
 > script npm — dentro deles funciona, porque o npm executa via `cmd.exe`.

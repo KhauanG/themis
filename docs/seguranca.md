@@ -161,6 +161,7 @@ terceiro é real e inofensivo.
 |---|---|---|
 | Config do Firebase (`VITE_*`) | painel da Hostinger + `apps/web/.env` local | **público por projeto** — vai no bundle do navegador |
 | `WEBHOOK_SECRET` | painel da Hostinger | 64 caracteres hex |
+| `FIREBASE_SERVICE_ACCOUNT_B64` | painel da Hostinger | conta `themis-api`, papel `roles/datastore.user`; ignora as Security Rules; lida só em `process.env`; nunca no computador |
 | Senhas de usuário | Firebase Auth | nunca tocadas pelo app |
 
 ### Config do Firebase não é segredo

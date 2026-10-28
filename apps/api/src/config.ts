@@ -1,5 +1,7 @@
 /** Leitura e validação das variáveis de ambiente. Falha cedo se algo obrigatório faltar. */
 
+import { lerCredencial } from './credencial.js';
+
 function texto(nome: string, padrao?: string): string {
   const valor = process.env[nome] ?? padrao;
   if (valor === undefined) throw new Error(`Variável de ambiente obrigatória ausente: ${nome}`);
@@ -64,4 +66,7 @@ export const config = {
 
   /** Vazio desabilita o webhook — ver comentário em .env.example. */
   webhookSecret: process.env['WEBHOOK_SECRET'] ?? '',
+
+  // Como o webhookSecret: falha fechada por rota, nunca no boot; só process.env, nunca no define do esbuild.
+  firebase: lerCredencial(process.env['FIREBASE_SERVICE_ACCOUNT_B64']),
 } as const;

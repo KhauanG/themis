@@ -243,6 +243,7 @@ erro aparecer com nome em vez de virar "Firebase não conecta".
 | `ERP_API_URL` | `https://erp.nuvem3.com.br/apiv1/Estoque/EstoqueInventarioAtualizar` |
 | `ERP_TIMEOUT_MS` | `45000` |
 | `WEBHOOK_SECRET` | segredo gerado abaixo |
+| `FIREBASE_SERVICE_ACCOUNT_B64` | JSON da conta de serviço em base64 (abaixo) |
 
 Gere o segredo do webhook:
 
@@ -252,6 +253,33 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 
 Enquanto `WEBHOOK_SECRET` estiver vazio o endpoint devolve 503 de propósito: um endpoint
 aberto que escreve estoque deixaria qualquer um na internet alterar contagem.
+
+#### Conta de serviço do Firebase
+
+A API lê o HashLoja no Firestore com uma conta de serviço própria. Sem ela, as rotas do ERP
+respondem 503 e o resto do site funciona. O guia completo do dono fica em
+`docs/superpowers/progresso/2026-10-28-etapa-1-guia-chave.md`, no repositório do app
+(`C:\Projetos\App Contagem de estoque - Copia`). Em resumo:
+
+1. Google Cloud Console, projeto `auditoria-icebeer` → IAM e administrador → Contas de
+   serviço → Criar. ID `themis-api`. Papel **Usuário do Cloud Datastore**
+   (`roles/datastore.user`) e nenhum outro. Não use a conta `firebase-adminsdk-…`: tem
+   papéis demais.
+2. Abrir a conta → Chaves → Adicionar chave → Criar nova chave → JSON. Não abra o arquivo
+   baixado.
+3. Se a área de transferência sincroniza entre dispositivos (Configurações → Sistema → Área
+   de transferência), desligue antes. No PowerShell, sem mostrar na tela:
+   `[Convert]::ToBase64String([IO.File]::ReadAllBytes("C:\caminho\chave.json")) | Set-Clipboard`.
+4. Painel da Hostinger → Variáveis de ambiente → adicionar `FIREBASE_SERVICE_ACCOUNT_B64` e
+   colar. **Edite só essa variável, pelo painel.** Nunca pela API da Hostinger nem por
+   "Importar .env": a troca é de todas, e as mascaradas voltam vazias. Aplicar e conferir
+   que o site abre.
+5. Limpar: apagar o `.json` e esvaziar a Lixeira. Copiar qualquer palavra comum. Se o
+   histórico da área de transferência (Win+V) estiver ligado, apagar o item ali (ou **Limpar
+   tudo**). Nenhuma cópia fica no computador. Perdeu a chave? Crie outra.
+6. Depois do deploy da 2.21.0: conferir o `credencial` do `/api/health` (Passo 6).
+7. Trocar a chave (todo ano, ou na hora se houver suspeita): criar a nova, colar, conferir o
+   `/api/health` e só então excluir a antiga no Console.
 
 ---
 

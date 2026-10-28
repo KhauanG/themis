@@ -72,9 +72,11 @@ valia introduzir isso para uma operação que acontece poucas vezes por ano.
    documento em `users` entra no app como comum e ninguém entende por quê
 4. Excluir precisa apagar nos dois lugares
 
-⚠️ Hoje **nenhum segredo com poder administrativo** existe no servidor. Isso é uma
-qualidade, não um acaso: se a hospedagem for comprometida, o atacante não ganha controle do
-projeto Firebase. Introduzir o Admin SDK muda esse cálculo — pese antes.
+⚠️ Desde a 2.21.0 o servidor guarda a conta de serviço `themis-api`
+(`roles/datastore.user`). Ela lê e grava qualquer documento do Firestore e ignora as regras.
+Quem vazar a chave lê todos os hashes e pode virar master em `users/{uid}`. Ela não alcança
+Auth, regras nem IAM, e não serve para criar usuário (isso pede outro papel; pese antes). A
+API confere o cargo pelo porte em `apps/api/src/acesso.ts`.
 
 ⚠️ Desde a 2.13.0 há um efeito novo: usuário no Auth **sem** documento em `users/` passa em
 `podeAcessarEstoque` (é uma das três portas abertas, para não trancar ninguém fora). Criar
