@@ -60,6 +60,19 @@ export function saldoNoErp(
   return undefined;
 }
 
+// Antes desta trava, a gravação vinha primeiro e marcava o catálogo inteiro com `apiNotFound`.
+export function travaAntesDeGravar(
+  itensDoErp: number,
+  estoqueErp: ReadonlyMap<string, number>,
+  produtos: readonly Produto[],
+): string | null {
+  if (itensDoErp === 0) {
+    return 'O ERP não devolveu nenhum produto para esta loja. Nada foi gravado. Confira o HashLoja do estoque.';
+  }
+  if (produtos.some((p) => saldoNoErp(estoqueErp, p) !== undefined)) return null;
+  return `Nenhum dos ${produtos.length} produtos casou com os ${itensDoErp} itens do ERP. Nada foi gravado. Confira o HashLoja do estoque.`;
+}
+
 /**
  * O produto não está na listagem da loja no ERP.
  *

@@ -227,7 +227,8 @@ todos.*
 saldo ficou igual ao enviado. Aceito que não refletiu vira pendência, listada com "enviado" e
 "no ERP", com botão de **reenviar**. Recusado cujo saldo já mostra o enviado conta como
 aceito: num estouro ou 504 do proxy o ERP aplica e a API responde falha. Recusado com o saldo
-antigo não vira pendência.
+antigo não vira pendência. Releitura vazia, ou sem nenhum id que case, não grava nada: a
+verificação fica indisponível, como numa falha de leitura.
 
 ⚠️ Se o ERP aplicar o recusado **depois** da releitura, a correção seguinte o vê como "bateu"
 e o confere com `corrigidoIncorreto` false. Resolver exige guardar o envio de cada item
@@ -250,19 +251,22 @@ Perguntar antes mostraria dados velhos.
 
 Exige conexão: offline os lotes do Firestore ficariam pendentes para sempre.
 
-O `HashLoja` vem de `hashConfigs`. Quem troca o hash é o master, em Estoques (ver
+O site manda só a loja (`/api/erp/lojas/:inventoryId/estoque`). A API confere login e cargo,
+lê o `HashLoja` em `hashConfigs` com a conta de serviço e fala com o ERP: o hash nunca passa
+pelo navegador. Quem troca o hash é o master, em Estoques (ver
 §Estoques). Produtos que o ERP não conhece são contabilizados, avisados e marcados com `apiNotFound` — que alimenta a aba "Não encontrados
 na API" na tela de contagem. Não dá para corrigir o que o ERP não tem.
 
 #### O contrato com o ERP
 
-`POST /api/erp/estoque` leva **oito campos**, montados por `montarEnvio()` de
-`@themis/shared` — nunca à mão:
+O site manda **sete campos** para `POST /api/erp/lojas/:inventoryId/estoque`, montados por
+`montarEnvio()` de `@themis/shared` — nunca à mão. A API acrescenta o `HashLoja` do servidor e
+manda os **oito** ao ERP:
 
 | Campo | Tipo | Observação |
 |---|---|---|
 | `IdProduto` | inteiro | **Não é texto.** API .NET recusa `"123"` num campo `int`. |
-| `HashLoja` | texto | Vem de `hashConfigs/inventoryHashes`. |
+| `HashLoja` | texto | Posto pela API, de `hashConfigs/inventoryHashes`. O site não manda. |
 | `Quantidade` | inteiro de 0 a 999.999 | Arredondada; negativo é grampeado em zero. A API recusa acima de 999.999 (400). |
 | `CodigoBarras` | texto | Pode ser vazio — produto sem código existe. |
 | `NomeProduto` | texto | |
@@ -312,9 +316,10 @@ refaz a cada leitura. Tratar zerado como desconhecido deixa o saldo da última i
 tela justamente nos produtos que mais precisam de correção.
 
 A resposta traz diagnóstico: `recebidos`, `semId`, `naoPositivos` e `campos` (só os **nomes**
-das chaves do primeiro item, nunca o conteúdo). **Zero produtos casados é erro**, não "tudo
-já estava igual" — nesse caso o saldo na tela é o da última importação, e "Corrigir estoque"
-aborta em vez de mandar correções calculadas sobre dado velho.
+das chaves do primeiro item, nunca o conteúdo). **Listagem vazia ou zero produtos
+casados param Buscar e Corrigir antes de gravar** (`travaAntesDeGravar`, em `produto.ts`): nada
+é gravado, nem `apiNotFound`. Antes, a gravação vinha primeiro e marcava o catálogo inteiro
+como fora do ERP.
 
 Para investigar fora do app: `scripts/diagnosticar-erp.mts`, com o HashLoja copiado do painel
 do Nuvem3 (uso no topo do script). O `--planilha` cruza o catálogo inteiro contra a listagem.

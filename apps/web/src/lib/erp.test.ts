@@ -1,18 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { getDoc } from 'firebase/firestore';
+import type { EnvioEstoque } from '@themis/shared';
 import { chamarApi } from './api.js';
 import {
-  apagarHashDaLoja, carregarHashes, lerHashesConfigurados, salvarHashDaLoja, testarHash, tomDoTeste,
+  apagarHashDaLoja, buscarEstoqueDoErp, enviarAoErp, lerHashesConfigurados, salvarHashDaLoja, testarHash, tomDoTeste,
   type ResultadoTesteHash, type VeredictoTeste,
 } from './erp.js';
 
-// O módulo real de `firebase.js` lança sem as variáveis do `.env`; aqui só o `db` importa.
-vi.mock('./firebase.js', () => ({ db: {} }));
-vi.mock('firebase/firestore', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('firebase/firestore')>()),
-  getDoc: vi.fn(),
-  doc: vi.fn((_db: unknown, ...p: string[]) => ({ path: p.join('/') })),
-}));
 // Token e renovação são da Task 12 (api.test.ts). Aqui só importam o caminho e o corpo.
 vi.mock('./api.js', () => ({ chamarApi: vi.fn() }));
 
@@ -110,12 +103,57 @@ describe('tomDoTeste decide pelo veredicto', () => {
   });
 });
 
-describe('carregarHashes — lê os dois mapas', () => {
-  it('o mapa novo vence o legado', async () => {
-    vi.mocked(getDoc).mockResolvedValue({
-      exists: () => true,
-      data: () => ({ inventoryHashes: { A: 'velho', B: 'b1' }, hashes: { A: 'novo' } }),
-    } as never);
-    expect(await carregarHashes()).toEqual(new Map([['A', 'novo'], ['B', 'b1']]));
+const ENVIO: EnvioEstoque = {
+  IdProduto: 7, Quantidade: 3, CodigoBarras: '', NomeProduto: 'Skol Lata', EstoqueMinimo: 0, PrecoVenda: 0, PrecoCusto: 0,
+};
+const resposta = (status: number, corpo: object) => new Response(JSON.stringify(corpo), { status });
+
+describe('enviarAoErp — só a loja vai ao servidor', () => {
+  it('manda só a loja na URL e nenhum HashLoja', async () => {
+    vi.mocked(chamarApi).mockResolvedValue(resposta(200, { ok: true, tentativas: 1 }));
+    expect(await enviarAoErp('E1', ENVIO)).toEqual({ ok: true });
+    const [caminho, init] = vi.mocked(chamarApi).mock.calls[0]!;
+    expect(caminho).toBe('/erp/lojas/E1/estoque');
+    expect(init?.method).toBe('POST');
+    expect(JSON.parse(String(init?.body))).toEqual(ENVIO);
+    expect(init?.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it.each([401, 403, 409, 503])('%i para o laço', async (status) => {
+    vi.mocked(chamarApi).mockResolvedValue(resposta(status, { ok: false, erro: 'motivo da API' }));
+    expect(await enviarAoErp('E1', ENVIO)).toEqual({ ok: false, erro: 'motivo da API', parar: true });
+  });
+
+  it('502 do ERP não para o laço', async () => {
+    vi.mocked(chamarApi).mockResolvedValue(resposta(502, { ok: false, erro: 'O ERP recusou', tentativas: 1 }));
+    const r = await enviarAoErp('E1', ENVIO);
+    expect(r).toMatchObject({ ok: false, erro: 'O ERP recusou' });
+    expect(r.parar).toBeFalsy();
+  });
+
+  it('sem resposta do servidor não para o laço', async () => {
+    vi.mocked(chamarApi).mockRejectedValue(new TypeError('Failed to fetch'));
+    expect(await enviarAoErp('E1', ENVIO)).toEqual({ ok: false, erro: 'Sem resposta do servidor' });
+  });
+});
+
+describe('buscarEstoqueDoErp — pela loja', () => {
+  it('chama a rota da loja e indexa as grafias do id', async () => {
+    vi.mocked(chamarApi).mockResolvedValue(resposta(200, {
+      ok: true, itens: [{ idProduto: '007', quantidade: 3 }], recebidos: 1, semId: 0,
+      campos: ['idproduto', 'quantidade'], naoPositivos: 0, omiteZerados: false,
+    }));
+    const r = await buscarEstoqueDoErp('E1');
+    const [caminho, init] = vi.mocked(chamarApi).mock.calls[0]!;
+    expect(caminho).toBe('/erp/lojas/E1/estoque');
+    expect(init?.method).toBeUndefined();
+    expect(init?.body).toBeUndefined();
+    expect(r).toMatchObject({ ok: true, itens: 1, recebidos: 1 });
+    expect(r.estoque.get('7')).toBe(3);
+  });
+
+  it('erro da API vem como está', async () => {
+    vi.mocked(chamarApi).mockResolvedValue(resposta(409, { ok: false, erro: 'Esta loja não tem HashLoja configurado.' }));
+    expect(await buscarEstoqueDoErp('E1')).toMatchObject({ ok: false, erro: 'Esta loja não tem HashLoja configurado.', itens: 0 });
   });
 });

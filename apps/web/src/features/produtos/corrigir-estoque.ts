@@ -30,10 +30,11 @@ import {
   saldoDoErpPara,
   saldoNoErp,
   sistemaDe,
+  travaAntesDeGravar,
   type Produto,
 } from '@themis/shared';
 import { atualizarEstoqueSistema, fecharConferencia } from '../../lib/produtos-repo.js';
-import { buscarEstoqueDoErp, enviarAoErp, hashDaLoja } from '../../lib/erp.js';
+import { buscarEstoqueDoErp, enviarAoErp } from '../../lib/erp.js';
 
 /** Tempo para o ERP processar antes da releitura de verificação. */
 const ESPERA_PROCESSAMENTO_MS = 1500;
@@ -42,7 +43,8 @@ const ESPERA_PROCESSAMENTO_MS = 1500;
 const PAUSA_ENTRE_ENVIOS_MS = 500;
 
 export interface Diagnostico {
-  hashLoja: string;
+  /** A loja lida. A correção e o reenvio vão para ela, nunca para a loja aberta no clique. */
+  inventoryId: string;
   contados: Produto[];
   /**
    * Contados cuja quantidade difere do saldo do sistema.
@@ -115,32 +117,17 @@ export async function diagnosticar(
   produtos: readonly Produto[],
   aoProgredir: (texto: string) => void,
 ): Promise<Diagnostico> {
-  aoProgredir('Consultando a configuração da loja');
-  const hashLoja = await hashDaLoja(inventoryId);
-  if (!hashLoja) throw new Error('Nenhum HashLoja configurado para este estoque.');
-
   aoProgredir('Buscando o estoque no ERP');
-  const leitura = await buscarEstoqueDoErp(hashLoja);
+  const leitura = await buscarEstoqueDoErp(inventoryId);
   if (!leitura.ok) throw new Error(leitura.erro ?? 'Não foi possível ler o estoque do ERP.');
+  // Antes de gravar, senão uma listagem errada marca o catálogo inteiro com `apiNotFound` (spec 4.6).
+  const trava = travaAntesDeGravar(leitura.itens, leitura.estoque, produtos);
+  if (trava) throw new Error(trava);
 
   aoProgredir('Atualizando os saldos do sistema');
   const sincronia = await atualizarEstoqueSistema(inventoryId, produtos, leitura.estoque, {
     omiteZerados: leitura.omiteZerados,
   });
-
-  /**
-   * Nenhum produto casou: parar aqui.
-   *
-   * Seguir compararia a contagem com o saldo da última importação e mandaria "correções"
-   * calculadas sobre dado velho — escrita no estoque real da empresa a partir de uma
-   * comparação que não vale. O `auditoria.js` do 1.x também abortava nesse caso.
-   */
-  if (sincronia.casaram === 0) {
-    throw new Error(
-      `Nenhum dos ${produtos.length} produtos casou com os ${leitura.itens} itens do ERP. ` +
-        'Confira o HashLoja do estoque antes de corrigir.',
-    );
-  }
 
   // Reaplica o saldo lido na cópia em memória: o listener do Firestore ainda não trouxe
   // a gravação, e o diagnóstico precisa dos números novos agora.
@@ -164,7 +151,7 @@ export async function diagnosticar(
   const contados = frescos.filter((p) => p.productStatus === 'ATUALIZADO');
 
   return {
-    hashLoja,
+    inventoryId,
     contados,
     divergentes: contados.filter((p) => fisicoDe(p) !== sistemaDe(p)),
     foraDoErp: contados.filter((p) => desconhecidos.has(p.id)),
@@ -179,7 +166,7 @@ export async function executarCorrecao(
   diagnostico: Diagnostico,
   aoProgredir: (texto: string, feitos?: number, total?: number) => void,
 ): Promise<ResultadoCorrecao> {
-  const { contados, divergentes, foraDoErp, hashLoja } = diagnostico;
+  const { contados, divergentes, foraDoErp } = diagnostico;
 
   /**
    * Quem vai ao ERP: divergente, com identificador, e **conhecido pelo ERP**.
@@ -203,9 +190,9 @@ export async function executarCorrecao(
   for (const [indice, p] of paraOErp.entries()) {
     aoProgredir('Enviando divergências ao ERP', indice + 1, paraOErp.length);
 
-    // `montarEnvio` monta os oito campos que o ERP espera. Não montar o objeto aqui:
+    // `montarEnvio` monta os sete campos; a API põe o `HashLoja`. Não montar o objeto aqui:
     // foi assim que o payload acabou com metade dos campos e o id em texto.
-    const resultado = await enviarAoErp(montarEnvio(p, hashLoja));
+    const resultado = await enviarAoErp(inventoryId, montarEnvio(p));
 
     if (resultado.ok) {
       enviados++;
@@ -227,9 +214,10 @@ export async function executarCorrecao(
     await pausa(ESPERA_PROCESSAMENTO_MS);
 
     aoProgredir('Conferindo se a correção foi aplicada');
-    const releitura = await buscarEstoqueDoErp(hashLoja);
+    const releitura = await buscarEstoqueDoErp(inventoryId);
 
-    if (!releitura.ok) {
+    // Releitura vazia é hash errado ou ERP fora, não "nada refletiu".
+    if (!releitura.ok || travaAntesDeGravar(releitura.itens, releitura.estoque, contados) !== null) {
       // Não conseguir verificar não invalida o envio; só não dá para afirmar que deu certo.
       // Com tudo recusado não houve envio aceito a afirmar: a lista de recusados já diz o que fazer.
       verificacaoIndisponivel = enviados > 0;
@@ -237,7 +225,7 @@ export async function executarCorrecao(
       for (const p of paraOErp) {
         // O valor **como foi enviado** (inteiro, nunca negativo), não o físico cru: é ele
         // que o ERP recebeu, e é contra ele que a comparação faz sentido.
-        const enviado = montarEnvio(p, hashLoja).Quantidade;
+        const enviado = montarEnvio(p).Quantidade;
         const noSistema = saldoNoErp(releitura.estoque, p);
 
         if (!aceitos.has(p.id)) {
@@ -289,7 +277,7 @@ export async function executarCorrecao(
 
 /** Reenvia o que não refletiu, para o caso de ter sido só demora do ERP. */
 export async function reenviarPendentes(
-  hashLoja: string,
+  inventoryId: string,
   produtos: readonly Produto[],
   pendentes: readonly PendenciaErp[],
   aoProgredir: (feitos: number, total: number) => void,
@@ -304,7 +292,7 @@ export async function reenviarPendentes(
     if (!p) continue;
 
     // A quantidade enviada da primeira vez, não a atual: é ela que precisa entrar.
-    const resultado = await enviarAoErp(montarEnvio(p, hashLoja, pendencia.enviado));
+    const resultado = await enviarAoErp(inventoryId, montarEnvio(p, pendencia.enviado));
 
     if (resultado.ok) reenviados++;
     if (indice < pendentes.length - 1) await pausa(PAUSA_ENTRE_ENVIOS_MS);

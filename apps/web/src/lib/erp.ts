@@ -4,13 +4,11 @@
  * No 1.x o navegador chamava `erp.nuvem3.com.br` direto. Agora passa pela nossa API: o
  * endereço do ERP sai do bundle e o timeout fica do lado do servidor.
  *
- * O `HashLoja` vem da coleção `hashConfigs` — é o que amarra o estoque do Themis à loja
- * no ERP.
+ * O HashLoja nunca passa pelo navegador: o site manda só a loja, e a API lê o hash com a conta
+ * de serviço.
  */
-import { doc, getDoc, type DocumentData } from 'firebase/firestore';
 import { chavesDeIdProduto, type EnvioEstoque } from '@themis/shared';
-import { db } from './firebase.js';
-import { chamarApi, urlApi } from './api.js';
+import { chamarApi } from './api.js';
 
 /**
  * Teto do envio, do lado do navegador.
@@ -28,23 +26,18 @@ export interface ResultadoEnvio {
   parar?: boolean;
 }
 
-export async function enviarAoErp(dados: EnvioEstoque): Promise<ResultadoEnvio> {
+export async function enviarAoErp(inventoryId: string, dados: EnvioEstoque): Promise<ResultadoEnvio> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
   try {
-    const resposta = await fetch(urlApi('/erp/estoque'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(dados),
-      signal: controller.signal,
-    });
-
-    if (!resposta.ok) {
-      const corpo = (await resposta.json().catch(() => null)) as { erro?: string } | null;
-      return { ok: false, erro: corpo?.erro ?? `Falha ${resposta.status}` };
-    }
-    return { ok: true };
+    return await respostaDaApi(
+      await chamarApi(`/erp/lojas/${encodeURIComponent(inventoryId)}/estoque`, {
+        method: 'POST',
+        body: JSON.stringify(dados),
+        signal: controller.signal,
+      }),
+    );
   } catch (erro) {
     const abortou = (erro as { name?: string } | null)?.name === 'AbortError';
     return { ok: false, erro: abortou ? 'Tempo esgotado' : 'Sem resposta do servidor' };
@@ -89,12 +82,12 @@ export interface ResultadoBusca {
  * mesmo aplicado. Sem a primeira leitura, o app mandaria correções de itens que já batiam
  * e deixaria passar divergências surgidas desde a importação.
  */
-export async function buscarEstoqueDoErp(hashLoja: string): Promise<ResultadoBusca> {
+export async function buscarEstoqueDoErp(inventoryId: string): Promise<ResultadoBusca> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_LISTAR_MS);
 
   try {
-    const resposta = await fetch(urlApi(`/erp/estoque/${encodeURIComponent(hashLoja)}`), {
+    const resposta = await chamarApi(`/erp/lojas/${encodeURIComponent(inventoryId)}/estoque`, {
       signal: controller.signal,
     });
 
@@ -182,43 +175,6 @@ export async function buscarEstoqueDoErp(hashLoja: string): Promise<ResultadoBus
   } finally {
     clearTimeout(timer);
   }
-}
-
-/**
- * Configuração de HashLoja.
- *
- * ⚠️ **É um documento só**, `hashConfigs/inventoryHashes`, com um mapa
- * `{ inventoryId: hash }` no campo `hashes` — não uma coleção de documentos por loja.
- * Documentos antigos usam `inventoryHashes` no lugar de `hashes`; os dois são lidos, juntos.
- *
- * Sem o hash, o ERP não sabe de qual loja se está falando: nem a leitura de estoque nem a
- * correção funcionam.
- */
-const DOC_HASHES = 'inventoryHashes';
-
-export async function carregarHashes(): Promise<Map<string, string>> {
-  const snap = await getDoc(doc(db, 'hashConfigs', DOC_HASHES));
-  const mapa = new Map<string, string>();
-  if (!snap.exists()) return mapa;
-
-  // Lê os dois mapas juntos, o novo por cima: com `??` um `hashes` parcial escondia os
-  // estoques que só existiam no legado `inventoryHashes`.
-  const dados = snap.data() as DocumentData;
-  const comoMapa = (v: unknown): Record<string, unknown> =>
-    v && typeof v === 'object' ? (v as Record<string, unknown>) : {};
-  const bruto = { ...comoMapa(dados['inventoryHashes']), ...comoMapa(dados['hashes']) };
-
-  for (const [inventoryId, hash] of Object.entries(bruto)) {
-    const valor = String(hash ?? '').trim();
-    if (valor !== '') mapa.set(inventoryId, valor);
-  }
-  return mapa;
-}
-
-/** Hash da loja ligada a um estoque. `null` quando não há configuração. */
-export async function hashDaLoja(inventoryId: string): Promise<string | null> {
-  const hashes = await carregarHashes();
-  return hashes.get(inventoryId) ?? null;
 }
 
 /**

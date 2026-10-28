@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { travaAntesDeGravar } from '@themis/shared';
 import { useEstoque } from '../../contexts/EstoqueContext.js';
 import { useAuth } from '../../contexts/AuthContext.js';
 import { useToast } from '../../contexts/ToastContext.js';
@@ -13,7 +14,7 @@ import {
   limparContagem,
 } from '../../lib/produtos-repo.js';
 import { encerrarLote } from '../../lib/estoques-repo.js';
-import { buscarEstoqueDoErp, hashDaLoja } from '../../lib/erp.js';
+import { buscarEstoqueDoErp } from '../../lib/erp.js';
 import { lerPlanilha } from '../../lib/planilha.js';
 import { registrar } from '../../lib/historico.js';
 import { isWriteTimeout } from '../../lib/firestore-write.js';
@@ -221,18 +222,19 @@ export function TelaProdutos() {
    */
   async function buscarEstoque() {
     if (!estoqueAtual) return;
-    setOcupado({ texto: 'Consultando a configuração da loja' });
+    setOcupado({ texto: 'Buscando o estoque no ERP' });
     try {
-      const hash = await hashDaLoja(estoqueAtual.id);
-      if (!hash) {
-        mostrar('Nenhum HashLoja configurado. Configure em Estoques.', 'error');
+      const leitura = await buscarEstoqueDoErp(estoqueAtual.id);
+      if (!leitura.ok) {
+        mostrar(leitura.erro ?? 'Não foi possível ler o estoque do ERP.', 'error');
         return;
       }
 
-      setOcupado({ texto: 'Buscando o estoque no ERP' });
-      const leitura = await buscarEstoqueDoErp(hash);
-      if (!leitura.ok) {
-        mostrar(leitura.erro ?? 'Não foi possível ler o estoque do ERP.', 'error');
+      // Sem casamento, o saldo na tela seguiria o da última importação, lido como se fosse o do ERP.
+      const trava = travaAntesDeGravar(leitura.itens, leitura.estoque, produtos);
+      if (trava) {
+        console.error('[erp] Buscar parado antes de gravar. Campos do ERP:', leitura.campos);
+        mostrar(trava, 'error');
         return;
       }
 
@@ -241,40 +243,25 @@ export function TelaProdutos() {
         omiteZerados: leitura.omiteZerados,
       });
 
-      /**
-       * Nenhum produto casou com a listagem: a sincronização **não aconteceu**. O saldo na
-       * tela continua sendo o da última importação, e dizer "tudo já estava igual ao ERP"
-       * — como esta mensagem dizia — faz o usuário conferir número velho contra o Nuvem3
-       * e concluir que o ERP é que está errado.
-       */
-      if (r.casaram === 0) {
-        console.error('[erp] Nenhum produto casou com a listagem. Campos do ERP:', leitura.campos);
-        mostrar(
-          `Nenhum dos ${produtos.length} produtos casou com os ${leitura.itens} itens do ERP. ` +
-            'O saldo na tela continua o da última importação. Confira o HashLoja do estoque.',
-          'error',
-        );
-      } else {
-        const parte = (n: number, um: string, muitos: string) =>
-          `${n} ${n === 1 ? um : muitos}`;
-        mostrar(
-          [
-            r.atualizados === 0
-              ? `Saldo já estava igual ao ERP em ${parte(r.casaram, 'produto', 'produtos')}.`
-              : `${parte(r.atualizados, 'saldo atualizado', 'saldos atualizados')} de ${r.casaram} que casaram.`,
-            // O ERP não devolve saldo zero: ausência da listagem é zero, não desconhecido.
-            r.zeradosPorOmissao > 0
-              ? `${parte(r.zeradosPorOmissao, 'produto zerado', 'produtos zerados')} (não vêm na listagem do ERP).`
-              : null,
-            r.semCorrespondencia > 0
-              ? `${parte(r.semCorrespondencia, 'produto', 'produtos')} fora do ERP.`
-              : null,
-          ]
-            .filter(Boolean)
-            .join(' '),
-          r.semCorrespondencia > r.casaram ? 'warning' : 'success',
-        );
-      }
+      const parte = (n: number, um: string, muitos: string) =>
+        `${n} ${n === 1 ? um : muitos}`;
+      mostrar(
+        [
+          r.atualizados === 0
+            ? `Saldo já estava igual ao ERP em ${parte(r.casaram, 'produto', 'produtos')}.`
+            : `${parte(r.atualizados, 'saldo atualizado', 'saldos atualizados')} de ${r.casaram} que casaram.`,
+          // O ERP não devolve saldo zero: ausência da listagem é zero, não desconhecido.
+          r.zeradosPorOmissao > 0
+            ? `${parte(r.zeradosPorOmissao, 'produto zerado', 'produtos zerados')} (não vêm na listagem do ERP).`
+            : null,
+          r.semCorrespondencia > 0
+            ? `${parte(r.semCorrespondencia, 'produto', 'produtos')} fora do ERP.`
+            : null,
+        ]
+          .filter(Boolean)
+          .join(' '),
+        r.semCorrespondencia > r.casaram ? 'warning' : 'success',
+      );
 
       if (contextoLog) {
         void registrar('BUSCAR_ESTOQUE', contextoLog, {

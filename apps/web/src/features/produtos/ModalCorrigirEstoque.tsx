@@ -90,7 +90,8 @@ export function ModalCorrigirEstoque({ aberto, onFechar }: Props) {
     if (!estoqueAtual || !diagnostico) return;
     setEtapa('executando');
     try {
-      const r = await executarCorrecao(estoqueAtual.id, diagnostico, (texto, feitos, total) =>
+      // A loja aberta pode mudar com o modal aberto, e as contagens são da loja lida.
+      const r = await executarCorrecao(diagnostico.inventoryId, diagnostico, (texto, feitos, total) =>
         setProgresso({ texto, feitos, total }),
       );
       setResultado(r);
@@ -136,7 +137,7 @@ export function ModalCorrigirEstoque({ aberto, onFechar }: Props) {
     setProgresso({ texto: 'Reenviando pendências' });
     try {
       const ok = await reenviarPendentes(
-        diagnostico.hashLoja,
+        diagnostico.inventoryId,
         diagnostico.divergentes,
         resultado.pendentes,
         (feitos, total) => setProgresso({ texto: 'Reenviando pendências', feitos, total }),

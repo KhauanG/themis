@@ -13,11 +13,13 @@
 import type { Produto } from './types.js';
 import { fisicoDe, idProdutoDe, nomeDe } from './produto.js';
 
-/** Os oito campos, com os tipos que o 1.x enviava. */
+/**
+ * Os sete campos que o site manda, com os tipos que o 1.x enviava. O oitavo, HashLoja, só a
+ * API põe: o hash nunca passa pelo navegador.
+ */
 export interface EnvioEstoque {
   /** Inteiro. O 1.x fazia `parseInt` antes de enviar; API .NET recusa `"123"` num `int`. */
   IdProduto: number;
-  HashLoja: string;
   /** Inteiro, nunca negativo. */
   Quantidade: number;
   /** Pode ser vazio: produto sem código de barras existe e o 1.x enviava assim mesmo. */
@@ -44,14 +46,9 @@ function preco(valor: unknown): number {
  * Nunca monte o objeto à mão no lugar de chamar isto. Foi exatamente assim que os campos
  * se perderam.
  */
-export function montarEnvio(
-  produto: Produto,
-  hashLoja: string,
-  quantidade: number = fisicoDe(produto),
-): EnvioEstoque {
+export function montarEnvio(produto: Produto, quantidade: number = fisicoDe(produto)): EnvioEstoque {
   return {
     IdProduto: Number.parseInt(String(idProdutoDe(produto) ?? 0), 10) || 0,
-    HashLoja: hashLoja.trim(),
     // Fracionário o ERP recusa; negativo o 1.x grampeava em zero.
     Quantidade: Math.max(0, Math.round(Number(quantidade) || 0)),
     CodigoBarras: String(produto.codigoBarras ?? produto.CodigoBarras ?? '').trim(),

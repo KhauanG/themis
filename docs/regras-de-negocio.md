@@ -358,6 +358,10 @@ Permissão: `verEstoqueSistema`. Abas: `filtrosVisiveis(verSistema)` em `filtros
 listagem da loja. Causas: cadastrado em outra loja, inativado no ERP, ou `IdProduto`
 divergente. Todas se resolvem no Nuvem3, não no Themis.
 
+Buscar e Corrigir não marcam nada quando a listagem vem vazia ou sem nenhum id que case: param
+antes de gravar (`travaAntesDeGravar`). Uma listagem errada, como a de um hash de outra conta
+do ERP, não marca o catálogo inteiro como fora do ERP.
+
 Enquanto vale, o `estoqueSistema` guardado é o da **última importação** — número que o ERP
 não confirmou. Por isso o produto sai da contagem inteira:
 

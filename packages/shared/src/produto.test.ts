@@ -5,6 +5,7 @@ import {
   saldoDoErpPara,
   saldoNoErp,
   sistemaDe,
+  travaAntesDeGravar,
   validadeDe,
 } from './produto.js';
 
@@ -116,6 +117,33 @@ describe('saldoNoErp', () => {
   it('produto sem IdProduto não casa com nada', () => {
     const erp = new Map([['5', 9]]);
     expect(saldoNoErp(erp, { id: 'a' })).toBeUndefined();
+  });
+});
+
+describe('travaAntesDeGravar', () => {
+  it('listagem vazia para antes de gravar', () => {
+    expect(travaAntesDeGravar(0, new Map(), [{ id: 'a', IdProduto: 7 }])).toBe(
+      'O ERP não devolveu nenhum produto para esta loja. Nada foi gravado. Confira o HashLoja do estoque.',
+    );
+  });
+
+  it('nenhum produto casa: para, com os números na mensagem', () => {
+    const erp = new Map([['98', 1], ['99', 0]]);
+    expect(travaAntesDeGravar(2, erp, [{ id: 'a', IdProduto: 7 }, { id: 'b', IdProduto: '8' }, { id: 'c' }])).toBe(
+      'Nenhum dos 3 produtos casou com os 2 itens do ERP. Nada foi gravado. Confira o HashLoja do estoque.',
+    );
+  });
+
+  // Saldo zero é casamento: a trava testa `!== undefined`, nunca verdade.
+  it('um produto casado basta, mesmo com saldo zero', () => {
+    const erp = new Map([['7', 0], ['99', 4]]);
+    expect(travaAntesDeGravar(2, erp, [{ id: 'a', IdProduto: 7 }, { id: 'b', IdProduto: '8' }])).toBeNull();
+  });
+
+  // O primeiro caso pega o `estoqueErp.get(String(id))` ingênuo; o segundo, não.
+  it('casa 7 com "007"', () => {
+    expect(travaAntesDeGravar(1, new Map([['7', 3]]), [{ id: 'a', IdProduto: '007' }])).toBeNull();
+    expect(travaAntesDeGravar(1, new Map([['007', 3], ['7', 3]]), [{ id: 'a', IdProduto: 7 }])).toBeNull();
   });
 });
 

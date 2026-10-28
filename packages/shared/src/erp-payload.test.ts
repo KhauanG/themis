@@ -16,81 +16,71 @@ const base: Produto = {
  * enviava — a única referência confiável do que o ERP aceita.
  */
 describe('montarEnvio', () => {
-  it('produz os oito campos do contrato', () => {
-    expect(Object.keys(montarEnvio(base, 'HASH')).sort()).toEqual([
-      'CodigoBarras',
-      'EstoqueMinimo',
-      'HashLoja',
-      'NomeProduto',
-      'PrecoCusto',
-      'PrecoVenda',
-      'Quantidade',
-      'IdProduto',
-    ].sort());
+  it('produz os sete campos; o HashLoja é posto pela API', () => {
+    expect(Object.keys(montarEnvio(base)).sort()).toEqual(
+      ['CodigoBarras', 'EstoqueMinimo', 'IdProduto', 'NomeProduto', 'PrecoCusto', 'PrecoVenda', 'Quantidade'].sort(),
+    );
+    expect(montarEnvio(base)).not.toHaveProperty('HashLoja');
   });
 
   it('IdProduto sai inteiro, não texto', () => {
-    const envio = montarEnvio(base, 'HASH');
+    const envio = montarEnvio(base);
     expect(envio.IdProduto).toBe(4321);
     expect(typeof envio.IdProduto).toBe('number');
   });
 
   it('IdProduto com zeros à esquerda vira inteiro', () => {
-    expect(montarEnvio({ ...base, IdProduto: '007' }, 'H').IdProduto).toBe(7);
+    expect(montarEnvio({ ...base, IdProduto: '007' }).IdProduto).toBe(7);
   });
 
   // `|| 0` no lugar de deixar NaN escapar: NaN vira `null` no JSON e o ERP rejeita.
   it('IdProduto ausente ou inválido vira 0', () => {
-    expect(montarEnvio({ id: 'x' }, 'H').IdProduto).toBe(0);
-    expect(montarEnvio({ id: 'x', IdProduto: 'ABC' }, 'H').IdProduto).toBe(0);
+    expect(montarEnvio({ id: 'x' }).IdProduto).toBe(0);
+    expect(montarEnvio({ id: 'x', IdProduto: 'ABC' }).IdProduto).toBe(0);
   });
 
   it('quantidade fracionária é arredondada', () => {
-    expect(montarEnvio({ ...base, quantidade: 2.6 }, 'H').Quantidade).toBe(3);
+    expect(montarEnvio({ ...base, quantidade: 2.6 }).Quantidade).toBe(3);
   });
 
   it('quantidade negativa é grampeada em zero', () => {
-    expect(montarEnvio({ ...base, quantidade: -5 }, 'H').Quantidade).toBe(0);
+    expect(montarEnvio({ ...base, quantidade: -5 }).Quantidade).toBe(0);
   });
 
   // Contagem zero é contagem. Não pode virar o físico legado nem sumir.
   it('quantidade zero é preservada', () => {
-    expect(montarEnvio({ ...base, quantidade: 0 }, 'H').Quantidade).toBe(0);
+    expect(montarEnvio({ ...base, quantidade: 0 }).Quantidade).toBe(0);
   });
 
   it('quantidade explícita vence a do produto', () => {
-    expect(montarEnvio(base, 'H', 40).Quantidade).toBe(40);
+    expect(montarEnvio(base, 40).Quantidade).toBe(40);
   });
 
   it('EstoqueMinimo é sempre 0, como no 1.x', () => {
-    expect(montarEnvio(base, 'H').EstoqueMinimo).toBe(0);
+    expect(montarEnvio(base).EstoqueMinimo).toBe(0);
   });
 
   it('preço em texto com vírgula vira número com duas casas', () => {
-    const envio = montarEnvio({ ...base, PrecoVenda: '12,345', PrecoCusto: '8,5' }, 'H');
+    const envio = montarEnvio({ ...base, PrecoVenda: '12,345', PrecoCusto: '8,5' });
     expect(envio.PrecoVenda).toBe(12.35);
     expect(envio.PrecoCusto).toBe(8.5);
   });
 
   it('preço ausente vira 0, não NaN', () => {
-    const envio = montarEnvio(base, 'H');
+    const envio = montarEnvio(base);
     expect(envio.PrecoVenda).toBe(0);
     expect(envio.PrecoCusto).toBe(0);
   });
 
   it('aceita as grafias minúsculas do preço', () => {
-    expect(montarEnvio({ ...base, precoVenda: 9.99 }, 'H').PrecoVenda).toBe(9.99);
+    expect(montarEnvio({ ...base, precoVenda: 9.99 }).PrecoVenda).toBe(9.99);
   });
 
   it('produto sem código de barras envia string vazia, não quebra', () => {
-    expect(montarEnvio({ ...base, codigoBarras: null }, 'H').CodigoBarras).toBe('');
+    expect(montarEnvio({ ...base, codigoBarras: null }).CodigoBarras).toBe('');
   });
 
   it('usa a grafia legada do nome quando é a única', () => {
-    expect(montarEnvio({ id: 'x', NomeProduto: 'Legado' }, 'H').NomeProduto).toBe('Legado');
-  });
-
-  it('tira espaços do hash', () => {
-    expect(montarEnvio(base, '  HASH  ').HashLoja).toBe('HASH');
+    expect(montarEnvio({ id: 'x', NomeProduto: 'Legado' }).NomeProduto).toBe('Legado');
   });
 });

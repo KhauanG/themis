@@ -141,7 +141,9 @@ Outras causas que o script separa:
 
 ⚠️ Zero produtos casados é **erro**, nunca "tudo já estava igual". A tela já disse a segunda
 coisa quando era a primeira; é por isso que `atualizarEstoqueSistema` devolve `casaram`
-separado de `atualizados`.
+separado de `atualizados`. Desde a 2.22.0, Buscar e Corrigir param **antes** de gravar quando a
+listagem vem vazia ou sem nenhum casado (`travaAntesDeGravar`). Antes, a gravação vinha primeiro
+e marcava o catálogo inteiro com `apiNotFound`.
 
 ### O payload do ERP não é negociável
 
@@ -155,7 +157,7 @@ do produto no sistema.
 **Evitar.** Montar sempre com `montarEnvio()` de `@themis/shared`. Nunca escrever o objeto
 à mão. A referência é o `sendToERP` do 1.x, que rodou anos em produção — é a única prova
 que temos do que a Nuvem3 aceita, e não dá para descobrir o resto testando contra o estoque
-real da empresa.
+real da empresa. O site monta sete campos; o `HashLoja` só a API põe.
 
 ### Produto some da correção sem aparecer em lugar nenhum
 
