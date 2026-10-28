@@ -27,6 +27,7 @@ Precedência: master > admin > auditor > comum.
 
 ⚠️ Documentos antigos gravaram as flags como boolean, string `"true"` ou número `1`.
 `papelDe()` tolera as três — uma checagem estrita deslogaria perfis legados.
+A regra e a API não toleram: comparam com `true` estrito.
 
 ⚠️ Elevação de papel é **só master**, e a regra impede que qualquer um se promova
 (`rolesAreNotElevatedOnCreate`, `ownRoleFieldsUnchanged`).
@@ -211,6 +212,17 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 | Log sem URL | `log-respostas.ts`: método, padrão da rota, status e tempo; nunca URL, corpo nem cabeçalho. `/api/erp/estoque/<x>` vira `***` em qualquer linha |
 
 O endereço do ERP fica só no servidor, fora do bundle.
+
+### Cargo na API
+
+A conta de serviço da API ignora as Security Rules. Quem decide é `apps/api/src/acesso.ts`,
+porte de `firestore/firestore.rules`:
+
+- flag de cargo vale só com `=== true` (`"true"` e `1` não valem);
+- `podeAcessarEstoque` igual ao da regra, com as três portas abertas (master, sem perfil,
+  lista vazia ou que não é lista) e sem converter tipo nem descartar texto vazio;
+- ERP só para admin ou master com acesso à loja; auditor, comum e sem perfil levam 403;
+- o perfil é lido a cada chamada, sem cache: quem for rebaixado é barrado na chamada seguinte.
 
 ### Cabeçalhos
 

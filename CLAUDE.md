@@ -132,6 +132,11 @@ cumpre. Mudou `permissoesDe` ou criou botão novo? Confira a regra correspondent
 `firestore/firestore.rules` antes. Os que exigem **master**, e não admin: `historico_geral`
 (leitura), `hashConfigs` (escrita), exclusão de `inventories` e de `produtos`.
 
+**A API nunca é mais permissiva que a Security Rule.**
+A conta de serviço ignora as regras. Quem decide na API é `apps/api/src/acesso.ts`, porte de
+`firestore/firestore.rules` com os mesmos casos de `firestore/regras.test.ts`. Mudou `isMaster`,
+`isAdmin` ou `podeAcessarEstoque` num, muda no outro.
+
 **Formato gravado precisa continuar legível pelo Themis 1.x.**
 Os dois apps convivem no mesmo banco.
 
