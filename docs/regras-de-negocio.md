@@ -312,8 +312,7 @@ Casos em que a regra é mais restrita que o papel sugere:
 | Recurso | Regra exige | Onde aparece |
 |---|---|---|
 | `historico_geral` (leitura) | **master** | menu Histórico |
-| `hashConfigs` (escrita) | **master** | HashLoja em Estoques |
-| `hashConfigs` (leitura) | **admin ou master** | HashLoja em Estoques, Buscar e Corrigir estoque |
+| `hashConfigs` (leitura e escrita) | **ninguém** pelo SDK; só a API (master troca e testa o hash) | HashLoja em Estoques, Buscar e Corrigir estoque |
 | `inventories` (exclusão) | **master** | botão Excluir em Estoques |
 | `produtos` (exclusão) | **master** | Excluir produto, Apagar todos |
 

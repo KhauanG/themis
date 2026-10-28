@@ -130,7 +130,8 @@ cru não é classificável, vira "transitório", e trava a fila inteira atrás d
 Quando é, o usuário vê o botão, clica e leva `permission-denied` — promessa que o banco não
 cumpre. Mudou `permissoesDe` ou criou botão novo? Confira a regra correspondente em
 `firestore/firestore.rules` antes. Os que exigem **master**, e não admin: `historico_geral`
-(leitura), `hashConfigs` (escrita), exclusão de `inventories` e de `produtos`.
+(leitura), exclusão de `inventories` e de `produtos`. `hashConfigs` é fechado para todo
+cliente: só a API lê e grava.
 
 **A API nunca é mais permissiva que a Security Rule.**
 A conta de serviço ignora as regras. Quem decide na API é `apps/api/src/acesso.ts`, porte de

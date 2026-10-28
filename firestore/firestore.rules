@@ -219,12 +219,10 @@ service cloud.firestore {
     }
 
     match /hashConfigs/{configId} {
-      // O hash é credencial do ERP: só cargo alto lê. Quem só conta nunca precisa dele.
-      allow read: if isAdminOrMaster();
-      allow create, update: if isMaster() &&
-        (('hashes' in request.resource.data && request.resource.data.hashes is map) ||
-         ('inventoryHashes' in request.resource.data && request.resource.data.inventoryHashes is map));
-      allow delete: if isMaster();
+      // O hash é credencial do ERP. Desde a 2.22.0 só a API lê e grava, com a conta de
+      // serviço, que não passa por regra. O catch-all do fim já fecha; o bloco explícito
+      // existe para ninguém reabrir por engano.
+      allow read, write: if false;
     }
 
     match /appSettings/{settingId} {

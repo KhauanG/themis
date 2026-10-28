@@ -12,7 +12,7 @@ inventories/{inventoryId}                     metadados e ciclo de contagem
 auditorias/{auditoriaId}                      snapshot de contagem finalizada
 historico_geral/{id}                          log de ações
 users/{uid}                                   perfil e papéis
-hashConfigs/{id}                              amarra estoque ↔ loja no ERP
+hashConfigs/{id}                              amarra estoque ↔ loja no ERP (só a API)
 appSettings/{id}                              configuração geral
 userSettings/{uid}                            preferências do usuário
 ```
@@ -209,6 +209,9 @@ Documento único: `hashConfigs/inventoryHashes`.
   (`apps/api/src/google.ts`), no mesmo formato.
 - Um hash por loja: a API recusa (409) um hash que já está em outra chave, inclusive de loja
   excluída. Só o master grava, por `PUT` e `DELETE /api/erp/lojas/:inventoryId/hash`.
+- Desde a 2.22.0 a regra fecha a coleção para clientes (`allow read, write: if false`).
+  Leitura ou gravação pelo SDK leva `permission-denied`. Só a API acessa, com a conta de
+  serviço.
 
 ---
 

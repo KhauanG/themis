@@ -371,5 +371,9 @@ git revert HASH-DO-COMMIT-RUIM
 git push origin main
 ```
 
+Depois da 2.22.0, com a regra fechada publicada, voltar o site para antes dela exige
+republicar antes a regra da `v2.21.0` (`docs/seguranca.md`, nota ⁴). O push de volta atrás
+também precisa do OK do dono.
+
 A Hostinger publica de novo com o código anterior. Para reverter regra do Firestore, use o
 histórico de versões no Console do Firebase.

@@ -118,13 +118,17 @@ a verdadeira.
 | `estoques/*/produtos` | autenticado | admin+ | autenticado¹ | master |
 | `inventories` | autenticado | admin+ | admin+ ou ciclo² | master |
 | `auditorias` | autenticado | autenticado | master | master |
-| `hashConfigs` | admin+ | master | master | master |
+| `hashConfigs` | ninguém⁴ | ninguém⁴ | ninguém⁴ | ninguém⁴ |
 | `historico_geral` | admin+ | autenticado | — | — |
 | `users` | próprio ou master | próprio³ | próprio³ ou master | master |
 
 ¹ com `validProductData` e `podeAlterarStatusProduto`
 ² usuário comum só os campos da rodada: os quatro do ciclo mais `lote` e `loteCiclo`
 ³ sem elevar o próprio papel
+⁴ desde a 2.22.0 só a API acessa, com a conta de serviço, que não passa por regra. O site
+anterior lê `hashConfigs` pelo SDK. Voltar o site para antes da 2.22.0 exige republicar
+antes a regra da `v2.21.0`: `git checkout v2.21.0 -- firestore/firestore.rules`,
+`npm run deploy-rules` na raiz do Themis, e só então o push.
 
 ### `podeAlterarStatusProduto`
 

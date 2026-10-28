@@ -48,7 +48,8 @@ it('ehMaster e ehAdmin: só true vale, e um cargo não implica o outro', () => {
   expect(ehAdmin(null)).toBe(false);
 });
 
-// master, admin, comum e sem documento espelham `só cargo alto lê hash` (regras.test.ts:409-415).
+// master, admin, comum e sem documento vêm do antigo `só cargo alto lê hash` de regras.test.ts.
+// A 2.22.0 fechou `hashConfigs` para clientes, e essa decisão ficou só aqui.
 // Auditor vem da spec 4.1. As flags em texto e número são só do porte (rules:17-25).
 describe('podeUsarErp — admin ou master, e a loja', () => {
   it.each([
