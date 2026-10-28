@@ -120,7 +120,8 @@ Três motivos para existir:
    tratamento de erro do lado do servidor. O retry (2 tentativas de 45s, 1s entre elas) vale
    só para rede, tempo esgotado e 5xx, e é segurado pelo servidor, não pelo celular do
    funcionário no depósito. Repetir é seguro: a chamada grava quantidade absoluta, não
-   incremento.
+   incremento. Desde a 2.21.0 a API também guarda o HashLoja: o site manda só a loja e o ID
+   token, e a API confere o cargo e lê o hash com a conta de serviço (`routes/erp-lojas.ts`).
 2. **Webhook** — recebe eventos do ERP; substitui o `webhook-server.js` do 1.x, que
    declarava um servidor HTTP mas rodava no navegador e nunca recebeu requisição
 3. **Servir o PWA** — na Hostinger não há Apache na frente, então rota de SPA e cabeçalhos

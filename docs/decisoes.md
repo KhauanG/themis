@@ -291,3 +291,21 @@ dependência e usa o `fetch` global, que a guarda dos testes cobre.
 **Consequência.** O código do token e do formato do Firestore é nosso e tem teste. O token
 fica guardado 55 min. O papel `roles/datastore.user` vale para o banco inteiro (o IAM não
 separa coleção): uma chave vazada lê e grava tudo.
+
+---
+
+## 20. Rotas novas por loja; as antigas ficam até o site trocar
+
+**Contexto.** O site 2.20 chama `/api/erp/estoque/:hashLoja` com o hash. Trocar a API e o
+site no mesmo push seria às cegas.
+
+**Decisão.** O push A põe as rotas novas em `/api/erp/lojas/:inventoryId/...` e deixa as
+antigas. O push B faz as antigas responderem 410.
+
+**Por quê.** Cada push se confere sozinho (o push A pelo `credencial` do `/api/health`). O
+caminho novo não colide com `:hashLoja`. O plugin (`apps/api/src/routes/erp-lojas.ts`) é
+encapsulado, sem `fastify-plugin`, para o login não alcançar as antigas e quebrar a 2.20.
+
+**O que se perde.** Entre os dois pushes, as antigas seguem sem login.
+
+**Como reverter.** Reverter o push A; nada muda para o usuário.

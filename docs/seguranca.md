@@ -211,6 +211,22 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 | Validação de schema | Fastify, em toda rota `POST` |
 | Timeout no ERP | 45s por tentativa, com 502/504 separados |
 | Log sem URL | `log-respostas.ts`: método, padrão da rota, status e tempo; nunca URL, corpo nem cabeçalho. `/api/erp/estoque/<x>` vira `***` em qualquer linha |
+| Login e cargo no ERP | `erp-lojas.ts`: ID token do Firebase, perfil relido a cada chamada, porte da regra em `acesso.ts` |
+
+### Rotas do ERP por loja (2.21.0)
+
+| Rota | Quem | O que faz |
+|---|---|---|
+| `GET /api/erp/lojas/:inventoryId/estoque` | admin, master + `pode` | Lista o estoque do ERP daquela loja (Buscar, leituras do Corrigir). |
+| `POST /api/erp/lojas/:inventoryId/estoque` | admin, master + `pode` | Envia um item. Corpo como o de antes, **sem** `HashLoja`; a API monta `{...corpo, HashLoja: hashDoServidor}` (o cliente nunca sobrepõe o hash). A resposta não devolve o corpo cru do ERP. |
+| `GET /api/erp/hashes` | admin, master | `{ configurados: [inventoryId, ...] }`, filtrado por `pode`. Nunca os valores. |
+
+`GET /api/erp/estoque/:hashLoja` e `POST /api/erp/estoque` seguem como na 2.20, sem login, até o push B.
+
+Ordem das respostas: 503 sem credencial (só nas rotas do ERP; o resto do site segue), 401,
+503 quando o Firestore ou as chaves do Google falham, 403, 409 da loja sem hash. Os 4xx da
+própria Fastify (corpo inválido, 429) saem com o status deles. O hash nunca vai no caminho,
+no corpo da resposta nem no log.
 
 O endereço do ERP fica só no servidor, fora do bundle.
 

@@ -4,9 +4,12 @@ import rateLimit from '@fastify/rate-limit';
 import { config } from './config.js';
 import { registrarCabecalhos } from './cabecalhos.js';
 import { registrarEstaticos } from './estaticos.js';
+import { conferirCredencial, criarFirestoreServidor } from './google.js';
 import { opcoesDeLog, registrarLogDeRespostas } from './log-respostas.js';
 import { rotasErp } from './routes/erp.js';
+import { rotasErpLojas } from './routes/erp-lojas.js';
 import { rotasWebhook } from './routes/webhook.js';
+import { criarVerificador } from './token-firebase.js';
 import { COMMIT, DATA_BUILD, VERSAO } from './versao.js';
 
 /**
@@ -40,7 +43,8 @@ registrarCabecalhos(app);
 // subdomínio separado, e para o `npm run dev`, em que o Vite roda na 5173.
 await app.register(cors, {
   origin: config.corsOrigins,
-  methods: ['GET', 'POST'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
 });
 
 await app.register(rateLimit, {
@@ -51,7 +55,18 @@ await app.register(rateLimit, {
   allowList: (req) => !req.url.startsWith('/api/'),
 });
 
-await app.register(rotasErp);
+await app.register(rotasErp); // antigas, sem login, até a T15
+const firestore = config.firebase ? criarFirestoreServidor(config.firebase) : null;
+await app.register(rotasErpLojas, { verificarToken: criarVerificador(), firestore });
+
+// `true` só depois que a API emitiu o token e leu hashConfigs uma vez. Começa `false`.
+// Uma chave cortada ou um papel errado aparecem aqui antes de o site depender deles.
+// Sem `await`: um Google lento não pode atrasar a subida do site.
+let credencialOk = false;
+void conferirCredencial(firestore, (m) => app.log.warn(m)).then((ok) => {
+  credencialOk = ok;
+});
+
 await app.register(rotasWebhook);
 
 const servindoPwa = await registrarEstaticos(app);
@@ -60,6 +75,7 @@ app.get('/api/health', async () => ({
   ok: true,
   versao: VERSAO,
   pwa: servindoPwa,
+  credencial: credencialOk,
 }));
 
 /**

@@ -296,11 +296,25 @@ curl.exe https://themis.grupoicebeer.com.br/api/health
 Resposta esperada:
 
 ```json
-{"ok":true,"versao":"2.0.0","pwa":true}
+{"ok":true,"versao":"2.21.0","pwa":true,"credencial":true}
 ```
 
 `"pwa": true` confirma que o Node encontrou `apps/web/dist` e está servindo o site. Se vier
 `false`, o build do PWA não rodou — confira o comando de compilação do passo 4.
+
+`"credencial"` começa `false` e vira `true` alguns segundos depois de o app subir, quando a
+API emite o token e lê `hashConfigs`. A checagem roda uma vez. Veio `false`? Espere 30 s e
+repita antes de mexer em qualquer coisa.
+
+Continua `false`? Só as rotas do ERP respondem 503; o resto do site segue. O log do app diz o
+motivo: `FIREBASE_SERVICE_ACCOUNT_B64 ausente`, `… inválida (<motivo>)` ou `Credencial do
+Firebase não conferiu (<etapa> <status>)`. Reinicie o app uma vez e confira de novo. Só
+refaça a chave (Passo 5) com `ausente`, `inválida`, ou um 403 que dure mais de uns 10 min (o
+papel IAM leva alguns minutos para valer). Antes, apague a chave antiga em Contas de serviço
+→ Chaves.
+
+Depois do boot, um 503 das rotas do ERP deixa no log `falha nas rotas do ERP`, com a etapa e
+o status do Google.
 
 ---
 
