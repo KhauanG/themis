@@ -6,6 +6,42 @@ Categorias: **Adicionado**, **Alterado**, **Corrigido**, **Removido**, **Seguran
 
 ---
 
+## 2.21.0 — 2026-10-28
+
+Push A da Etapa 1. A API passa a conferir login e cargo nas rotas do ERP e a guardar o HashLoja no servidor. O site não muda nesta versão: ele passa às rotas novas na 2.22.0.
+
+### Adicionado
+
+- **Rotas por loja.** `GET` e `POST /api/erp/lojas/:inventoryId/estoque`, `POST …/teste`, `PUT` e `DELETE …/hash`, e `GET /api/erp/hashes`. Pedem o ID token do Firebase. Conferem cargo (admin ou master) e acesso à loja como a regra. Gravar, apagar e testar outro hash é só do master. Loja sem hash dá 409.
+- **Testar hash no servidor.** Faz uma listagem do ERP, nunca envio. Compara com até 100 produtos da loja e dá um veredito.
+- **`/api/health` ganha `credencial`.** Fica `true` só depois de emitir o token e ler `hashConfigs` uma vez.
+- **Scripts do dono `conferir-cargos.mjs` e `limpar-hash-antigo.mjs`.** A limpeza é simulação por padrão e só grava com `--aplicar`.
+
+### Alterado
+
+- **O envio ao ERP só repete falha de rede, tempo esgotado e 5xx.** Recusa e 4xx não repetem.
+- **A resposta do envio não traz mais o corpo do ERP** (sai `resposta`).
+- **As rotas antigas usam o envio e a listagem novos.** Alguns textos de erro do Buscar mudam.
+
+### Segurança
+
+- **O HashLoja é lido e gravado pela API** com a conta de serviço `themis-api` (`roles/datastore.user`). Um hash que já está em outra loja dá 409.
+- **Sem credencial, ou com ela inválida, só as rotas do ERP respondem 503.** O site segue no ar.
+- **O log da API não grava URL**: só método, padrão da rota, status e tempo. Se uma linha de log citar `/api/erp/estoque/<hash>`, como os avisos da Fastify, ela sai `/api/erp/estoque/***`. Erro do ERP registra só tipo e status.
+- **A recusa do ERP volta ao site com um texto fixo**, sem o texto do ERP.
+- **Os testes da API falham se tentarem acessar a rede.**
+
+### Notas
+
+- ⚠️ **`FIREBASE_SERVICE_ACCOUNT_B64` no painel da Hostinger antes do deploy** (DEPLOY.md, Passo 5). Edite só essa variável, pelo painel.
+- Antes do deploy, o `conferir-cargos` tem que terminar sem flag fora do padrão. A API só aceita `true` e `false` em `isAdmin` e `isMaster`.
+- Depois do deploy, `/api/health` tem que trazer `"credencial":true`. Se vier `false`, siga o DEPLOY.md, Passo 6, antes de mexer na variável.
+- As rotas antigas seguem até a 2.22.0, e o site 2.20 continua igual.
+- **Não precisa de `deploy-rules`.**
+- Dependências da API: `jose` 6.2.13 exato e `fastify` `^5.11.2`.
+
+---
+
 ## 2.20.0 — 2026-10-27
 
 Correções urgentes da Etapa 0: o site deixa de apagar dados sem avisar (configurações e
