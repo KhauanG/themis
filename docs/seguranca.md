@@ -76,9 +76,10 @@ leitura por avaliação, não quatro. Num lote de 500 escritas, é **uma** leitu
 npm run testar-regras
 ```
 
-Sobe o emulador do Firestore local, roda `firestore/regras.test.ts` e derruba. Nada toca o
-projeto de verdade. Exige **JDK 21 ou superior** — o `firebase-tools` recusa versões
-anteriores:
+Sobe o emulador do Firestore local, roda `firestore/regras.test.ts` e derruba. O emulador
+usa as portas 8280, 9250, 4410 e 4510 (`firebase.json`). As padrão ficam com outro projeto
+do dono. Nada toca o projeto de verdade. Exige **JDK 21 ou superior** — o `firebase-tools`
+recusa versões anteriores:
 
 ```
 winget install Microsoft.OpenJDK.21

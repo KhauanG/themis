@@ -21,6 +21,11 @@
  * winget install Microsoft.OpenJDK.21
  * ```
  *
+ * O emulador sobe nas portas 8280 (Firestore), 9250 (websocket), 4410 (hub) e 4510
+ * (logging), fixadas em `firebase.json`. As padrão (8080, 4400, 4500 e 9150) ficam com
+ * outro projeto do dono. Com elas o `testar-regras` colidia, ou falava com o emulador
+ * errado. Mudou a porta lá, muda o `port` do `initializeTestEnvironment` aqui.
+ *
  * Nada aqui toca o projeto de verdade: o emulador sobe local, em memória, e some no fim.
  *
  * ## O que NÃO está coberto
@@ -50,7 +55,7 @@ beforeAll(async () => {
     firestore: {
       rules: readFileSync(new URL('./firestore.rules', import.meta.url), 'utf8'),
       host: '127.0.0.1',
-      port: 8080,
+      port: 8280,
     },
   });
 });
