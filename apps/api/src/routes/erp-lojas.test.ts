@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Perfil } from '../acesso.js';
 import { config } from '../config.js';
 import { ErroGoogle, type FirestoreServidor } from '../google.js';
+import type { ProdutoDaAmostra } from '../google.js';
 import { opcoesDeLog, registrarLogDeRespostas } from '../log-respostas.js';
 import { MENSAGENS } from '../mensagens.js';
 import { rotasErp } from './erp.js';
@@ -382,5 +383,94 @@ describe('PUT e DELETE do HashLoja — só o master', () => {
     const { res } = await pedir('PUT', 'master', { corpo: { hash: 'CANDIDATO-1' }, firestore });
     expect(res.statusCode).toBe(503);
     expect(res.json()).toEqual({ ok: false, erro: MENSAGENS.falhaFirestore });
+  });
+});
+
+describe('POST /api/erp/lojas/:inventoryId/teste — só lista, nunca grava', () => {
+  const comAmostra = (amostra: ProdutoDaAmostra[]) =>
+    firestoreFalso({ lerAmostra: vi.fn(async () => amostra) });
+  const testar = (app: Awaited<ReturnType<typeof montarApp>>['app'], loja: string, uid: string | null, corpo: object) =>
+    app.inject({ method: 'POST', url: `/api/erp/lojas/${loja}/teste`, headers: uid ? comToken(uid) : {}, payload: corpo });
+
+  // Testar nunca envia: toda chamada ao ERP é uma listagem (spec 4.5).
+  afterEach(() => {
+    for (const [url, init] of fetchErp.mock.calls) {
+      expect(url).not.toBe(config.erp.urlAtualizar);
+      expect(init?.method ?? 'GET').toBe('GET');
+    }
+  });
+
+  it('admin testa o hash salvo e nada é gravado', async () => {
+    fetchErp.mockImplementation(async () => new Response('[{"idproduto":"1","quantidade":5}]'));
+    const fs = comAmostra([{ idProduto: 1, estoqueSistema: 5 }]);
+    const { app } = await montarApp({ firestore: fs });
+    const r = await testar(app, 'X', 'admin', {});
+    expect(r.statusCode).toBe(200);
+    expect(r.json()).toMatchObject({ ok: true, veredicto: 'ok', encontrados: 1, saldosIguais: 1 });
+    expect(r.body).not.toContain('H-X-0001');
+    expect(fetchErp).toHaveBeenCalledTimes(1);
+    expect(fetchErp.mock.calls[0]?.[0]).toBe(`${config.erp.urlListar}/H-X-0001`);
+    expect(fs.lerAmostra).toHaveBeenCalledWith('X');
+    expect(fs.gravarHash).not.toHaveBeenCalled();
+  });
+
+  it('master testa o candidato sem gravar e sem ecoar, mesmo em loja sem hash', async () => {
+    fetchErp.mockImplementation(async () => new Response('[]'));
+    const fs = comAmostra([{ idProduto: 1 }]);
+    const { app } = await montarApp({ firestore: fs });
+    const r = await testar(app, 'Z', 'master', { hash: ' CANDIDATO-1\n' });
+    expect(r.statusCode).toBe(200);
+    expect(r.json()).toMatchObject({ ok: true, veredicto: 'vazio' });
+    expect(r.body).not.toContain('CANDIDATO-1');
+    expect(fetchErp.mock.calls[0]?.[0]).toBe(`${config.erp.urlListar}/CANDIDATO-1`);
+    expect(fs.gravarHash).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['sem token → 401', 'X', null, {}, 401, MENSAGENS.sessao],
+    ['candidato no corpo é só do master → 403', 'X', 'admin', { hash: 'CANDIDATO-1' }, 403, MENSAGENS.soMaster],
+    ['candidato só de espaços não cai no hash salvo → 400', 'X', 'master', { hash: ' \n' }, 400, MENSAGENS.hashInvalido],
+    ['candidato com espaço no meio → 400', 'X', 'master', { hash: 'CANDI DATO' }, 400, MENSAGENS.hashInvalido],
+    ['loja sem hash e sem candidato → 409', 'Z', 'admin', {}, 409, MENSAGENS.lojaSemHash],
+  ] as const)('%s', async (_nome, loja, uid, corpo, status, erro) => {
+    const fs = firestoreFalso();
+    const { app } = await montarApp({ firestore: fs });
+    const r = await testar(app, loja, uid, corpo);
+    expect(r.statusCode).toBe(status);
+    expect(r.json()).toEqual({ ok: false, erro });
+    expect(fetchErp).not.toHaveBeenCalled();
+    expect(fs.gravarHash).not.toHaveBeenCalled();
+  });
+
+  it('sem conexão com o ERP ainda responde 200 com ok: true e loga só o veredicto', async () => {
+    fetchErp.mockRejectedValue(new TypeError('fetch failed'));
+    const { app, linhas } = await montarApp({ firestore: comAmostra([{ idProduto: 1 }]) });
+    const r = await testar(app, 'X', 'admin', {});
+    expect(r.statusCode).toBe(200);
+    expect(r.json()).toEqual({
+      ok: true,
+      veredicto: 'sem-conexao',
+      mensagem: 'Não consegui falar com o ERP. Tente de novo em alguns minutos. Isto não diz se o hash está certo.',
+    });
+    expect(linhas.some((l) => l.includes('"veredicto":"sem-conexao"'))).toBe(true);
+  });
+
+  it('resposta inesperada loga só tipo e tamanho (spec 4.5, item 3)', async () => {
+    fetchErp.mockImplementation(async () => new Response('{"x":1}'));
+    const { app, linhas } = await montarApp({ firestore: comAmostra([{ idProduto: 1 }]) });
+    const r = await testar(app, 'X', 'admin', {});
+    expect(r.json()).toMatchObject({ ok: true, veredicto: 'inesperado' });
+    const linha = linhas.find((l) => l.includes('"veredicto":"inesperado"')) ?? '';
+    expect(linha).toContain('"formato":"object"');
+    expect(linha).toContain('"tamanho":7');
+    expect(linhas.join('\n')).not.toMatch(/"x\?":1/);
+  });
+
+  // O site sempre manda `{}` ou `{ hash }` (Task 13). Sem corpo, o schema dá 400, que não vira 503.
+  it('corpo ausente: 400 do Fastify, nunca 503', async () => {
+    const { app } = await montarApp();
+    const r = await app.inject({ method: 'POST', url: '/api/erp/lojas/X/teste', headers: comToken('master') });
+    expect(r.statusCode).toBe(400);
+    expect(fetchErp).not.toHaveBeenCalled();
   });
 });

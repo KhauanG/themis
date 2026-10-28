@@ -6,6 +6,7 @@ import type { FastifyError, FastifyPluginAsync } from 'fastify';
 import { ehAdmin, ehMaster, podeAcessarEstoque, podeUsarErp, type Perfil } from '../acesso.js';
 import { ErroGoogle, type FirestoreServidor } from '../google.js';
 import { MENSAGENS } from '../mensagens.js';
+import { veredictoDoTeste } from '../teste-hash.js';
 import {
   enviarComRetry,
   listarNoErp,
@@ -162,6 +163,38 @@ export const rotasErpLojas: FastifyPluginAsync<DependenciasErp> = async (app, { 
       }
       await fs.gravarHash(inventoryId, hash);
       return reply.send({ ok: true });
+    },
+  );
+
+  // O envio com hash falso recebeu HTTP 200 em 2026-10-28, e a listagem com hash falso volta 200 com `[]` (sonda).
+  // Por isso o teste só lista e cruza com os produtos da loja. Nunca grava.
+  app.post<{ Params: { inventoryId: string }; Body: { hash?: string } }>(
+    '/api/erp/lojas/:inventoryId/teste',
+    {
+      schema: {
+        params: PARAMS_LOJA,
+        body: { type: 'object', additionalProperties: false, properties: { hash: { type: 'string', maxLength: 300 } } },
+      },
+    },
+    async (req, reply) => {
+      const bruto = req.body.hash ?? '';
+      if (bruto !== '' && !ehMaster(req.perfil)) return reply.code(403).send({ ok: false, erro: MENSAGENS.soMaster });
+      const candidato = hashColado(bruto);
+      // Só espaço é inválido: nunca cai no hash salvo.
+      if (candidato === null) return reply.code(400).send({ ok: false, erro: MENSAGENS.hashInvalido });
+      const fs = exigirFirestore();
+      const { inventoryId } = req.params;
+      const hash = candidato !== '' ? candidato : (await fs.lerHashes()).get(inventoryId);
+      if (hash === undefined) return reply.code(409).send({ ok: false, erro: MENSAGENS.lojaSemHash });
+      const [listagem, amostra] = await Promise.all([listarNoErp(hash), fs.lerAmostra(inventoryId)]);
+      const resultado = veredictoDoTeste(listagem, amostra);
+      // Nunca o hash nem as contagens; no inesperado, só formato e tamanho (spec 4.5, item 3).
+      const { veredicto } = resultado;
+      req.log.info(
+        listagem.tipo === 'inesperado' ? { veredicto, formato: listagem.formato, tamanho: listagem.tamanho } : { veredicto },
+        'Teste de HashLoja',
+      );
+      return reply.send({ ok: true, ...resultado });
     },
   );
 

@@ -137,7 +137,7 @@ Outras causas que o script separa:
   precisam de correção. O app deduz isso da própria resposta (`omiteZerados`: 50+ itens e
   nenhum com saldo `<= 0`) e grava `estoqueSistema: 0`. O script imprime a contagem de zeros
   e negativos e diz a conclusão.
-- **HashLoja errado** — devolve lista vazia em vez de erro.
+- **HashLoja errado** — devolve lista vazia em vez de erro (medido em 2026-10-28: HTTP 200, corpo `[]`).
 - **Identificador repetido** — se o ERP manda uma linha por depósito, o app grava a última
   ocorrência (como o 1.x) e o Nuvem3 pode estar mostrando a soma. O script imprime as duas.
 - **`IdProduto` do catálogo diferente do da listagem** — aparece como "fora do ERP".

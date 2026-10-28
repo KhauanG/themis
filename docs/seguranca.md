@@ -222,6 +222,7 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 | `GET /api/erp/hashes` | admin, master | `{ configurados: [inventoryId, ...] }`, filtrado por `pode`. Nunca os valores. |
 | `PUT /api/erp/lojas/:inventoryId/hash` | master | Salva o hash da loja. Apara espaço e quebra de linha nas pontas; espaço no meio dá 400. Hash igual ao de outra chave dá 409, sem dizer qual. Só `""` remove (ou `null`, que a Fastify converte em `""`). Responde só `{ ok: true }`. |
 | `DELETE /api/erp/lojas/:inventoryId/hash` | master | Remove o hash da loja nos dois mapas. O site chama ao excluir a loja. |
+| `POST /api/erp/lojas/:inventoryId/teste` | admin ou master com acesso à loja; hash no corpo, só master | Uma listagem do ERP com o hash salvo ou o candidato, cruzada com até 100 produtos da loja. Nunca envia ao ERP, nunca grava, nunca devolve o hash. |
 
 > **409 sem loja visível.** Antes da 2.22.0, excluir uma loja não apagava o hash dela. A
 > chave órfã continua contando como "outra loja", e a API não lê `inventories` para saber.
