@@ -214,6 +214,24 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 
 O endereço do ERP fica só no servidor, fora do bundle.
 
+### Login na API
+
+Toda rota do ERP pede `Authorization: Bearer <ID token>`. Quem confere é
+`apps/api/src/token-firebase.ts`, com `jose`. O token precisa ter:
+
+- RS256 com uma chave de `securetoken@system.gserviceaccount.com` (JWKS em `/jwk/`);
+- `iss` `https://securetoken.google.com/auditoria-icebeer` e `aud` `auditoria-icebeer`;
+- `sub` de 1 a 128 caracteres;
+- `exp` não vencido;
+- `iat` de no máximo 1 h e não no futuro, e `auth_time` não no futuro;
+- tolerância de 30 s nos dois lados do relógio.
+
+As chaves ficam 10 min em memória. Se o Google não as entregar, a rota responde 503, nunca
+"sessão expirou".
+
+Risco aceito: um token emitido vale até 1 h. O cargo é relido a cada chamada, então quem for
+rebaixado é barrado na chamada seguinte.
+
 ### Cargo na API
 
 A conta de serviço da API ignora as Security Rules. Quem decide é `apps/api/src/acesso.ts`,
