@@ -274,13 +274,21 @@ na API" na tela de contagem. Não dá para corrigir o que o ERP não tem.
 A referência é o `sendToERP` do 1.x. Ele rodou anos em produção e é a única prova do que a
 Nuvem3 aceita — não dá para descobrir o resto testando contra o estoque real da empresa.
 
-A API tenta até **2 vezes (45 s cada)**, com 1s entre tentativas. Como o 1.x, trata `200`
-com `{ success: false }` no corpo como recusa.
+A API tenta até **2 vezes (45 s cada)**, com 1s entre tentativas, e só repete rede, tempo
+esgotado e 5xx. Como o 1.x, trata `200` com `{ success: false }` no corpo como recusa. A
+resposta do envio é `{ ok, tentativas }`, sem o corpo do ERP.
 
 #### A leitura do estoque
 
 `GET EstoqueQuantidadePorLojaListar/{hashLoja}`. A resposta vem como lista, às vezes
 embrulhada em `data` ou `items`.
+
+A API classifica a resposta, sem repetir a chamada:
+
+- rede, tempo esgotado e 5xx: sem conexão (504 ou 502), o que não diz nada sobre o hash;
+- 4xx, ou texto ou mensagem em vez de lista: 502 `O ERP recusou a consulta. Confira o
+  HashLoja do estoque.`;
+- outro formato: 502 `Resposta do ERP em formato inesperado`.
 
 ⚠️ **O nome dos campos varia**, e o 1.x já sabia disso:
 

@@ -182,6 +182,9 @@ por regra de negócio.
 propósito: só acusa quando o corpo sinaliza explicitamente, porque falso positivo faria o
 app reenviar item que o ERP já gravou. A recusa pode vir embrulhada numa string JSON
 (`"{\"erro\":\"...\"}"`, o Nuvem3 em 2026-10-27); `jsonDoErp()` desembrulha antes da checagem.
+A recusa e qualquer 4xx não são repetidas, porque a segunda vez dá a mesma resposta. Só rede,
+tempo esgotado e 5xx repetem. O texto da recusa não vai para o log nem para o site, porque
+pode repetir o hash. A API responde o texto fixo `O ERP recusou a atualização.`
 
 ### O teto do navegador precisa cobrir o retry do servidor
 

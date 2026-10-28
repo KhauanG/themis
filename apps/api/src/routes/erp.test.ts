@@ -1,6 +1,16 @@
-import Fastify from 'fastify';
-import { describe, expect, it, vi } from 'vitest';
-import { erroDeNegocio, jsonDoErp, normalizarItensDoErp, rotasErp } from './erp.js';
+import Fastify, { type FastifyBaseLogger, type FastifyInstance } from 'fastify';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { config } from '../config.js';
+import { opcoesDeLog, registrarLogDeRespostas } from '../log-respostas.js';
+import {
+  enviarComRetry,
+  erroDeNegocio,
+  jsonDoErp,
+  listarNoErp,
+  normalizarItensDoErp,
+  rotasErp,
+  type AtualizacaoEstoque,
+} from './erp.js';
 
 /**
  * O ERP responde **HTTP 200 com erro no corpo** quando recusa a atualização por regra dele.
@@ -224,5 +234,149 @@ describe('POST /api/erp/estoque — teto da Quantidade', () => {
       await app.close();
       vi.unstubAllGlobals();
     }
+  });
+});
+
+const DADOS: AtualizacaoEstoque = {
+  IdProduto: 1, HashLoja: 'H-X-0001', Quantidade: 3, CodigoBarras: '', NomeProduto: 'x',
+  EstoqueMinimo: 0, PrecoVenda: 0, PrecoCusto: 0,
+};
+const erroDeTempo = () => Object.assign(new Error('aborted'), { name: 'AbortError' });
+
+describe('enviarComRetry — só repete o que é transitório', () => {
+  const novoLog = () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn() });
+  let log: ReturnType<typeof novoLog>;
+  // Relógio falso só aqui, por causa da pausa de 1 s. O `app.inject` abaixo roda no relógio real.
+  beforeEach(() => { vi.useFakeTimers(); log = novoLog(); });
+  afterEach(() => vi.useRealTimers());
+
+  async function enviar() {
+    const promessa = enviarComRetry(DADOS, log as unknown as FastifyBaseLogger);
+    await vi.runAllTimersAsync();
+    return promessa;
+  }
+
+  it.each([
+    ['recusa do ERP (200 com erro)', 1, 'recusa', () => new Response('{"erro":"TEXTO-DO-ERP"}')],
+    ['4xx', 1, 'http', () => new Response('', { status: 400 })],
+    ['200 que não é JSON', 1, 'nao-json', () => new Response('<html>')],
+    ['5xx', 2, 'http', () => new Response('', { status: 503 })],
+    ['tempo esgotado', 2, 'tempo', () => { throw erroDeTempo(); }],
+    ['falha de rede', 2, 'rede', () => { throw new TypeError('fetch failed'); }],
+  ])('%s: %i chamada(s) ao ERP', async (_nome, chamadas, tipo, responder) => {
+    const fetchFalso = vi.fn(async () => responder());
+    vi.stubGlobal('fetch', fetchFalso);
+    const { ultima, tentativas } = await enviar();
+    expect(fetchFalso).toHaveBeenCalledTimes(chamadas);
+    expect(tentativas).toBe(chamadas);
+    expect(ultima).toMatchObject({ ok: false, tipo });
+    expect(ultima).not.toHaveProperty('corpo');
+    expect(log.warn.mock.calls[0]?.[0]).toMatchObject({ tentativa: 1, tipo, idProduto: 1 });
+    expect(log.error).toHaveBeenCalledWith({ idProduto: 1, tipo }, expect.any(String));
+    // O log leva só tipo e status: nem o texto do ERP nem o hash.
+    expect(JSON.stringify([log.info.mock.calls, log.warn.mock.calls, log.error.mock.calls]))
+      .not.toMatch(/TEXTO-DO-ERP|H-X-0001/);
+  });
+
+  it('5xx e depois aceite: ok na segunda tentativa', async () => {
+    vi.stubGlobal('fetch', vi.fn()
+      .mockResolvedValueOnce(new Response('', { status: 502 }))
+      .mockResolvedValueOnce(new Response('')));
+    expect(await enviar()).toEqual({ ultima: { ok: true, statusErp: 200 }, tentativas: 2 });
+  });
+});
+
+describe('listarNoErp — classifica a resposta', () => {
+  const JSON_UTF8 = { 'Content-Type': 'application/json; charset=utf-8' };
+
+  it.each([
+    // recon/2026-10-28-etapa-1/sonda-hash-falso.md: hash desconhecido volta HTTP 200 com `[]`.
+    ['hash desconhecido (sonda 2026-10-28)', 200, '[]', { tipo: 'lista', itens: [] }],
+    ['lista pura', 200, '[{"idproduto":"1","quantidade":2}]', { tipo: 'lista', itens: [{ idproduto: '1', quantidade: 2 }] }],
+    ['lista em data', 200, '{"data":[]}', { tipo: 'lista', itens: [] }],
+    ['lista em items', 200, '{"items":[]}', { tipo: 'lista', itens: [] }],
+    ['lista dentro de string', 200, JSON.stringify('[]'), { tipo: 'lista', itens: [] }],
+    ['recusa dentro de string', 200, JSON.stringify(JSON.stringify({ erro: 'Loja não encontrada' })), { tipo: 'recusa', statusErp: 200 }],
+    ['texto dentro de string', 200, JSON.stringify('Loja não encontrada'), { tipo: 'recusa', statusErp: 200 }],
+    ['texto que não é JSON', 200, 'Hash inválido', { tipo: 'recusa', statusErp: 200 }],
+    // Spec 4.5, item 2: "texto/mensagem em vez de lista". O `erroDeNegocio` não lê `msg`.
+    ['mensagem em objeto', 200, '{"msg":"Loja não encontrada"}', { tipo: 'recusa', statusErp: 200 }],
+    ['lista com mensagem continua lista', 200, '{"data":[],"message":"ok"}', { tipo: 'lista', itens: [] }],
+    ['corpo vazio', 200, '', { tipo: 'inesperado', formato: 'vazio', tamanho: 0 }],
+    ['objeto sem lista nem recusa', 200, '{"x":1}', { tipo: 'inesperado', formato: 'object', tamanho: 7 }],
+    ['404', 404, '', { tipo: 'recusa', statusErp: 404 }],
+    ['503', 503, '', { tipo: 'sem-conexao', motivo: 'http', statusErp: 503 }],
+  ])('%s', async (_nome, status, corpo, esperado) => {
+    const fetchFalso = vi.fn(async () => new Response(corpo, { status, headers: JSON_UTF8 }));
+    vi.stubGlobal('fetch', fetchFalso);
+    expect(await listarNoErp('H-X-0001')).toMatchObject(esperado);
+    expect(fetchFalso).toHaveBeenCalledTimes(1);
+  });
+
+  it('tempo esgotado e falha de rede: sem conexão, uma chamada só', async () => {
+    const abortou = vi.fn(async () => { throw erroDeTempo(); });
+    vi.stubGlobal('fetch', abortou);
+    expect(await listarNoErp('H-X-0001')).toEqual({ tipo: 'sem-conexao', motivo: 'tempo' });
+    expect(abortou).toHaveBeenCalledTimes(1);
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('fetch failed'); }));
+    expect(await listarNoErp('H-X-0001')).toEqual({ tipo: 'sem-conexao', motivo: 'rede' });
+  });
+
+  it('o hash vai só no caminho, codificado', async () => {
+    const fetchFalso = vi.fn(async () => new Response('[]'));
+    vi.stubGlobal('fetch', fetchFalso);
+    await listarNoErp('a/b');
+    expect(fetchFalso).toHaveBeenCalledWith(`${config.erp.urlListar}/a%2Fb`, expect.anything());
+  });
+});
+
+describe('rotas antigas no push A — log sem hash', () => {
+  let linhas: string[];
+  let app: FastifyInstance;
+
+  async function montar(responder: () => Response) {
+    vi.stubGlobal('fetch', vi.fn(async () => responder()));
+    linhas = [];
+    app = Fastify(opcoesDeLog(true, { write: (l) => linhas.push(l) }));
+    registrarLogDeRespostas(app);
+    // onSend assíncrono, como o de cabecalhos.ts: um handler sem `return` responderia duas vezes.
+    app.addHook('onSend', async () => { await new Promise((r) => setImmediate(r)); });
+    await app.register(rotasErp);
+  }
+
+  afterEach(async () => {
+    await app.close();
+    expect(linhas.join('\n')).not.toMatch(/H-ANTIGO|TEXTO-DO-ERP|Reply was already sent/);
+  });
+
+  it('POST antigo: a recusa volta com texto fixo, e o log leva só o tipo', async () => {
+    await montar(() => new Response('{"erro":"recusado TEXTO-DO-ERP H-ANTIGO-0001"}'));
+    const r = await app.inject({ method: 'POST', url: '/api/erp/estoque', payload: { ...DADOS, HashLoja: 'H-ANTIGO-0001' } });
+    expect(r.statusCode).toBe(502);
+    expect(r.json()).toEqual({ ok: false, erro: 'O ERP recusou a atualização.', statusErp: 200, tentativas: 1 });
+    expect(linhas.join('\n')).toContain('"tipo":"recusa"');
+  });
+
+  it('POST antigo aceito não devolve o corpo do ERP', async () => {
+    await montar(() => new Response('{"msg":"ok"}'));
+    const r = await app.inject({ method: 'POST', url: '/api/erp/estoque', payload: { ...DADOS, HashLoja: 'H-ANTIGO-0001' } });
+    expect(r.json()).toEqual({ ok: true, tentativas: 1 });
+  });
+
+  it.each([
+    ['lista', 200, { ok: true, itens: [{ idProduto: '1', quantidade: 2 }], recebidos: 1, semId: 0, campos: ['idproduto', 'quantidade'], naoPositivos: 0, omiteZerados: false },
+      '"rota":"/api/erp/estoque/:hashLoja"', () => new Response('[{"idproduto":"1","quantidade":2}]')],
+    ['tempo', 504, { ok: false, erro: 'Tempo esgotado ao buscar o estoque' }, '"motivo":"tempo"', () => { throw erroDeTempo(); }],
+    ['rede', 504, { ok: false, erro: 'Falha ao buscar o estoque' }, '"motivo":"rede"', () => { throw new TypeError('fetch failed'); }],
+    ['5xx', 502, { ok: false, erro: 'ERP não devolveu o estoque', statusErp: 503 }, '"statusErp":503', () => new Response('', { status: 503 })],
+    ['recusa que ecoa o hash', 502, { ok: false, erro: 'O ERP recusou a consulta. Confira o HashLoja do estoque.', statusErp: 200 },
+      '"tipo":"recusa"', () => new Response('{"erro":"TEXTO-DO-ERP H-ANTIGO-0002"}')],
+    ['inesperado', 502, { ok: false, erro: 'Resposta do ERP em formato inesperado' }, '"formato":"object"', () => new Response('{"x":1}')],
+  ])('GET antigo: %s → %i, sem o hash no log', async (_nome, status, esperado, noLog, responder) => {
+    await montar(responder);
+    const r = await app.inject('/api/erp/estoque/H-ANTIGO-0002');
+    expect(r.statusCode).toBe(status);
+    expect(r.json()).toMatchObject(esperado);
+    expect(linhas.join('\n')).toContain(noLog);
   });
 });

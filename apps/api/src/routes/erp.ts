@@ -10,7 +10,7 @@
  * única prova que temos do que a Nuvem3 aceita. Qualquer campo a menos, ou com tipo
  * diferente, é uma aposta que não temos como testar sem mexer no estoque real da empresa.
  */
-import type { FastifyInstance } from 'fastify';
+import type { FastifyBaseLogger, FastifyInstance, FastifyReply } from 'fastify';
 import { config } from '../config.js';
 
 /**
@@ -24,7 +24,7 @@ import { config } from '../config.js';
  * parte da especificação que o 1.x seguia. Omitir campo que o ERP espera pode significar
  * "não mexe" ou "zera", e a diferença entre os dois é o preço do produto no sistema.
  */
-interface AtualizacaoEstoque {
+export interface AtualizacaoEstoque {
   IdProduto: number;
   HashLoja: string;
   Quantidade: number;
@@ -182,7 +182,8 @@ export function normalizarItensDoErp(itens: readonly unknown[]): EstoqueNormaliz
 /**
  * Tentativas totais de envio, contando a primeira. Com 45s por tentativa, 4 fariam um item
  * esperar até 3 min com o ERP travado; a operação é idempotente (mesma quantidade), então
- * uma repetição basta.
+ * uma repetição basta. Só rede, tempo esgotado e 5xx repetem: recusa e 4xx dão a mesma
+ * resposta na segunda vez, e repetir só custa tempo.
  */
 const TENTATIVAS = 2;
 
@@ -260,13 +261,16 @@ export function jsonDoErp(corpo: string): unknown {
   }
 }
 
-interface TentativaEnvio {
+export type TipoFalha = 'recusa' | 'http' | 'nao-json' | 'tempo' | 'rede';
+
+export interface TentativaEnvio {
   ok: boolean;
-  /** Motivo da falha, já legível. Ausente quando `ok`. */
+  /** Ausente quando `ok`. */
+  tipo?: TipoFalha;
+  /** Motivo da falha em texto fixo: o texto do ERP pode repetir o hash. Ausente quando `ok`. */
   erro?: string;
   /** Status HTTP do ERP, quando houve resposta. */
   statusErp?: number;
-  corpo?: string;
 }
 
 async function enviarUmaVez(dados: AtualizacaoEstoque): Promise<TentativaEnvio> {
@@ -281,77 +285,191 @@ async function enviarUmaVez(dados: AtualizacaoEstoque): Promise<TentativaEnvio> 
     );
 
     const corpo = await resposta.text();
+    const statusErp = resposta.status;
 
-    if (!resposta.ok) {
-      return { ok: false, erro: `HTTP ${resposta.status}`, statusErp: resposta.status, corpo };
-    }
+    if (!resposta.ok) return { ok: false, tipo: 'http', erro: `HTTP ${statusErp}`, statusErp };
 
     // Corpo vazio com 200 é aceite: o ERP nem sempre devolve JSON.
-    if (corpo.trim() === '') return { ok: true, statusErp: resposta.status, corpo };
+    if (corpo.trim() === '') return { ok: true, statusErp };
 
     let json: unknown;
     try {
       json = jsonDoErp(corpo);
     } catch {
-      return { ok: false, erro: 'Resposta do ERP não é JSON', statusErp: resposta.status, corpo };
+      return { ok: false, tipo: 'nao-json', erro: 'Resposta do ERP não é JSON', statusErp };
     }
 
-    const recusa = erroDeNegocio(json);
-    if (recusa) {
-      return { ok: false, erro: `ERP recusou: ${recusa}`, statusErp: resposta.status, corpo };
+    if (erroDeNegocio(json) !== null) {
+      return { ok: false, tipo: 'recusa', erro: 'O ERP recusou a atualização.', statusErp };
     }
 
-    return { ok: true, statusErp: resposta.status, corpo };
+    return { ok: true, statusErp };
   } catch (erro) {
     const abortou = erro instanceof Error && erro.name === 'AbortError';
-    return { ok: false, erro: abortou ? 'Tempo esgotado ao contatar o ERP' : 'Falha de rede' };
+    return abortou
+      ? { ok: false, tipo: 'tempo', erro: 'Tempo esgotado ao contatar o ERP' }
+      : { ok: false, tipo: 'rede', erro: 'Falha de rede' };
   }
+}
+
+const transitoria = (t: TentativaEnvio) =>
+  t.tipo === 'tempo' || t.tipo === 'rede' || (t.tipo === 'http' && (t.statusErp ?? 0) >= 500);
+
+/** Os logs nunca levam `erro`: o texto do ERP pode repetir o hash. */
+export async function enviarComRetry(
+  dados: AtualizacaoEstoque,
+  log: FastifyBaseLogger,
+): Promise<{ ultima: TentativaEnvio; tentativas: number }> {
+  const idProduto = dados.IdProduto;
+  for (let tentativa = 1; ; tentativa++) {
+    const ultima = await enviarUmaVez(dados);
+    if (ultima.ok) {
+      if (tentativa > 1) log.info({ tentativa, idProduto }, 'ERP aceitou após retry');
+      return { ultima, tentativas: tentativa };
+    }
+
+    log.warn(
+      { tentativa, tipo: ultima.tipo, statusErp: ultima.statusErp, idProduto },
+      'Tentativa de envio ao ERP falhou',
+    );
+
+    if (tentativa >= TENTATIVAS || !transitoria(ultima)) {
+      log.error({ idProduto, tipo: ultima.tipo }, 'ERP não aceitou a atualização');
+      return { ultima, tentativas: tentativa };
+    }
+
+    await pausa(PAUSA_ENTRE_TENTATIVAS_MS);
+  }
+}
+
+export function responderEnvio(
+  reply: FastifyReply,
+  { ultima, tentativas }: { ultima: TentativaEnvio; tentativas: number },
+): FastifyReply {
+  if (ultima.ok) return reply.send({ ok: true, tentativas });
+  // 502: o erro é do ERP, não do cliente. O app trata como "reenviar depois".
+  return reply.code(502).send({
+    ok: false,
+    erro: ultima.erro ?? 'O ERP recusou a atualização.',
+    ...(ultima.statusErp === undefined ? {} : { statusErp: ultima.statusErp }),
+    tentativas,
+  });
+}
+
+export type Listagem =
+  | { tipo: 'lista'; itens: unknown[] }
+  | { tipo: 'sem-conexao'; motivo: 'tempo' | 'rede' | 'http'; statusErp?: number }
+  | { tipo: 'recusa'; statusErp: number }
+  | { tipo: 'inesperado'; formato: string; tamanho: number };
+
+/**
+ * Um GET só, nunca repetido. Não loga: quem loga é `responderListagem`, e nunca o corpo.
+ * Hash desconhecido volta HTTP 200 com `[]` (sonda de 2026-10-28): lista vazia é lista.
+ */
+export async function listarNoErp(hash: string): Promise<Listagem> {
+  try {
+    const resposta = await comTempoLimite(config.erp.timeoutListarMs, (signal) =>
+      fetch(`${config.erp.urlListar}/${encodeURIComponent(hash)}`, {
+        headers: { Accept: 'application/json' },
+        signal,
+      }),
+    );
+    const corpo = await resposta.text();
+    const statusErp = resposta.status;
+
+    if (statusErp >= 500) return { tipo: 'sem-conexao', motivo: 'http', statusErp };
+    if (!resposta.ok) return { tipo: 'recusa', statusErp };
+    if (corpo.trim() === '') return { tipo: 'inesperado', formato: 'vazio', tamanho: 0 };
+
+    let json: unknown;
+    try {
+      json = jsonDoErp(corpo);
+    } catch {
+      return { tipo: 'recusa', statusErp };
+    }
+    if (typeof json === 'string' || erroDeNegocio(json) !== null) {
+      return { tipo: 'recusa', statusErp };
+    }
+
+    // O ERP às vezes embrulha o array em `data` ou `items`.
+    const obj = (json && typeof json === 'object' ? json : {}) as Record<string, unknown>;
+    const itens = [json, obj['data'], obj['items']].find(Array.isArray);
+    if (itens) return { tipo: 'lista', itens };
+
+    // Depois da lista: uma lista com mensagem continua lista.
+    const mensagem = ['msg', 'mensagem', 'message'].some((campo) => {
+      const valor = obj[campo];
+      return typeof valor === 'string' && valor.trim() !== '';
+    });
+    if (mensagem) return { tipo: 'recusa', statusErp };
+
+    return { tipo: 'inesperado', formato: typeof json, tamanho: corpo.length };
+  } catch (erro) {
+    const abortou = erro instanceof Error && erro.name === 'AbortError';
+    return { tipo: 'sem-conexao', motivo: abortou ? 'tempo' : 'rede' };
+  }
+}
+
+export function responderListagem(reply: FastifyReply, l: Listagem): FastifyReply {
+  if (l.tipo === 'lista') {
+    const normalizado = normalizarItensDoErp(l.itens);
+
+    if (normalizado.itens.length === 0 && l.itens.length > 0) {
+      reply.log.error(
+        { recebidos: l.itens.length, campos: normalizado.campos },
+        'ERP devolveu itens, mas nenhum tinha identificador reconhecível',
+      );
+    }
+
+    return reply.send({
+      ok: true,
+      itens: normalizado.itens,
+      recebidos: l.itens.length,
+      semId: normalizado.semId,
+      campos: normalizado.campos,
+      naoPositivos: normalizado.naoPositivos,
+      omiteZerados: normalizado.omiteZerados,
+    });
+  }
+
+  // `l` só tem tipo, motivo, status, formato e tamanho: nunca o hash nem o corpo do ERP.
+  reply.log.warn(l, 'Listagem do ERP falhou');
+
+  if (l.tipo === 'recusa') {
+    return reply.code(502).send({
+      ok: false,
+      erro: 'O ERP recusou a consulta. Confira o HashLoja do estoque.',
+      statusErp: l.statusErp,
+    });
+  }
+  if (l.tipo === 'inesperado') {
+    return reply.code(502).send({ ok: false, erro: 'Resposta do ERP em formato inesperado' });
+  }
+  if (l.motivo === 'http') {
+    return reply
+      .code(502)
+      .send({ ok: false, erro: 'ERP não devolveu o estoque', statusErp: l.statusErp });
+  }
+  return reply.code(504).send({
+    ok: false,
+    erro: l.motivo === 'tempo' ? 'Tempo esgotado ao buscar o estoque' : 'Falha ao buscar o estoque',
+  });
 }
 
 export async function rotasErp(app: FastifyInstance): Promise<void> {
   /**
    * Envia a quantidade contada de um produto.
    *
-   * Tenta até `TENTATIVAS` vezes (45 s cada), com 1 s entre tentativas. É seguro repetir:
-   * a chamada grava uma quantidade absoluta, não um incremento — reenviar o mesmo valor dá
-   * no mesmo. O retry mora aqui, e não no celular, porque quem está no depósito com wifi
-   * ruim é justamente quem não deveria segurar as tentativas na mão.
+   * Repete só rede, tempo e 5xx (45 s cada tentativa), com 1 s entre tentativas. É seguro
+   * repetir: a chamada grava uma quantidade absoluta, não um incremento — reenviar o mesmo
+   * valor dá no mesmo. O retry mora aqui, e não no celular, porque quem está no depósito com
+   * wifi ruim é justamente quem não deveria segurar as tentativas na mão.
    */
   app.post<{ Body: AtualizacaoEstoque }>(
     '/api/erp/estoque',
     { schema: schemaAtualizacao },
     async (req, reply) => {
-      let ultima: TentativaEnvio = { ok: false, erro: 'Nenhuma tentativa executada' };
-
-      for (let tentativa = 1; tentativa <= TENTATIVAS; tentativa++) {
-        ultima = await enviarUmaVez(req.body);
-        if (ultima.ok) {
-          if (tentativa > 1) {
-            req.log.info({ tentativa, idProduto: req.body.IdProduto }, 'ERP aceitou após retry');
-          }
-          return reply.send({ ok: true, resposta: ultima.corpo ?? '', tentativas: tentativa });
-        }
-
-        req.log.warn(
-          { tentativa, erro: ultima.erro, statusErp: ultima.statusErp, idProduto: req.body.IdProduto },
-          'Tentativa de envio ao ERP falhou',
-        );
-
-        if (tentativa < TENTATIVAS) await pausa(PAUSA_ENTRE_TENTATIVAS_MS);
-      }
-
-      req.log.error(
-        { idProduto: req.body.IdProduto, erro: ultima.erro },
-        `ERP não aceitou a atualização após ${TENTATIVAS} tentativas`,
-      );
-
-      // 502: o erro é do ERP, não do cliente. O app trata como "reenviar depois".
-      return reply.status(502).send({
-        ok: false,
-        erro: ultima.erro ?? 'ERP recusou a atualização',
-        ...(ultima.statusErp === undefined ? {} : { statusErp: ultima.statusErp }),
-        tentativas: TENTATIVAS,
-      });
+      return responderEnvio(reply, await enviarComRetry(req.body, req.log));
     },
   );
 
@@ -376,62 +494,7 @@ export async function rotasErp(app: FastifyInstance): Promise<void> {
       },
     },
     async (req, reply) => {
-      const url = `${config.erp.urlListar}/${encodeURIComponent(req.params.hashLoja)}`;
-
-      try {
-        const resposta = await comTempoLimite(config.erp.timeoutListarMs, (signal) =>
-          fetch(url, { headers: { Accept: 'application/json' }, signal }),
-        );
-
-        if (!resposta.ok) {
-          req.log.warn({ status: resposta.status }, 'ERP recusou a listagem de estoque');
-          return reply
-            .status(502)
-            .send({ ok: false, erro: 'ERP não devolveu o estoque', statusErp: resposta.status });
-        }
-
-        const bruto: unknown = await resposta.json();
-
-        // O ERP às vezes embrulha o array. Desembrulhar aqui evita que cada cliente
-        // precise conhecer os três formatos.
-        let itens: unknown = bruto;
-        if (!Array.isArray(itens) && bruto && typeof bruto === 'object') {
-          const obj = bruto as Record<string, unknown>;
-          if (Array.isArray(obj['data'])) itens = obj['data'];
-          else if (Array.isArray(obj['items'])) itens = obj['items'];
-        }
-
-        if (!Array.isArray(itens)) {
-          req.log.error({ tipo: typeof bruto }, 'Resposta do ERP não é uma lista');
-          return reply.status(502).send({ ok: false, erro: 'Resposta do ERP em formato inesperado' });
-        }
-
-        const normalizado = normalizarItensDoErp(itens);
-
-        if (normalizado.itens.length === 0 && itens.length > 0) {
-          req.log.error(
-            { recebidos: itens.length, campos: normalizado.campos },
-            'ERP devolveu itens, mas nenhum tinha identificador reconhecível',
-          );
-        }
-
-        return reply.send({
-          ok: true,
-          itens: normalizado.itens,
-          recebidos: itens.length,
-          semId: normalizado.semId,
-          campos: normalizado.campos,
-          naoPositivos: normalizado.naoPositivos,
-          omiteZerados: normalizado.omiteZerados,
-        });
-      } catch (erro) {
-        const abortou = erro instanceof Error && erro.name === 'AbortError';
-        req.log.error({ erro }, 'Falha ao buscar o estoque no ERP');
-        return reply.status(504).send({
-          ok: false,
-          erro: abortou ? 'Tempo esgotado ao buscar o estoque' : 'Falha ao buscar o estoque',
-        });
-      }
+      return responderListagem(reply, await listarNoErp(req.params.hashLoja));
     },
   );
 }
