@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Produto } from '@themis/shared';
 import { atualizarEstoqueSistema, fecharConferencia } from '../../lib/produtos-repo.js';
 import { buscarEstoqueDoErp, enviarAoErp, type ResultadoBusca } from '../../lib/erp.js';
-import { diagnosticar, executarCorrecao } from './corrigir-estoque.js';
+import { diagnosticar, executarCorrecao, reenviarPendentes } from './corrigir-estoque.js';
 
 // Sem carregar o Firebase: só o contrato com `fecharConferencia` e o ERP importa aqui.
 vi.mock('../../lib/produtos-repo.js', () => ({
@@ -72,6 +72,7 @@ describe('executarCorrecao — fechamento da conferência', () => {
     // O recusado não pode aparecer também como "aceito mas não refletiu" (nem entre os confirmados).
     expect(r.pendentes).toEqual([]);
     expect(r.confirmados).toBe(1);
+    expect(r.interrompido).toBeNull();
     vi.useRealTimers();
   });
 
@@ -123,5 +124,56 @@ describe('executarCorrecao — fechamento da conferência', () => {
     expect(r.verificacaoIndisponivel).toBe(true);
     expect(r.pendentes).toEqual([]);
     expect(vi.mocked(fecharConferencia).mock.lastCall![1].map((p) => p.id)).toEqual(['a']);
+  });
+
+  it('sessão expirada no meio para o laço e fecha só o que já foi tratado', async () => {
+    vi.useFakeTimers();
+    const sessao = 'Sua sessão expirou. Entre de novo.';
+    const a = item('a', 'Aceito', 1, 5, 3);
+    const b = item('b', 'Parou', 2, 7, 1);
+    const c = item('c', 'Depois', 3, 9, 2);
+    const d = item('d', 'Bateu', 4, 4, 4);
+    vi.mocked(enviarAoErp).mockImplementation(async (_inventoryId, envio) =>
+      envio.IdProduto === 1 ? { ok: true } : { ok: false, erro: sessao, parar: true });
+
+    const promessa = executarCorrecao('E1', {
+      inventoryId: 'E1', contados: [a, b, c, d], divergentes: [a, b, c], foraDoErp: [], semCorrespondencia: 0, saldosAtualizados: 0,
+    }, () => {});
+    await vi.runAllTimersAsync();
+    const r = await promessa;
+
+    expect(enviarAoErp).toHaveBeenCalledTimes(2);
+    expect(buscarEstoqueDoErp).not.toHaveBeenCalled();
+    expect(atualizarEstoqueSistema).not.toHaveBeenCalled();
+    const [, fechados, idsDivergentes] = vi.mocked(fecharConferencia).mock.lastCall!;
+    expect(fechados.map((p) => p.id)).toEqual(['a', 'd']);
+    // O aceito não perde a marca de divergência (spec 4.6).
+    expect([...idsDivergentes].sort()).toEqual(['a', 'b', 'c']);
+    expect(r.interrompido).toEqual({ motivo: sessao, naoEnviados: 2 });
+    expect(r.falhasNoEnvio).toEqual([]);
+    expect(r.enviados).toBe(1);
+    expect(r.verificacaoIndisponivel).toBe(true);
+  });
+});
+
+describe('reenviarPendentes', () => {
+  it('para no primeiro erro que para o laço', async () => {
+    vi.useFakeTimers();
+    const semHash = 'Esta loja não tem HashLoja configurado.';
+    const produtos = [item('a', 'A', 1, 5, 3), item('b', 'B', 2, 7, 1), item('c', 'C', 3, 9, 2)];
+    vi.mocked(enviarAoErp)
+      .mockResolvedValueOnce({ ok: true })
+      .mockResolvedValueOnce({ ok: false, erro: semHash, parar: true });
+
+    const promessa = reenviarPendentes('E1', produtos, [
+      { nome: 'A', enviado: 5, noSistema: 3 },
+      { nome: 'B', enviado: 7, noSistema: 1 },
+      { nome: 'C', enviado: 9, noSistema: 2 },
+    ], () => {});
+    await vi.runAllTimersAsync();
+
+    expect(await promessa).toEqual({ reenviados: 1, interrompido: semHash });
+    expect(enviarAoErp).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(enviarAoErp).mock.calls[0]).toEqual(['E1', expect.objectContaining({ IdProduto: 1, Quantidade: 5 })]);
   });
 });

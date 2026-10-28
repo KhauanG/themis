@@ -102,6 +102,8 @@ export interface ResultadoCorrecao {
   divergentesConferidos: number;
   /** A verificação não rodou (falha de leitura). Não é erro de correção. */
   verificacaoIndisponivel: boolean;
+  /** Um erro que vale para o laço inteiro parou o envio. `null` quando foi até o fim. */
+  interrompido: { motivo: string; naoEnviados: number } | null;
 }
 
 const pausa = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -185,6 +187,9 @@ export async function executarCorrecao(
   let enviados = 0;
   // Lista de permitidos: só o que o ERP aceitou, ou a releitura mostrou aplicado, entra no fechamento.
   const aceitos = new Set<string>();
+  // Quantos de `paraOErp` o laço tratou; o item que o parou não conta.
+  let tentados = 0;
+  let interrompido: ResultadoCorrecao['interrompido'] = null;
 
   // ---------- Fase 2: enviar as divergências ----------
   for (const [indice, p] of paraOErp.entries()) {
@@ -193,6 +198,13 @@ export async function executarCorrecao(
     // `montarEnvio` monta os sete campos; a API põe o `HashLoja`. Não montar o objeto aqui:
     // foi assim que o payload acabou com metade dos campos e o id em texto.
     const resultado = await enviarAoErp(inventoryId, montarEnvio(p));
+
+    // Sessão, permissão, loja sem hash e servidor sem credencial valem para todos os itens; seguir faria cada um falhar sozinho e sair como recusado pelo ERP.
+    if (resultado.parar) {
+      interrompido = { motivo: resultado.erro ?? 'Erro no servidor.', naoEnviados: paraOErp.length - indice };
+      break;
+    }
+    tentados++;
 
     if (resultado.ok) {
       enviados++;
@@ -209,7 +221,10 @@ export async function executarCorrecao(
 
   // Roda mesmo com tudo recusado: o ERP às vezes aplica o que a API deu como falha (estouro,
   // 504 do proxy), e só a releitura mostra.
-  if (paraOErp.length > 0) {
+  if (interrompido) {
+    // O erro que parou o envio pararia a releitura também: vale a regra da releitura indisponível.
+    verificacaoIndisponivel = enviados > 0;
+  } else if (paraOErp.length > 0) {
     aoProgredir('Aguardando o ERP processar');
     await pausa(ESPERA_PROCESSAMENTO_MS);
 
@@ -252,7 +267,7 @@ export async function executarCorrecao(
 
   // Depois da fase 3, que pode ter achado aplicado um recusado.
   const falhasNoEnvio = [
-    ...paraOErp.filter((p) => !aceitos.has(p.id)).map(nomeDe),
+    ...paraOErp.slice(0, tentados).filter((p) => !aceitos.has(p.id)).map(nomeDe),
     // Sem `IdProduto` não há o que enviar, mas a divergência existe: avisa em vez de conferir.
     ...enviaveis.filter((p) => idProdutoDe(p) == null).map((p) => `${nomeDe(p)}${SUFIXO_SEM_ID}`),
   ];
@@ -272,6 +287,7 @@ export async function executarCorrecao(
     conferidos: fechados.divergentes + fechados.corretos,
     divergentesConferidos: fechados.divergentes,
     verificacaoIndisponivel,
+    interrompido,
   };
 }
 
@@ -281,7 +297,7 @@ export async function reenviarPendentes(
   produtos: readonly Produto[],
   pendentes: readonly PendenciaErp[],
   aoProgredir: (feitos: number, total: number) => void,
-): Promise<number> {
+): Promise<{ reenviados: number; interrompido: string | null }> {
   const porNome = new Map(produtos.map((p) => [nomeDe(p), p]));
   let reenviados = 0;
 
@@ -294,9 +310,11 @@ export async function reenviarPendentes(
     // A quantidade enviada da primeira vez, não a atual: é ela que precisa entrar.
     const resultado = await enviarAoErp(inventoryId, montarEnvio(p, pendencia.enviado));
 
+    // Mesmo motivo do laço da correção: o erro vale para todos, não adianta seguir.
+    if (resultado.parar) return { reenviados, interrompido: resultado.erro ?? 'Erro no servidor.' };
     if (resultado.ok) reenviados++;
     if (indice < pendentes.length - 1) await pausa(PAUSA_ENTRE_ENVIOS_MS);
   }
 
-  return reenviados;
+  return { reenviados, interrompido: null };
 }

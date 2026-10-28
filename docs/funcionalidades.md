@@ -246,6 +246,19 @@ próxima correção. O mesmo vale para o divergente sem `IdProduto` (aviso à pa
 corrigindo o ID no cadastro) e para o divergente fora do ERP. Conferir o recusado o tiraria
 da lista de trabalho com o ERP ainda errado.
 
+⚠️ **Erro que vale para todos os itens para o envio.** Sessão vencida (401), sem permissão
+(403), loja sem hash (409) e servidor sem credencial (503) param o laço no item em que
+aparecem: seguir faria cada item falhar sozinho e sair como recusado pelo ERP. O que já foi
+tratado fecha pela regra da releitura indisponível: bateu e aceito viram `CONFERIDO` (o aceito
+com a marca de divergência); o item que parou e os seguintes ficam `ATUALIZADO`. A tela avisa
+quantos não foram enviados, e o histórico registra "Interrompido antes do fim". Recusa do ERP
+(502) segue item a item. "Reenviar pendências" para do mesmo jeito.
+
+Limite conhecido: se a sessão acabou de vez (usuário saiu ou foi desativado), o fechamento
+pelo SDK também é negado, e a tela diz que a correção não foi concluída. Os itens que o ERP
+aceitou ficam `ATUALIZADO` e, no próximo Corrigir, aparecem como conferidos sem a marca de
+divergência.
+
 A confirmação aparece **entre as fases 1 e 2**, com os números já corrigidos pela leitura.
 Perguntar antes mostraria dados velhos.
 
@@ -389,7 +402,7 @@ desenha o que sai de lá.
 | Editou produto | nome, código, saldo e código do ERP, cada um de → para |
 | Excluiu produto | nome, se já estava contado |
 | Buscou estoque | recebidos do ERP, saldos alterados, sem correspondência |
-| Corrigiu estoque | conferidos, divergentes, enviados, confirmados, pendentes, recusados |
+| Corrigiu estoque | conferidos, divergentes, enviados, confirmados, pendentes, recusados, se foi interrompido |
 | Finalizou contagem | ciclo, contados, não contados, divergentes |
 | Importou planilha | criados, linhas ignoradas |
 | Exportou | tipo do arquivo e o recorte (`40 de 2000 itens`) |

@@ -163,6 +163,11 @@ describe('descreverEvento — operações em massa', () => {
     expect(r.fatos.some((f) => f.includes('recusados'))).toBe(false);
   });
 
+  it('CORRIGIR_ESTOQUE interrompido aparece nos fatos', () => {
+    expect(descreverEvento('CORRIGIR_ESTOQUE', { conferidos: 2, interrompido: true }).fatos).toContain('Interrompido antes do fim');
+    expect(descreverEvento('CORRIGIR_ESTOQUE', { conferidos: 2, interrompido: false }).fatos).not.toContain('Interrompido antes do fim');
+  });
+
   it('exportação informa o recorte', () => {
     const r = descreverEvento('EXPORTAR_PLANILHA', { tipo: 'contagem', itens: 40, de: 2000 });
     expect(r.fatos).toContain('PDF da contagem');

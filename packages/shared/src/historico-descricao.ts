@@ -218,6 +218,7 @@ export function descreverEvento(acao: AcaoHistorico, detalhes: Detalhes = {}): D
       if (Number(d['falhasNoEnvio']) > 0) {
         fatos.push(`${texto(d['falhasNoEnvio'])} recusados pelo ERP`);
       }
+      if (d['interrompido'] === true) fatos.push('Interrompido antes do fim');
       if (d['ciclo'] !== undefined) fatos.push(`Ciclo ${texto(d['ciclo'])}`);
       return { mudancas, fatos };
     }

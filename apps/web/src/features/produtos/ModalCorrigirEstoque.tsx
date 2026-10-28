@@ -107,6 +107,7 @@ export function ModalCorrigirEstoque({ aberto, onFechar }: Props) {
           pendentesNoErp: r.pendentes.length,
           falhasNoEnvio: r.falhasNoEnvio.length,
           naoEnviadosForaDoErp: r.naoEnviadosForaDoErp.length,
+          interrompido: r.interrompido !== null,
         });
       }
     } catch (erro) {
@@ -136,15 +137,20 @@ export function ModalCorrigirEstoque({ aberto, onFechar }: Props) {
     setEtapa('executando');
     setProgresso({ texto: 'Reenviando pendências' });
     try {
-      const ok = await reenviarPendentes(
+      const { reenviados, interrompido } = await reenviarPendentes(
         diagnostico.inventoryId,
         diagnostico.divergentes,
         resultado.pendentes,
         (feitos, total) => setProgresso({ texto: 'Reenviando pendências', feitos, total }),
       );
+      if (interrompido) {
+        mostrar(`Reenvio interrompido: ${interrompido} Reenviados ${reenviados} de ${resultado.pendentes.length}.`, 'error');
+        setEtapa('resultado');
+        return;
+      }
       mostrar(
-        `Reenviados ${ok} de ${resultado.pendentes.length}. Confira no ERP em alguns minutos.`,
-        ok === resultado.pendentes.length ? 'success' : 'warning',
+        `Reenviados ${reenviados} de ${resultado.pendentes.length}. Confira no ERP em alguns minutos.`,
+        reenviados === resultado.pendentes.length ? 'success' : 'warning',
       );
       reiniciar();
     } catch (erro) {
@@ -347,6 +353,15 @@ export function ModalCorrigirEstoque({ aberto, onFechar }: Props) {
 
       {etapa === 'resultado' && resultado && (
         <div className="pilha">
+          {resultado.interrompido && (
+            <p className="aviso aviso--perigo" role="alert">
+              O envio foi interrompido: {resultado.interrompido.motivo}{' '}
+              {resultado.interrompido.naoEnviados === 1
+                ? '1 item não foi enviado e continua contado.'
+                : `${resultado.interrompido.naoEnviados} itens não foram enviados e continuam contados.`}{' '}
+              Os que o ERP já tinha aceitado foram conferidos.
+            </p>
+          )}
           <ul className="resumo">
             <li>
               <span>Conferidos</span>
@@ -455,7 +470,8 @@ export function ModalCorrigirEstoque({ aberto, onFechar }: Props) {
 
           {resultado.pendentes.length === 0 &&
             resultado.falhasNoEnvio.length === 0 &&
-            !resultado.verificacaoIndisponivel && (
+            !resultado.verificacaoIndisponivel &&
+            resultado.interrompido === null && (
               <p>Tudo certo. O ERP confirmou todas as correções enviadas.</p>
             )}
         </div>
