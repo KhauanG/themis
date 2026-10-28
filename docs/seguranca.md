@@ -208,7 +208,7 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 | Rate limit 120/min por IP | `/api/*` apenas — o PWA carrega dezenas de arquivos e seria bloqueado |
 | `trustProxy` | sem isso `req.ip` vira o IP do proxy e o limite vale para todos juntos |
 | CORS restrito | `CORS_ORIGINS`; mesma origem dispensa, mas fica para o caso de subdomínio |
-| Validação de schema | Fastify, em toda rota `POST` |
+| Validação de schema | Fastify, em toda rota que lê corpo (`POST` e `PUT`). As duas antigas não têm: respondem 410 sem ler nada |
 | Timeout no ERP | 45s por tentativa, com 502/504 separados |
 | Log sem URL | `log-respostas.ts`: método, padrão da rota, status e tempo; nunca URL, corpo nem cabeçalho. `/api/erp/estoque/<x>` vira `***` em qualquer linha |
 | Login e cargo no ERP | `erp-lojas.ts`: ID token do Firebase, perfil relido a cada chamada, porte da regra em `acesso.ts` |
@@ -223,6 +223,7 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 | `PUT /api/erp/lojas/:inventoryId/hash` | master | Salva o hash da loja. Apara espaço e quebra de linha nas pontas; espaço no meio dá 400. Hash igual ao de outra chave dá 409, sem dizer qual. Só `""` remove (ou `null`, que a Fastify converte em `""`). Responde só `{ ok: true }`. |
 | `DELETE /api/erp/lojas/:inventoryId/hash` | master | Remove o hash da loja nos dois mapas. O site chama ao excluir a loja. |
 | `POST /api/erp/lojas/:inventoryId/teste` | admin ou master com acesso à loja; hash no corpo, só master | Uma listagem do ERP com o hash salvo ou o candidato, cruzada com até 100 produtos da loja. Nunca envia ao ERP, nunca grava, nunca devolve o hash. |
+| `GET /api/erp/estoque/:hashLoja`, `POST /api/erp/estoque` (site 2.20) | — | Respondem 410 `O Themis foi atualizado. Recarregue a página.` Sem schema: não leem o hash nem o corpo, e não chamam o ERP. O log da API leva só o padrão da rota; o do proxy da Hostinger pode levar a URL. |
 
 > **409 sem loja visível.** Antes da 2.22.0, excluir uma loja não apagava o hash dela. A
 > chave órfã continua contando como "outra loja", e a API não lê `inventories` para saber.
@@ -231,8 +232,6 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 > `hashConfigs/inventoryHashes`, nos mapas `hashes` e `inventoryHashes`. O mesmo 409 vem
 > quando duas lojas vivas já têm o mesmo hash (o estoque duplicado): o master cola o hash
 > certo numa delas, ou o dono tira a chave da outra no Console.
-
-`GET /api/erp/estoque/:hashLoja` e `POST /api/erp/estoque` seguem como na 2.20, sem login, até o push B.
 
 Ordem das respostas: 503 sem credencial (só nas rotas do ERP; o resto do site segue), 401,
 503 quando o Firestore ou as chaves do Google falham, 403, 409 da loja sem hash. Os 4xx da

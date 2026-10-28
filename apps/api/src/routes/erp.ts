@@ -12,6 +12,7 @@
  */
 import type { FastifyBaseLogger, FastifyInstance, FastifyReply } from 'fastify';
 import { config } from '../config.js';
+import { MENSAGENS } from '../mensagens.js';
 
 /**
  * Payload da atualização — **os oito campos do Themis 1.x**, com os mesmos tipos.
@@ -34,38 +35,6 @@ export interface AtualizacaoEstoque {
   PrecoVenda: number;
   PrecoCusto: number;
 }
-
-const schemaAtualizacao = {
-  body: {
-    type: 'object',
-    required: [
-      'IdProduto',
-      'HashLoja',
-      'Quantidade',
-      'CodigoBarras',
-      'NomeProduto',
-      'EstoqueMinimo',
-      'PrecoVenda',
-      'PrecoCusto',
-    ],
-    additionalProperties: false,
-    properties: {
-      // `> 0` como no `validateProductData` do 1.x: id zero nunca identifica produto.
-      IdProduto: { type: 'integer', minimum: 1 },
-      HashLoja: { type: 'string', minLength: 1 },
-      // Quantidade negativa nunca é contagem válida e o ERP a rejeita silenciosamente.
-      // Teto = `LIMITE_QUANTIDADE` de packages/shared/src/quantidade.ts (a API não importa o shared).
-      Quantidade: { type: 'number', minimum: 0, maximum: 999_999 },
-      // Vazio é permitido: o 1.x só exigia que o campo existisse, e produto sem código de
-      // barras é comum no cadastro. Exigir `minLength: 1` bloquearia envio que o 1.x fazia.
-      CodigoBarras: { type: 'string' },
-      NomeProduto: { type: 'string' },
-      EstoqueMinimo: { type: 'integer', minimum: 0 },
-      PrecoVenda: { type: 'number', minimum: 0 },
-      PrecoCusto: { type: 'number', minimum: 0 },
-    },
-  },
-} as const;
 
 /**
  * Item da listagem de estoque do ERP.
@@ -315,7 +284,16 @@ async function enviarUmaVez(dados: AtualizacaoEstoque): Promise<TentativaEnvio> 
 const transitoria = (t: TentativaEnvio) =>
   t.tipo === 'tempo' || t.tipo === 'rede' || (t.tipo === 'http' && (t.statusErp ?? 0) >= 500);
 
-/** Os logs nunca levam `erro`: o texto do ERP pode repetir o hash. */
+/**
+ * Envia a quantidade contada de um produto.
+ *
+ * Repete só rede, tempo e 5xx (45 s cada tentativa), com 1 s entre tentativas. É seguro
+ * repetir: a chamada grava uma quantidade absoluta, não um incremento — reenviar o mesmo
+ * valor dá no mesmo. O retry mora aqui, e não no celular, porque quem está no depósito com
+ * wifi ruim é justamente quem não deveria segurar as tentativas na mão.
+ *
+ * Os logs nunca levam `erro`: o texto do ERP pode repetir o hash.
+ */
 export async function enviarComRetry(
   dados: AtualizacaoEstoque,
   log: FastifyBaseLogger,
@@ -363,6 +341,14 @@ export type Listagem =
   | { tipo: 'inesperado'; formato: string; tamanho: number };
 
 /**
+ * Lista o estoque atual da loja no ERP.
+ *
+ * É o que permite comparar a contagem com o saldo real antes de corrigir, e depois
+ * verificar se a correção foi mesmo aplicada. O ERP devolve um array de
+ * `{ idproduto, quantidade }` — às vezes embrulhado em `data` ou `items`.
+ *
+ * Timeout maior que o da atualização: a listagem traz o estoque inteiro da loja.
+ *
  * Um GET só, nunca repetido. Não loga: quem loga é `responderListagem`, e nunca o corpo.
  * Hash desconhecido volta HTTP 200 com `[]` (sonda de 2026-10-28): lista vazia é lista.
  */
@@ -456,45 +442,15 @@ export function responderListagem(reply: FastifyReply, l: Listagem): FastifyRepl
   });
 }
 
+/**
+ * Rotas do site 2.20: o hash ia no caminho da URL e no corpo. Desde a 2.22.0 só respondem
+ * 410, sem schema e sem ler nada. Uma aba aberta antes do push B mostra `corpo.erro` como
+ * vem (`git show v2.20.0:apps/web/src/lib/erp.ts`, `:42-44` e `:119-120`), e o usuário
+ * recarrega. O log da API grava só o padrão da rota (log-respostas.ts). O proxy da
+ * Hostinger pode gravar a URL, e isso a API não controla.
+ */
 export async function rotasErp(app: FastifyInstance): Promise<void> {
-  /**
-   * Envia a quantidade contada de um produto.
-   *
-   * Repete só rede, tempo e 5xx (45 s cada tentativa), com 1 s entre tentativas. É seguro
-   * repetir: a chamada grava uma quantidade absoluta, não um incremento — reenviar o mesmo
-   * valor dá no mesmo. O retry mora aqui, e não no celular, porque quem está no depósito com
-   * wifi ruim é justamente quem não deveria segurar as tentativas na mão.
-   */
-  app.post<{ Body: AtualizacaoEstoque }>(
-    '/api/erp/estoque',
-    { schema: schemaAtualizacao },
-    async (req, reply) => {
-      return responderEnvio(reply, await enviarComRetry(req.body, req.log));
-    },
-  );
-
-  /**
-   * Lista o estoque atual da loja no ERP.
-   *
-   * É o que permite comparar a contagem com o saldo real antes de corrigir, e depois
-   * verificar se a correção foi mesmo aplicada. O ERP devolve um array de
-   * `{ idproduto, quantidade }` — às vezes embrulhado em `data` ou `items`.
-   *
-   * Timeout maior que o da atualização: a listagem traz o estoque inteiro da loja.
-   */
-  app.get<{ Params: { hashLoja: string } }>(
-    '/api/erp/estoque/:hashLoja',
-    {
-      schema: {
-        params: {
-          type: 'object',
-          required: ['hashLoja'],
-          properties: { hashLoja: { type: 'string', minLength: 1, maxLength: 200 } },
-        },
-      },
-    },
-    async (req, reply) => {
-      return responderListagem(reply, await listarNoErp(req.params.hashLoja));
-    },
-  );
+  const recarregue = { ok: false, erro: MENSAGENS.recarregue } as const;
+  app.get('/api/erp/estoque/:hashLoja', async (_req, reply) => reply.code(410).send(recarregue));
+  app.post('/api/erp/estoque', async (_req, reply) => reply.code(410).send(recarregue));
 }

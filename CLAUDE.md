@@ -137,6 +137,12 @@ A conta de serviço ignora as regras. Quem decide na API é `apps/api/src/acesso
 `firestore/firestore.rules` com os mesmos casos de `firestore/regras.test.ts`. Mudou `isMaster`,
 `isAdmin` ou `podeAcessarEstoque` num, muda no outro.
 
+**O HashLoja nunca sai do servidor.**
+Site e app mandam só o `inventoryId`, com o ID token. A API confere cargo e loja, lê o hash e
+fala com o ERP (`apps/api/src/routes/erp-lojas.ts`). Nunca ponha o hash em URL, log, resposta,
+tela, histórico ou cache: o log da Hostinger guardou a URL com o hash de 2026-08-06 até a
+2.21.0, e o dono decidiu não trocar os hashes.
+
 **Formato gravado precisa continuar legível pelo Themis 1.x.**
 Os dois apps convivem no mesmo banco.
 

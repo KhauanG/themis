@@ -1,6 +1,7 @@
 /**
  * Rotas do ERP por loja. O hash não sai do servidor: o cliente manda só a loja e o ID token.
- * O plugin fica sem `fastify-plugin` para o login não alcançar as rotas antigas antes da T15.
+ * O plugin fica sem `fastify-plugin` para o login não alcançar as rotas antigas: a aba da 2.20
+ * recebe o 410 "recarregue", não o 401 "sessão expirou".
  */
 import type { FastifyError, FastifyPluginAsync } from 'fastify';
 import { ehAdmin, ehMaster, podeAcessarEstoque, podeUsarErp, type Perfil } from '../acesso.js';
@@ -34,9 +35,7 @@ const PARAMS_LOJA = {
   properties: { inventoryId: { type: 'string', pattern: '^[A-Za-z0-9_-]{1,100}$' } },
 } as const;
 
-// Fica à parte porque a T15 apaga o antigo; o ajv da Fastify remove um `HashLoja` mandado pelo
-// cliente, e o spread põe o do servidor por último.
-// shortcut: duplica `schemaAtualizacao` de routes/erp.ts até a T15 apagar aquele; mudança de limite vai nos dois.
+// O ajv da Fastify remove um `HashLoja` mandado pelo cliente, e o spread põe o do servidor por último.
 const SCHEMA_ENVIO = {
   type: 'object',
   required: [

@@ -273,13 +273,40 @@ describe('GET /api/erp/hashes', () => {
 });
 
 describe('convivência com as rotas antigas', () => {
-  // O site 2.20 segue no ar durante o push A. O afterEach confere que o hash da URL antiga não vai ao log.
-  it('push A: as antigas seguem sem token; a nova pede token', async () => {
+  // Aba aberta na 2.20 depois do push B, sem token. Se as rotas antigas caíssem no
+  // preHandler do plugin, a aba veria "sessão expirou" em vez de "recarregue".
+  it('rota antiga com hash na URL responde 410 e o log não leva o hash', async () => {
+    const { app, linhas } = await montarApp({ comRotasAntigas: true });
+    const res = await app.inject('/api/erp/estoque/H-X-0001');
+    expect(res.statusCode).toBe(410);
+    expect(res.json()).toEqual({ ok: false, erro: MENSAGENS.recarregue });
+    expect(fetchErp).not.toHaveBeenCalled();
+    const log = linhas.join('\n');
+    expect(log).toContain('"rota":"/api/erp/estoque/:hashLoja"');
+    expect(log).toContain('"status":410');
+    expect(log).not.toContain('H-X-0001');
+  });
+
+  it('POST antigo com o corpo da 2.20 responde 410 sem chamar o ERP', async () => {
     const { app } = await montarApp({ comRotasAntigas: true });
-    const antigoGet = await app.inject({ url: '/api/erp/estoque/H-X-0001' });
-    const antigoPost = await app.inject({ method: 'POST', url: '/api/erp/estoque', payload: { ...ENVIO, HashLoja: 'H-X-0001' } });
-    const nova = await app.inject({ url: '/api/erp/lojas/X/estoque' });
-    expect([antigoGet.statusCode, antigoPost.statusCode, nova.statusCode]).toEqual([200, 200, 401]);
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/erp/estoque',
+      payload: {
+        IdProduto: 1, HashLoja: 'H-X-0001', Quantidade: 3, CodigoBarras: '', NomeProduto: 'x',
+        EstoqueMinimo: 0, PrecoVenda: 0, PrecoCusto: 0,
+      },
+    });
+    expect(res.statusCode).toBe(410);
+    expect(res.json()).toEqual({ ok: false, erro: MENSAGENS.recarregue });
+    expect(fetchErp).not.toHaveBeenCalled();
+  });
+
+  it('rota nova sem token continua 401', async () => {
+    const { app } = await montarApp({ comRotasAntigas: true, firestore: firestoreFalso() });
+    const res = await app.inject('/api/erp/lojas/X/estoque');
+    expect(res.statusCode).toBe(401);
+    expect(res.json()).toEqual({ ok: false, erro: MENSAGENS.sessao });
   });
 });
 
