@@ -30,9 +30,10 @@ export function ModalFinalizar({ aberto, onFechar }: Props) {
    *
    * Se a gravação estoura o tempo mas chega ao servidor, o listener já mostra o ciclo N+1. Sem
    * isto, o clique seguinte usaria o `ciclo` da tela (N+1) e finalizaria o ciclo seguinte, que
-   * ninguém contou. Com o alvo, a transação acha a auditoria N e responde "já finalizada" — o
-   * pior caso de um alvo mantido, e é verdade. Fechar e reabrir não o perde: o `Layout` mantém
-   * este componente montado. Recarregar a página perde.
+   * ninguém contou. Com o alvo, a transação acha a auditoria N e responde "já finalizada". Se a
+   * tela já estiver noutro ciclo, o alvo pode ser de uma rodada anterior: o aviso diz qual ciclo
+   * estava salvo e o modal fica aberto. Fechar e reabrir não o perde: o `Layout` mantém este
+   * componente montado. Recarregar a página perde.
    */
   const alvo = useRef<{ inventoryId: string; ciclo: number } | null>(null);
   /**
@@ -93,6 +94,18 @@ export function ModalFinalizar({ aberto, onFechar }: Props) {
 
       // Uma transação só: a auditoria e o ciclo novo entram juntos, ou nenhum dos dois.
       const r = await finalizarContagem(auditoria);
+      // As três situações são definitivas: o próximo Finalizar parte do ciclo da tela.
+      alvo.current = null;
+
+      if (r.situacao === 'ja-finalizada' && cicloDaTentativa !== ciclo) {
+        // O alvo guardado era de uma rodada anterior e a tela já está noutra. "Salva" e fechar
+        // deixariam a rodada da tela sem auditoria; o modal fica e o próximo clique vai a ela.
+        mostrar(
+          `A finalização do ciclo ${r.cicloFinalizado} já estava salva. Nada foi gravado agora. Se esta é uma contagem nova, clique em Finalizar de novo.`,
+          'warning',
+        );
+        return;
+      }
 
       if (r.situacao === 'finalizada') {
         mostrar('Contagem finalizada e salva.', 'success');
@@ -113,8 +126,6 @@ export function ModalFinalizar({ aberto, onFechar }: Props) {
         mostrar(`Esta contagem já foi finalizada: o estoque está no ciclo ${r.cicloServidor}. Nada foi gravado.`, 'warning');
       }
 
-      // As três situações são definitivas: o próximo Finalizar parte do ciclo da tela.
-      alvo.current = null;
       // `encerrar`, não `fechar`: aqui a gravação ainda consta como em andamento.
       encerrar();
     } catch (erro) {

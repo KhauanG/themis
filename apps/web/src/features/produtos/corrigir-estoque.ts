@@ -196,7 +196,7 @@ export async function executarCorrecao(
   const naoEnviadosForaDoErp = divergentes.filter((p) => desconhecidos.has(p.id)).map(nomeDe);
 
   let enviados = 0;
-  // Lista de permitidos: só o que o ERP aceitou entra no fechamento.
+  // Lista de permitidos: só o que o ERP aceitou, ou a releitura mostrou aplicado, entra no fechamento.
   const aceitos = new Set<string>();
 
   // ---------- Fase 2: enviar as divergências ----------

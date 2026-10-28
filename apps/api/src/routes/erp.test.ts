@@ -206,19 +206,23 @@ describe('POST /api/erp/estoque — teto da Quantidade', () => {
     const fetchFalso = vi.fn(async () => new Response('', { status: 200 }));
     vi.stubGlobal('fetch', fetchFalso);
     const app = Fastify();
-    await app.register(rotasErp);
-    const resposta = await app.inject({
-      method: 'POST',
-      url: '/api/erp/estoque',
-      payload: {
-        IdProduto: 1, HashLoja: 'H', Quantidade: 1_000_000, CodigoBarras: '', NomeProduto: 'x',
-        EstoqueMinimo: 0, PrecoVenda: 0, PrecoCusto: 0,
-      },
-    });
-    await app.close();
-    vi.unstubAllGlobals();
+    try {
+      await app.register(rotasErp);
+      const resposta = await app.inject({
+        method: 'POST',
+        url: '/api/erp/estoque',
+        payload: {
+          IdProduto: 1, HashLoja: 'H', Quantidade: 1_000_000, CodigoBarras: '', NomeProduto: 'x',
+          EstoqueMinimo: 0, PrecoVenda: 0, PrecoCusto: 0,
+        },
+      });
 
-    expect(resposta.statusCode).toBe(400);
-    expect(fetchFalso).not.toHaveBeenCalled();
+      expect(resposta.statusCode).toBe(400);
+      expect(fetchFalso).not.toHaveBeenCalled();
+    } finally {
+      // Um `fetch` falso que vaze para os outros testes esconderia uma chamada de verdade.
+      await app.close();
+      vi.unstubAllGlobals();
+    }
   });
 });

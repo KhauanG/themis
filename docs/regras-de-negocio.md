@@ -191,8 +191,10 @@ O id fixo é o que protege de duplicata: dois cliques, ou dois aparelhos, esbarr
 auditoria. Depois de um estouro de tempo a gravação pode ter chegado, então o modal guarda o
 estoque e o ciclo do primeiro clique e os reaproveita até um resultado definitivo (finalizada,
 já finalizada, ciclo mudou), mesmo depois de Cancelar e reabrir; um segundo clique acha a
-auditoria e informa que já foi finalizada, em vez de finalizar o ciclo seguinte. O alvo não
-vale para outro estoque, e recarregar a página o perde. Antes eram duas
+auditoria e informa que já foi finalizada, em vez de finalizar o ciclo seguinte. Se a tela já
+mostra outro ciclo, o alvo pode ser de uma rodada anterior: o aviso diz qual ciclo estava
+salvo, o modal não fecha e o clique seguinte finaliza o ciclo da tela. O alvo não vale para
+outro estoque, e recarregar a página o perde. Antes eram duas
 escritas (auditoria com id aleatório, ciclo depois sem conferir) e cada clique extra criava
 uma auditoria a mais e subia o ciclo de novo.
 
