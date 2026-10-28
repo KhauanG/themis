@@ -297,6 +297,20 @@ O relatório gerado (`produtos-invalidos.csv`) contém nomes de produto e está 
 
 ---
 
+## Scripts do dono
+
+- `conferir-cargos.mjs` (antes da 2.21.0) e `limpar-hash-antigo.mjs` (depois da regra
+  fechada, ou antes da 2.22.0 com OK do dono) falam com o Firestore de produção pelo REST,
+  com o login Google do dono, que não passa pelas Security Rules. Nenhuma chave de conta
+  de serviço fica no computador.
+- O primeiro só lê `users` e mostra uid, campo e tipo das flags de cargo fora de
+  `true`/`false`. O segundo tira `details.hashLoja` dos `BUSCAR_ESTOQUE` e as chaves de
+  estoques que não existem mais; simula sem `--aplicar` e imprime só contagens.
+- Uso, as travas e os avisos (token numa linha só; PATCH sem `updateMask` troca o
+  documento inteiro): no cabeçalho de cada script.
+
+---
+
 ## Auditoria de dependências
 
 Quatro avisos ficam abertos de propósito, com o raciocínio registrado no

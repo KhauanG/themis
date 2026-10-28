@@ -205,6 +205,8 @@ porque include tem precedencia sobre omit.
 | `codegraph sync` | atualiza o índice — **rode depois de mudar arquivos** |
 | `npm run mapa` | regenera `docs/mapa.md` a partir do índice |
 | `npm run auditar-produtos` | varredura de produtos legados (só leitura) |
+| `node scripts/conferir-cargos.mjs` | flags de cargo que não são booleanas em `users` (só leitura; precisa de `GCLOUD_TOKEN`, ver seguranca.md) |
+| `node scripts/limpar-hash-antigo.mjs [--aplicar]` | tira o hash do histórico do 1.x e as chaves órfãs de `hashConfigs`; sem `--aplicar` só simula |
 | `npx tsx scripts/verificar-planilha.mts <arquivo>` | testa a leitura de uma planilha real |
 | `npx tsx scripts/diagnosticar-erp.mts <hashLoja>` | mostra a resposta crua do ERP (só leitura) |
 | `npm run testar-regras` | roda as Security Rules contra o emulador (exige JDK 21+) |
