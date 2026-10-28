@@ -220,6 +220,16 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 | `GET /api/erp/lojas/:inventoryId/estoque` | admin, master + `pode` | Lista o estoque do ERP daquela loja (Buscar, leituras do Corrigir). |
 | `POST /api/erp/lojas/:inventoryId/estoque` | admin, master + `pode` | Envia um item. Corpo como o de antes, **sem** `HashLoja`; a API monta `{...corpo, HashLoja: hashDoServidor}` (o cliente nunca sobrepõe o hash). A resposta não devolve o corpo cru do ERP. |
 | `GET /api/erp/hashes` | admin, master | `{ configurados: [inventoryId, ...] }`, filtrado por `pode`. Nunca os valores. |
+| `PUT /api/erp/lojas/:inventoryId/hash` | master | Salva o hash da loja. Apara espaço e quebra de linha nas pontas; espaço no meio dá 400. Hash igual ao de outra chave dá 409, sem dizer qual. Só `""` remove (ou `null`, que a Fastify converte em `""`). Responde só `{ ok: true }`. |
+| `DELETE /api/erp/lojas/:inventoryId/hash` | master | Remove o hash da loja nos dois mapas. O site chama ao excluir a loja. |
+
+> **409 sem loja visível.** Antes da 2.22.0, excluir uma loja não apagava o hash dela. A
+> chave órfã continua contando como "outra loja", e a API não lê `inventories` para saber.
+> A limpeza (`scripts/limpar-hash-antigo.mjs`, rodada pelo controlador com OK do dono) tira
+> essas chaves. Antes dela, o dono apaga no Console a chave da loja excluída em
+> `hashConfigs/inventoryHashes`, nos mapas `hashes` e `inventoryHashes`. O mesmo 409 vem
+> quando duas lojas vivas já têm o mesmo hash (o estoque duplicado): o master cola o hash
+> certo numa delas, ou o dono tira a chave da outra no Console.
 
 `GET /api/erp/estoque/:hashLoja` e `POST /api/erp/estoque` seguem como na 2.20, sem login, até o push B.
 

@@ -64,6 +64,12 @@ const SCHEMA_ENVIO = {
   },
 } as const;
 
+export function hashColado(bruto: string): string | null {
+  if (bruto === '') return '';
+  const hash = bruto.trim();
+  return /^(?!\.{1,2}$)\S{1,200}$/.test(hash) ? hash : null;
+}
+
 export const rotasErpLojas: FastifyPluginAsync<DependenciasErp> = async (app, { verificarToken, firestore }) => {
   // O `preHandler` já respondeu 503; isto só tira o `null` do tipo.
   const exigirFirestore = (): FirestoreServidor => {
@@ -127,4 +133,45 @@ export const rotasErpLojas: FastifyPluginAsync<DependenciasErp> = async (app, { 
     ok: true,
     configurados: [...(await exigirFirestore().lerHashes()).keys()].filter((id) => podeAcessarEstoque(req.perfil, id)),
   }));
+
+  app.put<{ Params: { inventoryId: string }; Body: { hash: string } }>(
+    '/api/erp/lojas/:inventoryId/hash',
+    {
+      schema: {
+        params: PARAMS_LOJA,
+        body: {
+          type: 'object',
+          required: ['hash'],
+          additionalProperties: false,
+          properties: { hash: { type: 'string', maxLength: 300 } },
+        },
+      },
+    },
+    async (req, reply) => {
+      // O 403 vem antes de ler os hashes: senão o PUT diria ao admin se um hash está em uso.
+      if (!ehMaster(req.perfil)) return reply.code(403).send({ ok: false, erro: MENSAGENS.soMaster });
+      const hash = hashColado(req.body.hash);
+      if (hash === null) return reply.code(400).send({ ok: false, erro: MENSAGENS.hashInvalido });
+      const fs = exigirFirestore();
+      const { inventoryId } = req.params;
+      // Copiar o hash da loja vizinha é o erro mais provável, e o Testar não pega: no Nuvem3 os
+      // ids de produto são iguais entre lojas (spec 4.5). Chave de loja excluída também conta,
+      // porque a API não lê `inventories`. O scripts/limpar-hash-antigo.mjs tira essas chaves.
+      if (hash !== '' && [...(await fs.lerHashes())].some(([id, valor]) => id !== inventoryId && valor === hash)) {
+        return reply.code(409).send({ ok: false, erro: MENSAGENS.hashRepetido });
+      }
+      await fs.gravarHash(inventoryId, hash);
+      return reply.send({ ok: true });
+    },
+  );
+
+  app.delete<{ Params: { inventoryId: string } }>(
+    '/api/erp/lojas/:inventoryId/hash',
+    { schema: { params: PARAMS_LOJA } },
+    async (req, reply) => {
+      if (!ehMaster(req.perfil)) return reply.code(403).send({ ok: false, erro: MENSAGENS.soMaster });
+      await exigirFirestore().gravarHash(req.params.inventoryId, '');
+      return reply.send({ ok: true });
+    },
+  );
 };

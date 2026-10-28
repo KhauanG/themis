@@ -7,7 +7,7 @@ import { ErroGoogle, type FirestoreServidor } from '../google.js';
 import { opcoesDeLog, registrarLogDeRespostas } from '../log-respostas.js';
 import { MENSAGENS } from '../mensagens.js';
 import { rotasErp } from './erp.js';
-import { rotasErpLojas } from './erp-lojas.js';
+import { hashColado, rotasErpLojas } from './erp-lojas.js';
 
 // O uid `semDoc` não tem perfil: `lerPerfil` devolve null.
 const PERFIS: Record<'master' | 'admin' | 'adminX' | 'auditor' | 'comum' | 'flagTexto', Perfil> = {
@@ -279,5 +279,108 @@ describe('convivência com as rotas antigas', () => {
     const antigoPost = await app.inject({ method: 'POST', url: '/api/erp/estoque', payload: { ...ENVIO, HashLoja: 'H-X-0001' } });
     const nova = await app.inject({ url: '/api/erp/lojas/X/estoque' });
     expect([antigoGet.statusCode, antigoPost.statusCode, nova.statusCode]).toEqual([200, 200, 401]);
+  });
+});
+
+describe('hashColado', () => {
+  it.each([
+    ['vazio exato remove', '', ''],
+    ['apara espaço, tab e quebra de linha nas pontas', ' \tCANDIDATO-1\r\n', 'CANDIDATO-1'],
+    ['só espaços é inválido, não remove', '   ', null],
+    ['espaço no meio é inválido', 'CANDI DATO-1', null],
+    ['200 caracteres passam', 'A'.repeat(200), 'A'.repeat(200)],
+    ['201 caracteres não passam', 'A'.repeat(201), null],
+    ['".." não é hash: subiria um nível na URL do ERP', '..', null],
+  ] as const)('%s', (_nome, bruto, esperado) => expect(hashColado(bruto)).toBe(esperado));
+});
+
+describe('PUT e DELETE do HashLoja — só o master', () => {
+  async function pedir(
+    metodo: 'PUT' | 'DELETE',
+    uid: string | null,
+    o: { corpo?: object; firestore?: FirestoreServidor } = {},
+  ) {
+    const firestore = o.firestore ?? firestoreFalso();
+    const { app } = await montarApp({ firestore });
+    const res = await app.inject({
+      method: metodo,
+      url: '/api/erp/lojas/X/hash',
+      headers: uid === null ? {} : comToken(uid),
+      ...(o.corpo === undefined ? {} : { payload: o.corpo }),
+    });
+    return { res, firestore };
+  }
+
+  it.each([
+    ['sem token no PUT: 401', 'PUT', null, 401, MENSAGENS.sessao],
+    ['comum no PUT: 403 do cargo', 'PUT', 'comum', 403, MENSAGENS.permissao],
+    ['admin no PUT: 403 de só master, antes do 409', 'PUT', 'admin', 403, MENSAGENS.soMaster],
+    ['admin no DELETE: 403 de só master', 'DELETE', 'admin', 403, MENSAGENS.soMaster],
+  ] as const)('só master grava ou apaga — %s', async (_nome, metodo, uid, status, erro) => {
+    const { res, firestore } = await pedir(metodo, uid, metodo === 'PUT' ? { corpo: { hash: 'H-Y-0002' } } : {});
+    expect(res.statusCode).toBe(status);
+    expect(res.json()).toEqual({ ok: false, erro });
+    expect(firestore.gravarHash).not.toHaveBeenCalled();
+  });
+
+  it('hash colado com espaço e quebra de linha nas pontas é aparado', async () => {
+    const { res, firestore } = await pedir('PUT', 'master', { corpo: { hash: ' \tCANDIDATO-1\r\n' } });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ ok: true });
+    expect(firestore.gravarHash).toHaveBeenCalledTimes(1);
+    expect(firestore.gravarHash).toHaveBeenCalledWith('X', 'CANDIDATO-1');
+    expect(fetchErp).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['espaço no meio', 'CANDI DATO-1'],
+    ['só espaços não apaga o hash salvo', '   '],
+  ] as const)('hash inválido é recusado — %s', async (_nome, hash) => {
+    const { res, firestore } = await pedir('PUT', 'master', { corpo: { hash } });
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toEqual({ ok: false, erro: MENSAGENS.hashInvalido });
+    expect(firestore.gravarHash).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['sem o campo hash', {}],
+    ['hash acima de 300 caracteres', { hash: 'A'.repeat(301) }],
+  ] as const)('corpo fora do schema: 400 e nada gravado — %s', async (_nome, corpo) => {
+    const { res, firestore } = await pedir('PUT', 'master', { corpo });
+    expect(res.statusCode).toBe(400);
+    expect(firestore.gravarHash).not.toHaveBeenCalled();
+  });
+
+  it('hash que já está em outra loja é recusado', async () => {
+    const { res, firestore } = await pedir('PUT', 'master', { corpo: { hash: ' H-Y-0002\n' } });
+    expect(res.statusCode).toBe(409);
+    expect(res.json()).toEqual({ ok: false, erro: MENSAGENS.hashRepetido });
+    expect(firestore.gravarHash).not.toHaveBeenCalled();
+  });
+
+  it('regravar o mesmo hash na própria loja passa', async () => {
+    const { res, firestore } = await pedir('PUT', 'master', { corpo: { hash: 'H-X-0001' } });
+    expect(res.statusCode).toBe(200);
+    expect(firestore.gravarHash).toHaveBeenCalledWith('X', 'H-X-0001');
+  });
+
+  it('hash vazio remove', async () => {
+    const { res, firestore } = await pedir('PUT', 'master', { corpo: { hash: '' } });
+    expect(res.json()).toEqual({ ok: true });
+    expect(firestore.gravarHash).toHaveBeenCalledWith('X', '');
+  });
+
+  it('DELETE do master, sem corpo, remove', async () => {
+    const { res, firestore } = await pedir('DELETE', 'master');
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ ok: true });
+    expect(firestore.gravarHash).toHaveBeenCalledWith('X', '');
+  });
+
+  it('falha ao gravar no Firestore: 503, nunca o status do Google', async () => {
+    const firestore = firestoreFalso({ gravarHash: vi.fn().mockRejectedValue(new ErroGoogle('firestore', 403)) });
+    const { res } = await pedir('PUT', 'master', { corpo: { hash: 'CANDIDATO-1' }, firestore });
+    expect(res.statusCode).toBe(503);
+    expect(res.json()).toEqual({ ok: false, erro: MENSAGENS.falhaFirestore });
   });
 });

@@ -207,6 +207,8 @@ Documento único: `hashConfigs/inventoryHashes`.
 - Gravar uma loja grava em `hashes` e apaga a mesma chave do legado. Apagar tira dos dois.
 - A partir da 2.21.0 a API também lê e grava este documento, pela conta de serviço
   (`apps/api/src/google.ts`), no mesmo formato.
+- Um hash por loja: a API recusa (409) um hash que já está em outra chave, inclusive de loja
+  excluída. Só o master grava, por `PUT` e `DELETE /api/erp/lojas/:inventoryId/hash`.
 
 ---
 
