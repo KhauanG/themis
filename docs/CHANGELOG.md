@@ -29,8 +29,9 @@ Corrigir deixam de dar por feito o que o banco ou o ERP não aceitou.
   enquanto grava, e guarda o ciclo do primeiro clique até um resultado definitivo, mesmo
   depois de Cancelar e reabrir.
 - **Corrigir estoque marcava como CONFERIDO o que o ERP recusou.** Agora só vira CONFERIDO o
-  que bateu ou o que o ERP aceitou. Item recusado e item sem ID no ERP continuam contados e
-  aparecem listados. Na releitura, o item recusado deixa de aparecer como "aceito".
+  que bateu ou o que o ERP aceitou. Item recusado, item sem ID no ERP e divergente fora do ERP
+  continuam contados e aparecem listados; o fora do ERP que bate é conferido. Na releitura, o
+  item recusado deixa de aparecer como "aceito".
 - **Corrigir estoque perdia a divergência do item que o ERP aplicou mas respondeu como falha**
   (estouro ou 504 do proxy). Ele ficava ATUALIZADO, e a correção seguinte o conferia como
   "bateu". Agora a releitura confere também o recusado: com o valor enviado no ERP, conta
@@ -62,6 +63,9 @@ Corrigir deixam de dar por feito o que o banco ou o ERP não aceitou.
 - **Não precisa de `deploy-rules`.** A regra do repositório é a que já está publicada.
 - Auditorias novas têm o id `{inventoryId}_{ciclo}`. As antigas, com id aleatório, ficam como
   estão.
+- **Processo até a Etapa 2:** sincronize os celulares antes de finalizar no site, e não use
+  Limpar contagem com celular offline (a contagem offline feita antes do Limpar entra na rodada
+  nova sem aviso; só a Etapa 2 resolve).
 
 ---
 

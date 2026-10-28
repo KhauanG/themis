@@ -228,6 +228,13 @@ correspondente é dado órfão, e o relatório a mostraria como atual.
 
 Em lotes de 500 — o limite do Firestore.
 
+⚠️ **Regras de processo até a Etapa 2** (spec da Etapa 0, §7):
+
+- **Sincronize os celulares antes de finalizar no site.** A auditoria sai do que o site tem;
+  contagem que ainda está só no celular fica de fora.
+- **Não use Limpar contagem com celular offline.** A contagem offline feita antes do Limpar
+  entra na rodada nova sem aviso; só a Etapa 2 resolve.
+
 ---
 
 ## Data de validade
@@ -358,7 +365,7 @@ não confirmou. Por isso o produto sai da contagem inteira:
 | `statusDe()` | `FORA DO ERP`, antes de qualquer outro status |
 | `diferencaDe()` | `'-'` |
 | Relatório e PDF | `sistema —`, `contado —`, `diferença —` |
-| Corrigir estoque | conferido, **não enviado**, listado por nome |
+| Corrigir estoque | **não enviado**; o divergente continua `ATUALIZADO` e é listado por nome, o que bate é conferido |
 | Estatísticas | `foraDoErp` à parte; fora de `total` e de `naoContados` |
 
 **Por que não simplesmente esconder o produto.** Ele some, o problema fica. O cadastro
@@ -406,7 +413,8 @@ Admin e master podem. **Desfazer** no painel de auditoria devolve o item para `A
 e ele volta para a contagem.
 
 Depois de "Corrigir estoque", todo item contado vira `CONFERIDO`, menos o que o ERP recusou e
-a releitura não mostrou aplicado (também ficam como `ATUALIZADO` o divergente sem `IdProduto` e o fora do ERP):
+a releitura não mostrou aplicado (também ficam como `ATUALIZADO` o divergente sem `IdProduto`
+e o divergente fora do ERP):
 
 | | `corrigidoIncorreto` | Significado |
 |---|---|---|

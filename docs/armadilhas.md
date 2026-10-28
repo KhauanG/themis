@@ -180,7 +180,8 @@ por regra de negócio.
 
 **Evitar.** `erroDeNegocio()` inspeciona o corpo antes de declarar sucesso. Conservador de
 propósito: só acusa quando o corpo sinaliza explicitamente, porque falso positivo faria o
-app reenviar item que o ERP já gravou.
+app reenviar item que o ERP já gravou. A recusa pode vir embrulhada numa string JSON
+(`"{\"erro\":\"...\"}"`, o Nuvem3 em 2026-10-27); `jsonDoErp()` desembrulha antes da checagem.
 
 ### O teto do navegador precisa cobrir o retry do servidor
 

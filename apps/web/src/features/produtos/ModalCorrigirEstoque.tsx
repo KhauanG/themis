@@ -8,9 +8,21 @@ import {
   diagnosticar,
   executarCorrecao,
   reenviarPendentes,
+  SUFIXO_SEM_ID,
   type Diagnostico,
   type ResultadoCorrecao,
 } from './corrigir-estoque.js';
+
+function ListaDeNomes({ nomes }: { nomes: readonly string[] }) {
+  return (
+    <ul className="lista-simples">
+      {nomes.slice(0, 20).map((nome, i) => (
+        <li key={`${nome}-${i}`}>{nome}</li>
+      ))}
+      {nomes.length > 20 && <li>e mais {nomes.length - 20}…</li>}
+    </ul>
+  );
+}
 
 interface Props {
   aberto: boolean;
@@ -165,6 +177,10 @@ export function ModalCorrigirEstoque({ aberto, onFechar }: Props) {
    * resto do diagnóstico, antes de confirmar.
    */
   const minutosEstimados = Math.ceil(enviaveis / 60);
+
+  const falhas = resultado?.falhasNoEnvio ?? [];
+  const semId = falhas.filter((nome) => nome.endsWith(SUFIXO_SEM_ID));
+  const recusados = falhas.filter((nome) => !nome.endsWith(SUFIXO_SEM_ID));
 
   return (
     <Modal
@@ -359,20 +375,28 @@ export function ModalCorrigirEstoque({ aberto, onFechar }: Props) {
             )}
           </ul>
 
-          {resultado.falhasNoEnvio.length > 0 && (
+          {/* Dois avisos: o recusado se resolve rodando de novo; o sem ID, só no cadastro. */}
+          {recusados.length > 0 && (
             <>
               <p className="aviso aviso--perigo">
-                {resultado.falhasNoEnvio.length} itens não foram aceitos pelo ERP e continuam como
-                contados. Rode Corrigir estoque de novo para reenviar.
+                {recusados.length === 1
+                  ? '1 item não foi aceito pelo ERP e continua como contado.'
+                  : `${recusados.length} itens não foram aceitos pelo ERP e continuam como contados.`}{' '}
+                Rode Corrigir estoque de novo para reenviar.
               </p>
-              <ul className="lista-simples">
-                {resultado.falhasNoEnvio.slice(0, 20).map((nome, i) => (
-                  <li key={`${nome}-${i}`}>{nome}</li>
-                ))}
-                {resultado.falhasNoEnvio.length > 20 && (
-                  <li>e mais {resultado.falhasNoEnvio.length - 20}…</li>
-                )}
-              </ul>
+              <ListaDeNomes nomes={recusados} />
+            </>
+          )}
+
+          {semId.length > 0 && (
+            <>
+              <p className="aviso aviso--perigo">
+                {semId.length === 1
+                  ? '1 item não tem o ID do ERP e continua como contado.'
+                  : `${semId.length} itens não têm o ID do ERP e continuam como contados.`}{' '}
+                Corrija o ID do ERP no cadastro.
+              </p>
+              <ListaDeNomes nomes={semId} />
             </>
           )}
 
@@ -386,14 +410,7 @@ export function ModalCorrigirEstoque({ aberto, onFechar }: Props) {
                 Estes itens divergem, mas não estão na listagem do ERP e não foram enviados.
                 Continuam com o saldo atual no Nuvem3 — o cadastro precisa ser resolvido lá.
               </p>
-              <ul className="lista-simples">
-                {resultado.naoEnviadosForaDoErp.slice(0, 20).map((nome) => (
-                  <li key={nome}>{nome}</li>
-                ))}
-                {resultado.naoEnviadosForaDoErp.length > 20 && (
-                  <li>e mais {resultado.naoEnviadosForaDoErp.length - 20}…</li>
-                )}
-              </ul>
+              <ListaDeNomes nomes={resultado.naoEnviadosForaDoErp} />
             </>
           )}
 

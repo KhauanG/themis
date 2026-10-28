@@ -225,9 +225,11 @@ formatos antigos.
 catálogo. Alguns simplesmente não aparecem — cadastrados em outra loja, inativados no ERP,
 ou com `IdProduto` divergente. O 1.x enviava esses itens junto com os demais.
 
-**Decisão.** Eles ficam **fora do envio**. Continuam sendo conferidos, com
-`corrigidoIncorreto` refletindo a divergência, e aparecem numa lista própria antes e depois
-da confirmação.
+**Decisão.** Eles ficam **fora do envio**. O divergente fora do ERP (e o sem ID do ERP)
+continua `ATUALIZADO`: a divergência existe e não foi corrigida, então conferir o tiraria da
+lista de trabalho com o ERP errado. O que não diverge é fechado como conferido correto. Os
+divergentes aparecem numa lista própria antes e depois da confirmação. *Até a 2.19, todos
+eram conferidos, com `corrigidoIncorreto` refletindo a divergência.*
 
 **Por quê.** O ERP não devolveu saldo para eles, então a comparação usa o `estoqueSistema`
 da última importação. Mandar uma correção calculada sobre isso é escrever no estoque real da

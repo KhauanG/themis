@@ -1,7 +1,7 @@
 /**
  * Configurações globais — `appSettings/global`.
  *
- * São dois interruptores que mudam o que a equipe pode fazer, e por isso valem para todo
+ * São três interruptores que mudam o que a equipe pode fazer, e por isso valem para todo
  * mundo ao mesmo tempo, com listener em tempo real: ligar o modo contagem no escritório
  * precisa refletir no celular do depósito sem ninguém recarregar nada.
  *

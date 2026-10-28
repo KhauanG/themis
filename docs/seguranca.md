@@ -115,7 +115,8 @@ a verdadeira.
 |---|---|---|---|---|
 | `estoques/*/produtos` | autenticado | admin+ | autenticado¹ | master |
 | `inventories` | autenticado | admin+ | admin+ ou ciclo² | master |
-| `auditorias` | autenticado | autenticado | — | master |
+| `auditorias` | autenticado | autenticado | master | master |
+| `hashConfigs` | admin+ | master | master | master |
 | `historico_geral` | admin+ | autenticado | — | — |
 | `users` | próprio ou master | próprio³ | próprio³ ou master | master |
 

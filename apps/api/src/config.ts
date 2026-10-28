@@ -56,7 +56,7 @@ export const config = {
       'ERP_LISTAR_URL',
       'https://erp.nuvem3.com.br/apiv1/Estoque/EstoqueQuantidadePorLojaListar',
     ),
-    // A primeira chamada de uma rodada levou 30s na medição de 2026-10-27.
+    // A primeira chamada de uma rodada passou de 30 s sem resposta na medição de 2026-10-27.
     timeoutMs: inteiro('ERP_TIMEOUT_MS', 45_000),
     // A listagem traz o estoque inteiro da loja; 10s não bastam.
     timeoutListarMs: inteiro('ERP_LISTAR_TIMEOUT_MS', 45_000),

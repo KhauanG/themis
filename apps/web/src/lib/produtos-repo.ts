@@ -625,11 +625,12 @@ export interface ResultadoConferencia {
 }
 
 /**
- * Fecha a conferência de todos os itens contados, em lote.
+ * Fecha a conferência dos itens recebidos, em lote.
  *
  * É a segunda metade do "Corrigir Estoque" do 1.x: depois de mandar as divergências ao
- * ERP, **todo** item `ATUALIZADO` vira `CONFERIDO`, com `corrigidoIncorreto` dizendo se a
- * divergência existia. Sem esse fechamento, os itens continuariam na lista de trabalho do
+ * ERP, cada item `ATUALIZADO` da lista vira `CONFERIDO`, com `corrigidoIncorreto` dizendo se a
+ * divergência existia. Quem chama escolhe a lista: o Corrigir passa só o que bateu e o que o
+ * ERP aceitou. Sem esse fechamento, os itens continuariam na lista de trabalho do
  * funcionário e seriam recontados.
  *
  * `corrigidoCritico` acompanha, para paridade com o 1.x: diferença de 10 ou mais.

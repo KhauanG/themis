@@ -312,7 +312,7 @@ export async function rotasErp(app: FastifyInstance): Promise<void> {
   /**
    * Envia a quantidade contada de um produto.
    *
-   * Repete até `TENTATIVAS` vezes, como o `sendStockUpdateSync` do 1.x. É seguro repetir:
+   * Tenta até `TENTATIVAS` vezes (45 s cada), com 1 s entre tentativas. É seguro repetir:
    * a chamada grava uma quantidade absoluta, não um incremento — reenviar o mesmo valor dá
    * no mesmo. O retry mora aqui, e não no celular, porque quem está no depósito com wifi
    * ruim é justamente quem não deveria segurar as tentativas na mão.
