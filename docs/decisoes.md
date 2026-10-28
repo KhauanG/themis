@@ -273,3 +273,21 @@ recorrente, é sinal de que a decisão mudou de contexto.
 
 **Como reverter.** Duas linhas: `verHistorico` em `papeis.ts` e a regra de `historico_geral`.
 Exige publicar regras.
+
+---
+
+## 19. API fala com o Firestore pelo REST, com jose
+
+**Contexto.** A API passa a ler no servidor o cargo (`users/{uid}`) e o hash da loja
+(`hashConfigs/inventoryHashes`).
+
+**Decisão.** Firestore REST v1 com token OAuth da conta de serviço, assinado com `jose`
+6.2.13, versão exata (`apps/api/src/google.ts`).
+
+**Por quê.** O `firebase-admin` traz gRPC e protos que leem arquivos relativos ao pacote, e
+no bundle o `__dirname` é `dist/` (`apps/api/build.mjs:67-75`; §9). O `jose` não tem
+dependência e usa o `fetch` global, que a guarda dos testes cobre.
+
+**Consequência.** O código do token e do formato do Firestore é nosso e tem teste. O token
+fica guardado 55 min. O papel `roles/datastore.user` vale para o banco inteiro (o IAM não
+separa coleção): uma chave vazada lê e grava tudo.

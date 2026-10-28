@@ -193,6 +193,23 @@ deslogaria usuários com perfil legado.
 
 ---
 
+## `hashConfigs`
+
+Documento único: `hashConfigs/inventoryHashes`.
+
+| Campo | Tipo |
+|---|---|
+| `hashes` | mapa `inventoryId → hash` |
+| `inventoryHashes` | mapa `inventoryId → hash` (legado) |
+| `updatedAt` | timestamp |
+
+- A leitura junta os dois mapas, e `hashes` vence. O valor é aparado; vazio = sem hash.
+- Gravar uma loja grava em `hashes` e apaga a mesma chave do legado. Apagar tira dos dois.
+- A partir da 2.21.0 a API também lê e grava este documento, pela conta de serviço
+  (`apps/api/src/google.ts`), no mesmo formato.
+
+---
+
 ## Índices
 
 Três, em `firestore/firestore.indexes.json`. Eram cinco: dois só o 1.x usava
