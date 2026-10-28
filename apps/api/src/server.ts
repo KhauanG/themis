@@ -4,6 +4,7 @@ import rateLimit from '@fastify/rate-limit';
 import { config } from './config.js';
 import { registrarCabecalhos } from './cabecalhos.js';
 import { registrarEstaticos } from './estaticos.js';
+import { opcoesDeLog, registrarLogDeRespostas } from './log-respostas.js';
 import { rotasErp } from './routes/erp.js';
 import { rotasWebhook } from './routes/webhook.js';
 import { COMMIT, DATA_BUILD, VERSAO } from './versao.js';
@@ -23,13 +24,13 @@ process.on('unhandledRejection', (motivo) => {
 });
 
 const app = Fastify({
-  logger: config.isProd
-    ? { level: 'info' }
-    : { level: 'debug', transport: { target: 'pino-pretty' } },
+  ...opcoesDeLog(config.isProd),
   // A Hostinger fica atrás de proxy: sem isso `req.ip` vira o IP do proxy
   // e o rate limit passa a valer para todo mundo junto.
   trustProxy: true,
 });
+
+registrarLogDeRespostas(app);
 
 // Antes de qualquer rota: o hook `onSend` vale para tudo que sair daqui,
 // inclusive os arquivos estáticos do PWA e as respostas de erro.

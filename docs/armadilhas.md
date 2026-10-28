@@ -195,6 +195,17 @@ servidor seguia trabalhando e o app já tinha contado como erro.
 Os dois números são um só. Com os tetos certos, um 504 do proxy ainda dá falha com o ERP
 aplicando: por isso a fase 3 do Corrigir relê também o recusado.
 
+### O log da Fastify grava a URL inteira
+
+**Sintoma.** O HashLoja aparece no log da Hostinger, de 2026-08-06 (`705d8c3`) até o push A.
+
+**Causa.** O "incoming request" padrão leva `req.url`. O aviso "Reply was already sent" leva
+a URL no texto, fora do controle de log.
+
+**Evitar.** `logController: new LogController({ disableRequestLogging: true })`, o serializer
+de `req` sem `url` e o `streamWrite` de `log-respostas.ts`. Resposta antecipada sempre com
+`return reply`. Nada sensível no caminho da URL.
+
 ---
 
 ## Planilha

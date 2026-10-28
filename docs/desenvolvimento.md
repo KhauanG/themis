@@ -107,6 +107,11 @@ it('preserva a base da PRIMEIRA edição ao substituir', ...)
 
 Bug corrigido ganha teste de regressão, com comentário dizendo o que aconteceu.
 
+Teste nunca sai para a rede: o `vitest.setup.ts` faz falhar todo `fetch` sem falso. Use
+`vi.stubGlobal('fetch', vi.fn(...))`; o `unstubGlobals` volta para a guarda antes de cada
+teste. Os testes de regra (`vitest.regras.config.ts`) ficam sem a guarda, porque o emulador
+fala por `fetch`.
+
 ### TypeScript
 
 `strict` ligado, mais `noUncheckedIndexedAccess`. Índice de array devolve `T | undefined` —

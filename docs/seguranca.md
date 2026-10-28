@@ -208,6 +208,7 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 | CORS restrito | `CORS_ORIGINS`; mesma origem dispensa, mas fica para o caso de subdomínio |
 | Validação de schema | Fastify, em toda rota `POST` |
 | Timeout no ERP | 45s por tentativa, com 502/504 separados |
+| Log sem URL | `log-respostas.ts`: método, padrão da rota, status e tempo; nunca URL, corpo nem cabeçalho. `/api/erp/estoque/<x>` vira `***` em qualquer linha |
 
 O endereço do ERP fica só no servidor, fora do bundle.
 

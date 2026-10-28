@@ -6,5 +6,8 @@ export default defineConfig({
     // versão, abrir a seção do changelog) e ela decide o que vai para produção.
     include: ['{apps,packages}/*/src/**/*.test.ts', 'scripts/**/*.test.mjs'],
     environment: 'node',
+    // Teste nunca sai para a rede: todo `fetch` sem falso falha (vitest.setup.ts).
+    setupFiles: ['./vitest.setup.ts'],
+    unstubGlobals: true,
   },
 });
