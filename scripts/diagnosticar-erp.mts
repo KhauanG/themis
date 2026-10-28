@@ -124,7 +124,7 @@ if (lista.length === 0) {
 
 console.log(`Campos do primeiro item: ${Object.keys(lista[0]!).join(', ')}`);
 console.log('\nTrês primeiros itens, crus:');
-for (const item of lista.slice(0, 3)) console.log(' ', JSON.stringify(item));
+for (const item of lista.slice(0, 3)) console.log(' ', JSON.stringify(item).replaceAll(hashLoja, '<HashLoja>'));
 
 let semId = 0;
 let semQtd = 0;
