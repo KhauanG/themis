@@ -244,9 +244,7 @@ vale mais — sobretudo porque o efeito de errar aqui é silencioso.
 **Como se contorna.** Resolver o cadastro no Nuvem3. Para saber quantos produtos estão nessa
 situação e se têm algo em comum:
 
-```
-npx tsx scripts/diagnosticar-erp.mts <hashLoja> --planilha <arquivo>
-```
+`--planilha <arquivo>`, uso no topo de `scripts/diagnosticar-erp.mts` (hash em `HASH_LOJA`).
 
 **Quando revisar.** Se o cruzamento mostrar que os ausentes são poucos e todos legítimos, ou
 se o ERP passar a aceitar atualização de produto fora da listagem.

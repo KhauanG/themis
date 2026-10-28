@@ -250,9 +250,8 @@ Perguntar antes mostraria dados velhos.
 
 Exige conexão: offline os lotes do Firestore ficariam pendentes para sempre.
 
-O `HashLoja` vem de `hashConfigs`. Salvar grava só a chave daquele estoque. Se a leitura
-dos hashes falhar, Estoques avisa e bloqueia o salvar. Produtos que o ERP não conhece são
-contabilizados, avisados e marcados com `apiNotFound` — que alimenta a aba "Não encontrados
+O `HashLoja` vem de `hashConfigs`. Quem troca o hash é o master, em Estoques (ver
+§Estoques). Produtos que o ERP não conhece são contabilizados, avisados e marcados com `apiNotFound` — que alimenta a aba "Não encontrados
 na API" na tela de contagem. Não dá para corrigir o que o ERP não tem.
 
 #### O contrato com o ERP
@@ -317,9 +316,39 @@ das chaves do primeiro item, nunca o conteúdo). **Zero produtos casados é erro
 já estava igual" — nesse caso o saldo na tela é o da última importação, e "Corrigir estoque"
 aborta em vez de mandar correções calculadas sobre dado velho.
 
-Para investigar fora do app: `npx tsx scripts/diagnosticar-erp.mts <hashLoja> [idProduto...]`,
-ou com `--planilha <arquivo>` para cruzar o catálogo inteiro contra a listagem.
+Para investigar fora do app: `scripts/diagnosticar-erp.mts`, com o HashLoja copiado do painel
+do Nuvem3 (uso no topo do script). O `--planilha` cruza o catálogo inteiro contra a listagem.
 Ver [armadilhas.md](armadilhas.md) §"Buscar estoque" traz saldo diferente do Nuvem3.
+
+---
+
+## Estoques
+
+`features/estoques/TelaEstoques.tsx` — admin e master. O site nunca recebe o HashLoja: lê e
+grava só pela API.
+
+| Ação | Quem | O que faz |
+|---|---|---|
+| Selo **ERP ligado** / **sem HashLoja** | admin, master | Vem de `GET /api/erp/hashes`, que devolve só os ids. |
+| Criar estoque | admin, master | Nasce sem HashLoja. |
+| Trocar o HashLoja | master | Em Editar. Campo de senha, sempre vazio; vazio mantém o atual. `PUT /api/erp/lojas/<id>/hash`. Espaço no meio dá 400; hash já usado em outra loja dá 409, sem dizer qual. |
+| Testar | admin (o salvo), master (o salvo ou o digitado) | `POST /api/erp/lojas/<id>/teste`: uma listagem no ERP, nunca envio. |
+| Excluir estoque | master | Depois da exclusão, `DELETE /api/erp/lojas/<id>/hash`. Se só isso falhar, a chave fica órfã e ninguém a lê. |
+
+Vereditos do Testar, na ordem em que a API decide:
+
+| Veredito | Quando | Aviso |
+|---|---|---|
+| `sem-conexao` | rede, tempo esgotado ou 5xx. Não diz nada do hash | vermelho |
+| `recusado` | 4xx, ou texto ou mensagem em vez de lista | vermelho |
+| `inesperado` | formato que não é lista nem recusa, ou lista sem nenhum id | vermelho |
+| `vazio` | lista vazia. É o que um hash desconhecido devolve (HTTP 200 com `[]`, medido em 2026-10-28) | vermelho |
+| `sem-amostra` | o ERP devolveu produtos, mas a loja ainda não tem produtos com `IdProduto` | amarelo |
+| `nenhum-id` | nenhum dos até 100 produtos da amostra está na lista | amarelo |
+| `ok` | ids encontrados. Amarelo com 5 ou mais saldos comparáveis e menos de 20% iguais ao saldo guardado (par zerado nos dois lados não conta) | verde ou amarelo |
+
+⚠️ O Testar não distingue o hash de outra loja da mesma conta do ERP, porque os ids são iguais
+entre lojas. Só o alerta de saldos pode chamar a atenção.
 
 ---
 

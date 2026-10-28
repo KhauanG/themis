@@ -117,13 +117,10 @@ diferença — que é real, só que a culpa não é do ERP.
 
 **Evitar.** Ver a resposta crua antes de teorizar:
 
-```
-npx tsx scripts/diagnosticar-erp.mts <hashLoja> 30289733
-npx tsx scripts/diagnosticar-erp.mts <hashLoja> --planilha planilhaprodutos.xlsx
-```
-
 A primeira forma mostra quantos itens vieram, **quais campos** existem, quantos ficaram sem
-identificador, e a quantidade dos produtos consultados. O HashLoja está na tela Estoques.
+identificador, e a quantidade dos produtos consultados. Copie antes o HashLoja do painel do
+Nuvem3: o Themis não mostra o hash. O uso, com o id ou com `--planilha`, está no topo de
+`scripts/diagnosticar-erp.mts`.
 
 A segunda cruza o catálogo inteiro: **um produto ausente não diz nada; o conjunto dos
 ausentes diz.** Se todos estavam zerados na planilha, o ERP filtra zerados. Se há ausentes

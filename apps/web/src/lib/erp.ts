@@ -7,11 +7,10 @@
  * O `HashLoja` vem da coleção `hashConfigs` — é o que amarra o estoque do Themis à loja
  * no ERP.
  */
-import { deleteField, doc, getDoc, setDoc, type DocumentData } from 'firebase/firestore';
+import { doc, getDoc, type DocumentData } from 'firebase/firestore';
 import { chavesDeIdProduto, type EnvioEstoque } from '@themis/shared';
 import { db } from './firebase.js';
-import { urlApi } from './api.js';
-import { withWriteTimeout } from './firestore-write.js';
+import { chamarApi, urlApi } from './api.js';
 
 /**
  * Teto do envio, do lado do navegador.
@@ -25,6 +24,8 @@ const TIMEOUT_MS = 100_000;
 export interface ResultadoEnvio {
   ok: boolean;
   erro?: string;
+  /** Status 401, 403, 409 ou 503: os próximos itens dariam o mesmo erro. */
+  parar?: boolean;
 }
 
 export async function enviarAoErp(dados: EnvioEstoque): Promise<ResultadoEnvio> {
@@ -221,36 +222,90 @@ export async function hashDaLoja(inventoryId: string): Promise<string | null> {
 }
 
 /**
- * Grava (ou apaga) o hash de **um** estoque, sem tocar nos outros.
- *
- * Por chave porque regravar o mapa a partir da tela apagava todos os hashes quando a
- * leitura tinha falhado e a tela só tinha um mapa vazio. Apagar vale nos dois mapas
- * (`hashes` e o legado `inventoryHashes`), senão a chave antiga voltaria pela leitura.
+ * O hash nunca volta ao navegador. A API só diz quais lojas têm hash, grava o que o master
+ * cola e testa pelo id da loja.
  */
-export async function salvarHashDaLoja(inventoryId: string, hash: string): Promise<void> {
-  const valor = hash.trim();
-  const dados =
-    valor !== ''
-      ? { hashes: { [inventoryId]: valor }, updatedAt: new Date() }
-      : {
-          hashes: { [inventoryId]: deleteField() },
-          inventoryHashes: { [inventoryId]: deleteField() },
-          updatedAt: new Date(),
-        };
+const STATUS_QUE_PARAM = [401, 403, 409, 503];
 
-  await withWriteTimeout(setDoc(doc(db, 'hashConfigs', DOC_HASHES), dados, { merge: true }), {
-    label: 'salvar hash',
-  });
+async function respostaDaApi(r: Response): Promise<ResultadoEnvio> {
+  if (r.ok) return { ok: true };
+  const corpo = (await r.json().catch(() => null)) as { erro?: string } | null;
+  const erro = corpo?.erro ?? `Falha ${r.status}`;
+  return STATUS_QUE_PARAM.includes(r.status) ? { ok: false, erro, parar: true } : { ok: false, erro };
+}
+
+const caminhoDoHash = (inventoryId: string) => `/erp/lojas/${encodeURIComponent(inventoryId)}/hash`;
+
+/** Ids das lojas com hash, filtrados pelo acesso de quem pede. */
+export async function lerHashesConfigurados(): Promise<Set<string>> {
+  const r = await chamarApi('/erp/hashes');
+  const corpo = (await r.json().catch(() => null)) as { configurados?: unknown } | null;
+  if (!r.ok || !Array.isArray(corpo?.configurados)) throw new Error(`Falha ${r.status}`);
+  return new Set(corpo.configurados as string[]);
+}
+
+// Salvar, apagar e testar nunca rejeitam: na tela, o estoque já foi renomeado ou excluído
+// quando o hash falha, e o `catch` dela diria que nada deu certo.
+export async function salvarHashDaLoja(inventoryId: string, hash: string): Promise<ResultadoEnvio> {
+  try {
+    return await respostaDaApi(
+      await chamarApi(caminhoDoHash(inventoryId), { method: 'PUT', body: JSON.stringify({ hash }) }),
+    );
+  } catch {
+    return { ok: false, erro: 'Sem resposta do servidor' };
+  }
+}
+
+export async function apagarHashDaLoja(inventoryId: string): Promise<ResultadoEnvio> {
+  try {
+    // Sem corpo: com Content-Type JSON e corpo vazio, a Fastify responde 400.
+    return await respostaDaApi(await chamarApi(caminhoDoHash(inventoryId), { method: 'DELETE' }));
+  } catch {
+    return { ok: false, erro: 'Sem resposta do servidor' };
+  }
+}
+
+export type VeredictoTeste = 'sem-conexao' | 'recusado' | 'inesperado' | 'vazio' | 'sem-amostra' | 'nenhum-id' | 'ok';
+
+export interface ResultadoTesteHash {
+  ok: boolean;
+  /** Ausente só na falha HTTP. */
+  veredicto?: VeredictoTeste;
+  mensagem: string;
+  alertaSaldos?: boolean;
 }
 
 /**
- * Testa se o hash responde no ERP.
+ * Testa o hash salvo da loja, ou o candidato que o master digitou, com uma listagem no ERP.
  *
- * Hash errado devolve lista vazia em vez de erro, então "respondeu" não basta: o teste só
- * passa se vier ao menos um item.
+ * Sem teto próprio: a API já corta a listagem em `timeoutListarMs`, e cada leitura do
+ * Firestore em 10 s.
  */
-export async function testarHash(hash: string): Promise<{ ok: boolean; itens: number; erro?: string }> {
-  const leitura = await buscarEstoqueDoErp(hash);
-  if (!leitura.ok) return { ok: false, itens: 0, erro: leitura.erro ?? 'Falha na consulta' };
-  return { ok: leitura.itens > 0, itens: leitura.itens };
+export async function testarHash(inventoryId: string, hashCandidato?: string): Promise<ResultadoTesteHash> {
+  try {
+    const r = await chamarApi(`/erp/lojas/${encodeURIComponent(inventoryId)}/teste`, {
+      method: 'POST',
+      body: JSON.stringify(hashCandidato === undefined ? {} : { hash: hashCandidato }),
+    });
+    const corpo = (await r.json().catch(() => null)) as (Partial<ResultadoTesteHash> & { erro?: string }) | null;
+    if (!r.ok || typeof corpo?.mensagem !== 'string') {
+      return { ok: false, mensagem: corpo?.erro ?? `Falha ${r.status}` };
+    }
+    return { ok: corpo.ok === true, veredicto: corpo.veredicto, mensagem: corpo.mensagem, alertaSaldos: corpo.alertaSaldos };
+  } catch {
+    return { ok: false, mensagem: 'Sem resposta do servidor' };
+  }
+}
+
+/** Pelo `veredicto`, nunca pelo `ok`: a API manda `ok: true` em todo veredicto. */
+export function tomDoTeste(r: ResultadoTesteHash): 'success' | 'warning' | 'error' {
+  switch (r.veredicto) {
+    case 'ok':
+      return r.alertaSaldos ? 'warning' : 'success';
+    case 'sem-amostra':
+    case 'nenhum-id':
+      return 'warning';
+    default:
+      return 'error';
+  }
 }

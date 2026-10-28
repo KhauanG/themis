@@ -7,7 +7,7 @@ import { useToast } from '../../contexts/ToastContext.js';
 import { Icone } from '../../components/Icone.js';
 import { Modal } from '../../components/Modal.js';
 import { criarEstoque, excluirEstoque, renomearEstoque } from '../../lib/estoques-repo.js';
-import { carregarHashes, salvarHashDaLoja, testarHash } from '../../lib/erp.js';
+import { apagarHashDaLoja, lerHashesConfigurados, salvarHashDaLoja, testarHash, tomDoTeste } from '../../lib/erp.js';
 import { registrar } from '../../lib/historico.js';
 
 type Formulario = { id: string | null; nome: string; descricao: string; hashLoja: string };
@@ -15,7 +15,9 @@ type Formulario = { id: string | null; nome: string; descricao: string; hashLoja
 const VAZIO: Formulario = { id: null, nome: '', descricao: '', hashLoja: '' };
 
 export function TelaEstoques() {
-  const { permissoes } = useAuth();
+  const { permissoes, papel } = useAuth();
+  // papelDe aceita "true" e 1, e a API não. O C2 garante que nenhum perfil está assim.
+  const ehMaster = papel === 'master';
   const { estoques, estoqueAtual, trocarEstoque, contextoLog, configuracoes, alterarConfiguracoes } =
     useEstoque();
   const { mostrar } = useToast();
@@ -24,17 +26,17 @@ export function TelaEstoques() {
   const [excluindo, setExcluindo] = useState<Inventory | null>(null);
   const [confirmacao, setConfirmacao] = useState('');
   const [ocupado, setOcupado] = useState('');
-  const [hashes, setHashes] = useState<Map<string, string>>(new Map());
+  const [configurados, setConfigurados] = useState<Set<string>>(new Set());
   const [testando, setTestando] = useState(false);
-  // Leitura dos hashes falhou: salvar fica bloqueado (a tela não sabe o que há no banco).
+  // A leitura falhou: o selo "sem HashLoja" pode estar errado.
   const [erroHashes, setErroHashes] = useState(false);
 
   const editando = form?.id != null;
 
   const recarregarHashes = useCallback(() => {
-    carregarHashes()
+    lerHashesConfigurados()
       .then((lidos) => {
-        setHashes(lidos);
+        setConfigurados(lidos);
         setErroHashes(false);
       })
       .catch((erro) => {
@@ -44,21 +46,6 @@ export function TelaEstoques() {
   }, []);
 
   useEffect(recarregarHashes, [recarregarHashes]);
-
-  /**
-   * O hash vive num documento separado (`hashConfigs/inventoryHashes`), não no documento
-   * do estoque. Salvar os dois juntos aqui evita que alguém crie um estoque e só descubra
-   * na hora de corrigir que falta a amarração com o ERP.
-   */
-  async function salvarHashDoEstoque(inventoryId: string, hash: string) {
-    await salvarHashDaLoja(inventoryId, hash);
-    setHashes((atual) => {
-      const novo = new Map(atual);
-      if (hash.trim() === '') novo.delete(inventoryId);
-      else novo.set(inventoryId, hash.trim());
-      return novo;
-    });
-  }
 
   /** Travar ou destravar a contagem de um estoque. Reflete em todos os aparelhos. */
   async function alternarSomenteLeitura(inventoryId: string) {
@@ -94,15 +81,12 @@ export function TelaEstoques() {
   }
 
   async function testar() {
-    const hash = form?.hashLoja.trim();
-    if (!hash) return;
+    if (!form?.id) return;
     setTestando(true);
     try {
-      const r = await testarHash(hash);
-      if (r.ok) mostrar(`Hash válido — o ERP devolveu ${r.itens} produtos.`, 'success');
-      else if (r.erro) mostrar(`Falha ao consultar o ERP: ${r.erro}`, 'error');
-      // Hash errado devolve lista vazia em vez de erro; por isso a mensagem é específica.
-      else mostrar('O ERP respondeu, mas não devolveu nenhum produto. Confira o hash.', 'warning');
+      // Sem texto no campo, a API testa o hash salvo.
+      const r = await testarHash(form.id, form.hashLoja.trim() || undefined);
+      mostrar(r.mensagem, tomDoTeste(r));
     } finally {
       setTestando(false);
     }
@@ -113,23 +97,14 @@ export function TelaEstoques() {
     setOcupado(editando ? 'Salvando…' : 'Criando…');
     try {
       if (form.id) {
-        const antes = estoques.find((e) => e.id === form.id);
-        const hashAntes = hashes.get(form.id) ?? '';
+        const id = form.id;
+        const antes = estoques.find((e) => e.id === id);
+        const novoHash = form.hashLoja.trim();
+        await renomearEstoque(id, form.nome, form.descricao);
 
-        await renomearEstoque(form.id, form.nome, form.descricao);
-
-        /**
-         * Só grava o hash se ele **mudou**.
-         *
-         * `hashConfigs` exige master na regra (`allow create, update: if isMaster()`),
-         * enquanto renomear estoque é liberado para admin. Gravando sempre, todo save de
-         * um admin estourava em `permission-denied` — **depois** de o rename já ter dado
-         * certo. A tela dizia "não foi possível salvar", o nome tinha mudado, e a entrada
-         * de histórico nem chegava a ser escrita.
-         */
-        if (hashAntes !== form.hashLoja.trim()) {
-          await salvarHashDoEstoque(form.id, form.hashLoja);
-        }
+        // Vazio mantém o hash atual. Para a API, `''` apagaria.
+        const hash = ehMaster && novoHash !== '' ? await salvarHashDaLoja(id, novoHash) : null;
+        if (hash?.ok) setConfigurados((s) => new Set(s).add(id));
 
         if (contextoLog) {
           void registrar('EDITAR_ESTOQUE', contextoLog, {
@@ -138,20 +113,22 @@ export function TelaEstoques() {
             nomePara: form.nome.trim(),
             descricaoDe: antes?.descricao ?? '',
             descricaoPara: form.descricao.trim(),
-            hashAlterado: hashAntes !== form.hashLoja.trim(),
+            hashAlterado: hash?.ok === true,
           });
+        }
+        if (hash && !hash.ok) {
+          // O nome já mudou. O modal fica aberto, com o hash digitado, para tentar de novo.
+          mostrar(`Estoque salvo, mas o HashLoja não: ${hash.erro}`, 'error');
+          return;
         }
         mostrar('Estoque atualizado.', 'success');
       } else {
         const id = await criarEstoque(form.nome, form.descricao);
-        // Idem: estoque novo sem hash não precisa tocar em `hashConfigs`.
-        if (form.hashLoja.trim() !== '') await salvarHashDoEstoque(id, form.hashLoja);
 
         if (contextoLog) {
           void registrar('CRIAR_ESTOQUE', contextoLog, {
             estoque: form.nome.trim(),
             descricao: form.descricao.trim(),
-            comHash: form.hashLoja.trim() !== '',
           });
         }
         mostrar('Estoque criado. Importe a planilha para começar.', 'success');
@@ -160,10 +137,9 @@ export function TelaEstoques() {
       setForm(null);
     } catch (erro) {
       console.error('[estoques] Falha ao salvar:', erro);
-      // O HashLoja tem dono diferente do resto: a mensagem precisa dizer qual dos dois.
       mostrar(
         isPermissaoNegada(erro)
-          ? 'Sem permissão. Alterar estoque exige admin; alterar o HashLoja exige master.'
+          ? 'Sem permissão. Alterar estoque exige admin.'
           : 'Não foi possível salvar. Verifique a conexão e tente de novo.',
         'error',
       );
@@ -182,6 +158,10 @@ export function TelaEstoques() {
       const total = await excluirEstoque(alvo.id, (feitos, tudo) =>
         setOcupado(`Apagando produtos… ${feitos} de ${tudo}`),
       );
+      // Só depois da exclusão (spec 4.7). Se falhar, a chave fica órfã, ninguém a lê, e a limpeza do dono a tira.
+      const r = await apagarHashDaLoja(alvo.id);
+      if (!r.ok) console.warn('[estoques] O HashLoja do estoque excluído ficou no servidor:', r.erro);
+      setConfigurados((s) => { const n = new Set(s); n.delete(alvo.id); return n; });
       mostrar(`Estoque excluído, com ${total} ${total === 1 ? 'produto' : 'produtos'}.`, 'success');
       if (contextoLog) {
         void registrar('EXCLUIR_ESTOQUE', contextoLog, { estoque: alvo.nome, produtos: total });
@@ -213,8 +193,8 @@ export function TelaEstoques() {
 
       {erroHashes && (
         <p className="aviso aviso--perigo" role="alert">
-          Não foi possível ler os HashLoja. Salvar fica bloqueado para não gravar por cima do que
-          não foi lido. Recarregue a página.
+          Não foi possível ler quais estoques têm HashLoja. A lista pode mostrar "sem HashLoja" por
+          engano. Recarregue a página.
         </p>
       )}
 
@@ -294,7 +274,7 @@ export function TelaEstoques() {
                 <span className="acao__descricao">
                   {e.descricao ? `${e.descricao} · ` : ''}Ciclo {e.contagemCycle ?? 1}
                   {' · '}
-                  {hashes.has(e.id) ? (
+                  {configurados.has(e.id) ? (
                     <span className="etiqueta etiqueta--ok">ERP ligado</span>
                   ) : (
                     <span className="etiqueta etiqueta--alerta">sem HashLoja</span>
@@ -335,7 +315,7 @@ export function TelaEstoques() {
                       id: e.id,
                       nome: e.nome ?? '',
                       descricao: e.descricao ?? '',
-                      hashLoja: hashes.get(e.id) ?? '',
+                      hashLoja: '',
                     })
                   }
                   disabled={Boolean(ocupado)}
@@ -374,7 +354,7 @@ export function TelaEstoques() {
               className="botao botao--primario"
               type="button"
               onClick={() => void salvar()}
-              disabled={!form?.nome.trim() || Boolean(ocupado) || erroHashes}
+              disabled={!form?.nome.trim() || Boolean(ocupado)}
             >
               {editando ? 'Salvar' : 'Criar'}
             </button>
@@ -404,36 +384,51 @@ export function TelaEstoques() {
             <span className="campo__ajuda">Opcional. Ex.: endereço ou responsável.</span>
           </label>
 
-          <label className="campo">
-            <span className="campo__rotulo">HashLoja (ERP)</span>
-            <input
-              className="campo__entrada"
-              value={form?.hashLoja ?? ''}
-              onChange={(e) => setForm((f) => (f ? { ...f, hashLoja: e.target.value } : f))}
-              autoComplete="off"
-              spellCheck={false}
-            />
-            <span className="campo__ajuda">
-              É o que amarra este estoque à loja no ERP. Sem ele, Buscar estoque e Corrigir
-              estoque não funcionam.
-            </span>
-          </label>
-
-          {form?.hashLoja.trim() && (
-            <button
-              className="botao botao--secundario botao--largo"
-              type="button"
-              onClick={() => void testar()}
-              disabled={testando}
-            >
-              {testando ? 'Consultando o ERP…' : 'Testar hash'}
-            </button>
+          {/* `form?.id != null` é o `editando`, com o tipo estreitado. */}
+          {form?.id != null && ehMaster && (
+            <label className="campo">
+              <span className="campo__rotulo">Novo HashLoja (ERP)</span>
+              {/* O Chrome ignora `off` em campo de senha e ofereceria salvar o hash como senha. */}
+              <input
+                className="campo__entrada"
+                type="password"
+                value={form.hashLoja}
+                onChange={(e) => setForm((f) => (f ? { ...f, hashLoja: e.target.value } : f))}
+                autoComplete="one-time-code"
+                spellCheck={false}
+              />
+              <span className="campo__ajuda">
+                {!erroHashes &&
+                  (configurados.has(form.id)
+                    ? 'Este estoque já tem HashLoja. '
+                    : 'Este estoque ainda não tem HashLoja. ')}
+                Por segurança, o salvo nunca aparece. Cole um novo só para trocar; vazio mantém o
+                atual.
+              </span>
+            </label>
           )}
+
+          {/* Sem hash salvo, a API responde 409. Com a leitura falha, a tela não sabe. */}
+          {form?.id != null &&
+            (form.hashLoja.trim() !== '' || configurados.has(form.id) || erroHashes) && (
+              <button
+                className="botao botao--secundario botao--largo"
+                type="button"
+                onClick={() => void testar()}
+                disabled={testando}
+              >
+                {testando
+                  ? 'Consultando o ERP…'
+                  : form.hashLoja.trim() !== ''
+                    ? 'Testar o hash digitado'
+                    : 'Testar o hash salvo'}
+              </button>
+            )}
 
           {!editando && (
             <p className="aviso aviso--info">
               O estoque nasce vazio, no ciclo 1. Importe a planilha em Produtos para
-              carregar os itens.
+              carregar os itens. Ele nasce sem HashLoja; o master cola o hash depois, em Editar.
             </p>
           )}
         </div>

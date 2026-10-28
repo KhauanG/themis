@@ -13,14 +13,15 @@
  * Só olhando a resposta crua dá para saber qual é. É o diagnóstico que o `auditoria.js` do
  * 1.x imprimia no console (`Exemplo de item da API`), fora do navegador e sem adivinhação.
  *
- * ## Uso
+ * ## Uso (PowerShell, numa linha só)
  *
- *   npx tsx scripts/diagnosticar-erp.mts <hashLoja>
- *   npx tsx scripts/diagnosticar-erp.mts <hashLoja> 30289733 24028455
- *   npx tsx scripts/diagnosticar-erp.mts <hashLoja> --planilha planilhaprodutos.xlsx
+ *   & { $env:HASH_LOJA = Get-Clipboard; try { npx tsx scripts/diagnosticar-erp.mts [idProduto...] [--planilha <arquivo>] } finally { Remove-Item Env:HASH_LOJA -ErrorAction SilentlyContinue; Set-Clipboard -Value ' ' } }
  *
- * O HashLoja aparece na tela **Estoques** do app. Os ids soltos são consultados um a um —
- * é o que se compara com o Nuvem3 aberto do lado.
+ * Copie antes o HashLoja do painel do Nuvem3: o Themis não mostra o hash. Ele vem pela
+ * variável, e não por argumento, para não ficar no histórico do PowerShell. O `finally` apaga
+ * a variável e limpa a área de transferência, mesmo com Ctrl+C. Com o histórico do Win+V
+ * ligado, apague o item ali também. Os ids soltos são consultados um a um, para comparar com
+ * o Nuvem3 aberto do lado.
  *
  * `--planilha` cruza o catálogo inteiro contra a listagem e responde a pergunta que um
  * produto sozinho não responde: **os ausentes têm algo em comum?** Se todos estavam
@@ -38,12 +39,13 @@ const URL_LISTAR =
 const argumentos = process.argv.slice(2);
 const iPlanilha = argumentos.indexOf('--planilha');
 const caminhoPlanilha = iPlanilha >= 0 ? argumentos[iPlanilha + 1] : undefined;
-const soltos = argumentos.filter((_, i) => i !== iPlanilha && i !== iPlanilha + 1);
-const [hashLoja, ...idsProcurados] = soltos;
+const soltos = iPlanilha < 0 ? argumentos : argumentos.filter((_, i) => i !== iPlanilha && i !== iPlanilha + 1);
+const hashLoja = process.env['HASH_LOJA']?.trim();
+const idsProcurados = soltos;
 
 if (!hashLoja) {
-  console.error('Uso: npx tsx scripts/diagnosticar-erp.mts <hashLoja> [idProduto...] [--planilha <arquivo>]');
-  console.error('O HashLoja está na tela Estoques do app.');
+  console.error("Uso (PowerShell, numa linha só): & { $env:HASH_LOJA = Get-Clipboard; try { npx tsx scripts/diagnosticar-erp.mts [idProduto...] [--planilha <arquivo>] } finally { Remove-Item Env:HASH_LOJA -ErrorAction SilentlyContinue; Set-Clipboard -Value ' ' } }");
+  console.error('Copie antes o HashLoja do painel do Nuvem3: o Themis não mostra o hash.');
   process.exit(1);
 }
 
@@ -69,7 +71,7 @@ function chaves(valor: unknown): string[] {
 }
 
 const url = `${URL_LISTAR}/${encodeURIComponent(hashLoja)}`;
-console.log(`GET ${url}\n`);
+console.log(`GET ${URL_LISTAR}/<HashLoja>\n`);
 
 const controller = new AbortController();
 const timer = setTimeout(() => controller.abort(), 60_000);
@@ -86,11 +88,19 @@ try {
 
 console.log(`HTTP ${resposta.status} ${resposta.statusText}`);
 if (!resposta.ok) {
-  console.error(`\nCorpo:\n${(await resposta.text()).slice(0, 500)}`);
+  console.error(`\nCorpo com ${(await resposta.text()).length} caracteres (não impresso).`);
   process.exit(1);
 }
 
-const bruto: unknown = await resposta.json();
+// O corpo do ERP pode repetir o hash: só o tamanho dele aparece.
+const texto = await resposta.text();
+let bruto: unknown;
+try {
+  bruto = JSON.parse(texto);
+} catch {
+  console.error(`\nO corpo não é JSON (${texto.length} caracteres, não impresso).`);
+  process.exit(1);
+}
 
 // O ERP às vezes embrulha o array — mesmo desembrulho da API.
 let itens: unknown = bruto;
@@ -101,8 +111,7 @@ if (!Array.isArray(itens) && bruto && typeof bruto === 'object') {
 }
 
 if (!Array.isArray(itens)) {
-  console.error(`\nA resposta não é uma lista. Veio um ${typeof bruto}:`);
-  console.error(JSON.stringify(bruto).slice(0, 500));
+  console.error(`\nA resposta não é uma lista: veio um ${typeof bruto} com ${texto.length} caracteres (não impresso).`);
   process.exit(1);
 }
 

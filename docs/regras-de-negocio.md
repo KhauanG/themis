@@ -304,6 +304,9 @@ botão, clica e leva `permission-denied` — promessa que o banco não cumpre. F
 acontecia com o Histórico (interface liberava admin e auditor, regra exige master) e com o
 HashLoja (tela liberava admin, regra exige master).
 
+Desde a 2.22.0, quem decide o HashLoja é a API: só o master vê o campo e grava (PUT e DELETE
+`.../hash`), e o admin não mexe em hash.
+
 Casos em que a regra é mais restrita que o papel sugere:
 
 | Recurso | Regra exige | Onde aparece |
