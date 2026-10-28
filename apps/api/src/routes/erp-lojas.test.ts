@@ -463,7 +463,7 @@ describe('POST /api/erp/lojas/:inventoryId/teste — só lista, nunca grava', ()
     const linha = linhas.find((l) => l.includes('"veredicto":"inesperado"')) ?? '';
     expect(linha).toContain('"formato":"object"');
     expect(linha).toContain('"tamanho":7');
-    expect(linhas.join('\n')).not.toMatch(/"x\?":1/);
+    expect(linhas.join('\n')).not.toMatch(/"x\\?":1/);
   });
 
   // O site sempre manda `{}` ou `{ hash }` (Task 13). Sem corpo, o schema dá 400, que não vira 503.
