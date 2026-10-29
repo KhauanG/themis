@@ -1,13 +1,13 @@
 /**
  * Configurações globais — `appSettings/global`.
  *
- * São três interruptores que mudam o que a equipe pode fazer, e por isso valem para todo
+ * São dois interruptores que mudam o que a equipe pode fazer, e por isso valem para todo
  * mundo ao mesmo tempo, com listener em tempo real: ligar o modo contagem no escritório
  * precisa refletir no celular do depósito sem ninguém recarregar nada.
  *
- * ⚠️ A regra do Firestore confere o tipo de `modoContagem`, `readonlyInventories`,
- * `mostrarCiclo` e `lastUpdated` — e o campo de data chama `lastUpdated`, não `updatedAt`.
- * Escrita exige admin ou master.
+ * ⚠️ A regra do Firestore confere o tipo de `modoContagem`, `readonlyInventories`, `lastUpdated`
+ * e do interruptor antigo do ciclo (que saiu do site: o campo fica no documento, sem efeito) —
+ * e o campo de data chama `lastUpdated`, não `updatedAt`. Escrita exige admin ou master.
  */
 import { Timestamp, doc, getDoc, onSnapshot, setDoc, type DocumentData } from 'firebase/firestore';
 import { db } from './firebase.js';
@@ -25,24 +25,11 @@ export interface Configuracoes {
   modoContagem: boolean;
   /** Estoques onde ninguém pode contar nem editar produto. */
   somenteLeitura: string[];
-  /**
-   * Mostrar o número do ciclo ao lado do lote, na auditoria e nos relatórios.
-   *
-   * Existe para a transição: auditoria salva antes do lote só tem o ciclo, e durante as
-   * primeiras semanas as pessoas ainda procuram pelo número antigo. Quando a equipe estiver
-   * usando só lote, um master desliga — e o ciclo some da tela, continuando como número
-   * interno.
-   *
-   * **Ligado por padrão**, e é o certo: o custo de mostrar um número a mais é ruído; o de
-   * esconder cedo demais é alguém não achar a contagem que procura.
-   */
-  mostrarCiclo: boolean;
 }
 
 export const CONFIGURACOES_PADRAO: Configuracoes = {
   modoContagem: false,
   somenteLeitura: [],
-  mostrarCiclo: true,
 };
 
 function paraConfiguracoes(dados: DocumentData | undefined): Configuracoes {
@@ -50,9 +37,6 @@ function paraConfiguracoes(dados: DocumentData | undefined): Configuracoes {
   const lista = dados['readonlyInventories'];
   return {
     modoContagem: dados['modoContagem'] === true,
-    // `!== false` e não `=== true`: o documento existente não tem a chave, e a
-    // ausência precisa significar "mostrar", não "esconder".
-    mostrarCiclo: dados['mostrarCiclo'] !== false,
     somenteLeitura: Array.isArray(lista) ? lista.map(String) : [],
   };
 }
@@ -92,7 +76,6 @@ export async function salvarConfiguracoes(config: Configuracoes): Promise<void> 
       {
         modoContagem: config.modoContagem,
         readonlyInventories: config.somenteLeitura,
-        mostrarCiclo: config.mostrarCiclo,
         // A regra cobra `lastUpdated`; `updatedAt` seria negado.
         lastUpdated: Timestamp.fromDate(new Date()),
       },

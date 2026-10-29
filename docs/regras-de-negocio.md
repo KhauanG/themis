@@ -169,14 +169,13 @@ escrita a mais. Por isso o texto do lote velho fica no documento, e quem lê o l
 O `contagemCycle` **continua existindo** como número interno: as Security Rules exigem
 `contagemCycle is number >= 1` ao criar auditoria.
 
-### Transição de Ciclo para Lote
+### O ciclo fora da tela
 
-`appSettings.mostrarCiclo`, **ligado por padrão**, controla se a rodada aparece como
-`Lote X · Ciclo N` ou só `Lote X`. Um master desliga em Estoques → Configurações globais
-quando a equipe estiver usando só o lote.
+Desde a 2.23, nenhuma tela, PDF ou mensagem mostra o ciclo. A rodada aparece como `Lote X` ou
+`Sem lote`, e a auditoria salva aparece pelo lote e pela data (só a data quando não tem lote).
 
-⚠️ Auditoria salva antes do lote mostra o ciclo **mesmo com o interruptor desligado** — é a
-única identificação que ela tem.
+O `appSettings.mostrarCiclo` saiu do site. O campo antigo fica no documento, sem efeito, e a
+regra continua aceitando-o (`firestore/firestore.rules:233`).
 
 ---
 

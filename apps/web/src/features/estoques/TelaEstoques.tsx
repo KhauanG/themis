@@ -65,10 +65,6 @@ export function TelaEstoques() {
     }
   }
 
-  async function alternarMostrarCiclo() {
-    await alterarConfiguracoes({ mostrarCiclo: !configuracoes.mostrarCiclo });
-  }
-
   async function alternarModoContagem() {
     const antes = configuracoes.modoContagem;
     await alterarConfiguracoes({ modoContagem: !antes });
@@ -216,29 +212,6 @@ export function TelaEstoques() {
             Ligado, bloqueia importar planilha e limpar contagem — <strong>mesmo para
             admin</strong>. Serve para ninguém apagar a contagem no meio da operação. Vale
             para todos os aparelhos, na hora.
-          </p>
-
-          {/*
-            Interruptor de transição. Nasce ligado e a ideia é desligá-lo quando a equipe
-            estiver usando só lote — por isso o texto diz o que acontece ao desligar, e não
-            só o que ele é.
-          */}
-          <button
-            type="button"
-            className={configuracoes.mostrarCiclo ? 'alternador alternador--ligado' : 'alternador'}
-            onClick={() => void alternarMostrarCiclo()}
-            aria-pressed={configuracoes.mostrarCiclo}
-          >
-            <span className="alternador__marca" aria-hidden="true" />
-            Mostrar o ciclo junto do lote
-          </button>
-
-          <p className="campo__ajuda">
-            Ligado, a auditoria mostra <strong>Lote X · Ciclo N</strong>. Serve para a
-            transição: quem procura uma contagem antiga ainda tem o número do ciclo na
-            cabeça. Desligue quando a equipe estiver usando só o lote — o ciclo some da tela
-            e continua existindo como número interno. Contagem salva antes do lote mostra o
-            ciclo de qualquer jeito: é a única identificação que ela tem.
           </p>
         </div>
       </div>
