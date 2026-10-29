@@ -29,7 +29,7 @@ export interface OpcaoFiltro {
 
 export const FILTROS: OpcaoFiltro[] = [
   { id: 'all', rotulo: 'Todos', vazio: 'Nenhum produto no estoque' },
-  { id: 'pendentes', rotulo: 'A contar', vazio: 'Tudo contado neste ciclo' },
+  { id: 'pendentes', rotulo: 'A contar', vazio: 'Tudo contado nesta rodada' },
   { id: 'updated', rotulo: 'Contados', vazio: 'Nenhum item foi contado nesta rodada' },
   { id: 'no-barcode', rotulo: 'Sem código', vazio: 'Nenhum produto sem código de barras' },
   {

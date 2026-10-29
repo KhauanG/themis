@@ -153,7 +153,7 @@ export function TelaHistorico() {
 
                     <div className="evento__corpo">
                       <div className="evento__cabecalho">
-                        <span className="evento__acao">{ROTULO_ACAO[e.action] ?? e.action}</span>
+                        <span className="evento__acao">{desc.rotulo ?? ROTULO_ACAO[e.action] ?? e.action}</span>
                         <span className="evento__quando">
                           {e.quando.toLocaleTimeString('pt-BR', {
                             hour: '2-digit',

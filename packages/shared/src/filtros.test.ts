@@ -210,3 +210,7 @@ describe('filtrosVisiveis', () => {
     expect(filtrosVisiveis(true).map((f) => f.id)).toContain('negative');
   });
 });
+
+it('aba A contar vazia fala da rodada, não do ciclo', () => {
+  expect(FILTROS.find((f) => f.id === 'pendentes')?.vazio).toBe('Tudo contado nesta rodada');
+});

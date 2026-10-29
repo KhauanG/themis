@@ -62,6 +62,8 @@ export interface Mudanca {
 }
 
 export interface DescricaoEvento {
+  /** Rótulo da ação quando os detalhes pedem um próprio. Sem ele, vale o `ROTULO_ACAO`. */
+  rotulo?: string;
   /** Sobre o que a ação foi: nome do produto, do estoque, do usuário. */
   alvo?: string;
   /** Alterações no formato "de → para". */
@@ -113,6 +115,11 @@ export function descreverEvento(acao: AcaoHistorico, detalhes: Detalhes = {}): D
     case 'MODIFICAR_PRODUTO': {
       // O site grava produto/de/para; o app (e o acervo do 1.x) grava productName/old*/new*.
       // O formato do site vence quando os dois aparecem.
+      if (d['acao'] === 'ABRIR_LOTE') {
+        // Só o texto do lote conta: '' e null não viram "Lote —".
+        const lote = typeof d['lote'] === 'string' ? d['lote'].trim() : '';
+        return { rotulo: 'Abriu lote', mudancas, fatos: lote ? [`Lote ${lote}`] : [] };
+      }
       adicionar(mudanca('Quantidade', d['de'] ?? d['oldQuantity'], d['para'] ?? d['newQuantity']));
       adicionar(
         mudanca(
@@ -123,7 +130,6 @@ export function descreverEvento(acao: AcaoHistorico, detalhes: Detalhes = {}): D
         ),
       );
       adicionar(mudanca('Código de barras', d['oldBarcode'], d['newBarcode']));
-      if (d['ciclo'] !== undefined) fatos.push(`Ciclo ${texto(d['ciclo'])}`);
       const alvo = d['produto'] || d['productName'];
       return { alvo: alvo ? String(alvo) : undefined, mudancas, fatos };
     }
@@ -146,7 +152,7 @@ export function descreverEvento(acao: AcaoHistorico, detalhes: Detalhes = {}): D
     }
 
     case 'EXCLUIR_PRODUTO': {
-      if (d['tinhaContagem'] === true) fatos.push('O item já estava contado neste ciclo');
+      if (d['tinhaContagem'] === true) fatos.push('O item já estava contado nesta rodada');
       return { alvo: d['produto'] ? String(d['produto']) : undefined, mudancas, fatos };
     }
 
@@ -171,7 +177,6 @@ export function descreverEvento(acao: AcaoHistorico, detalhes: Detalhes = {}): D
         fatos.push(`${plural(Number(d['total']), 'produto zerado', 'produtos zerados')}`);
       }
       fatos.push('Quantidade, status e validade apagados');
-      if (d['ciclo'] !== undefined) fatos.push(`Ciclo ${texto(d['ciclo'])}`);
       return { mudancas, fatos };
     }
 
@@ -219,12 +224,11 @@ export function descreverEvento(acao: AcaoHistorico, detalhes: Detalhes = {}): D
         fatos.push(`${texto(d['falhasNoEnvio'])} recusados pelo ERP`);
       }
       if (d['interrompido'] === true) fatos.push('Interrompido antes do fim');
-      if (d['ciclo'] !== undefined) fatos.push(`Ciclo ${texto(d['ciclo'])}`);
       return { mudancas, fatos };
     }
 
     case 'FINALIZAR_CONTAGEM': {
-      if (d['ciclo'] !== undefined) fatos.push(`Ciclo ${texto(d['ciclo'])} fechado`);
+      if (d['ciclo'] !== undefined) fatos.push('Contagem fechada');
       if (d['contados'] !== undefined) fatos.push(`${texto(d['contados'])} contados`);
       if (d['naoContados'] !== undefined) fatos.push(`${texto(d['naoContados'])} não contados`);
       if (d['incorretos'] !== undefined) fatos.push(`${texto(d['incorretos'])} divergentes`);
@@ -284,7 +288,7 @@ export function descreverEvento(acao: AcaoHistorico, detalhes: Detalhes = {}): D
       // Ação sem formatação própria (ou gravada pelo 1.x com outro formato): mostra os
       // pares crus em vez de esconder. Registro parcial é melhor que registro nenhum.
       for (const [chave, valor] of Object.entries(d)) {
-        if (valor === null || valor === undefined || typeof valor === 'object') continue;
+        if (chave === 'ciclo' || valor === null || valor === undefined || typeof valor === 'object') continue;
         fatos.push(`${chave}: ${texto(valor)}`);
       }
       return { mudancas, fatos };

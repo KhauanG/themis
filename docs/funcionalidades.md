@@ -384,12 +384,11 @@ Contou produto                                    14:32
 Skol Lata 350ml
 QUANTIDADE          12  →  15
 VALIDADE             —  →  01/09/2026
-Ciclo 3
 Khauan · Android SM-A536 (a3f091)
 ```
 
 O valor antigo aparece riscado e o novo em destaque. A formatação vive em
-`packages/shared/src/historico-descricao.ts`, é função pura e tem 23 testes — a tela só
+`packages/shared/src/historico-descricao.ts`, é função pura e tem 31 testes — a tela só
 desenha o que sai de lá.
 
 ### O que é registrado
@@ -397,6 +396,7 @@ desenha o que sai de lá.
 | Ação | Detalhes guardados |
 |---|---|
 | Contou produto | produto, quantidade de → para, validade de → para, código de barras (registro do app), ciclo |
+| Abriu lote | lote e ciclo (gravado como "Contou produto", com `acao: 'ABRIR_LOTE'`) |
 | Conferiu item | produto, se a divergência se confirmou, contado, sistema |
 | Cadastrou produto | nome, código, saldo, origem |
 | Editou produto | nome, código, saldo e código do ERP, cada um de → para |
@@ -411,6 +411,8 @@ desenha o que sai de lá.
 | Alterou papel | usuário, papel de → para |
 | Alterou configuração | modo contagem de → para, estoque travado ou liberado |
 | Entrou no sistema | uma vez por sessão, quando o estoque já está escolhido |
+
+O ciclo continua gravado nos detalhes, mas não aparece na tela.
 
 ⚠️ Ao gravar um "de → para", **capture o valor antigo antes da escrita**: depois dela o
 objeto em memória já é o novo, e o histórico perde a origem.

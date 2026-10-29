@@ -7,7 +7,7 @@ describe('descreverEvento — contagem', () => {
    * O caso que motivou o módulo: antes o histórico mostrava `de: 12 · para: 15`, que não
    * responde "o que mudou".
    */
-  it('mostra o produto e a quantidade de → para', () => {
+  it('mostra o produto e a quantidade de → para, sem o ciclo', () => {
     const r = descreverEvento('MODIFICAR_PRODUTO', {
       produto: 'Skol Lata 350ml',
       de: 12,
@@ -17,7 +17,7 @@ describe('descreverEvento — contagem', () => {
 
     expect(r.alvo).toBe('Skol Lata 350ml');
     expect(r.mudancas).toContainEqual({ campo: 'Quantidade', de: '12', para: '15' });
-    expect(r.fatos).toContain('Ciclo 3');
+    expect(r.fatos).toEqual([]);
   });
 
   it('primeira contagem mostra traço na origem', () => {
@@ -85,6 +85,30 @@ describe('descreverEvento — contagem', () => {
     expect(r.alvo).toBe('Do site');
     expect(r.mudancas).toEqual([{ campo: 'Quantidade', de: '1', para: '2' }]);
   });
+
+  // Gravado pelo site desde a 2.18 como MODIFICAR_PRODUTO (EstoqueContext.tsx:513-517) e,
+  // no 5.2.0, também pelo app. Antes aparecia como "Contou produto" com "Ciclo N".
+  it('abrir lote tem rótulo próprio e mostra o lote', () => {
+    expect(descreverEvento('MODIFICAR_PRODUTO', { acao: 'ABRIR_LOTE', lote: '29-10 manhã', ciclo: 14 })).toEqual({
+      rotulo: 'Abriu lote',
+      mudancas: [],
+      fatos: ['Lote 29-10 manhã'],
+    });
+  });
+
+  it('abrir lote sem o lote nos detalhes não inventa "Lote —"', () => {
+    for (const lote of [undefined, '', '  ', null]) {
+      expect(descreverEvento('MODIFICAR_PRODUTO', { acao: 'ABRIR_LOTE', lote, ciclo: 14 })).toEqual({
+        rotulo: 'Abriu lote',
+        mudancas: [],
+        fatos: [],
+      });
+    }
+  });
+
+  it('contagem comum não ganha rótulo próprio', () => {
+    expect(descreverEvento('MODIFICAR_PRODUTO', { produto: 'Brahma', de: 1, para: 2 }).rotulo).toBeUndefined();
+  });
 });
 
 describe('descreverEvento — cadastro', () => {
@@ -106,7 +130,7 @@ describe('descreverEvento — cadastro', () => {
   it('exclusão avisa quando o item já estava contado', () => {
     const r = descreverEvento('EXCLUIR_PRODUTO', { produto: 'Corona', tinhaContagem: true });
     expect(r.alvo).toBe('Corona');
-    expect(r.fatos).toContain('O item já estava contado neste ciclo');
+    expect(r.fatos).toContain('O item já estava contado nesta rodada');
   });
 });
 
@@ -134,8 +158,7 @@ describe('descreverEvento — conferência', () => {
 describe('descreverEvento — operações em massa', () => {
   it('limpar contagem diz o que foi apagado', () => {
     const r = descreverEvento('LIMPAR_CONTAGEM', { total: 1843, ciclo: 4 });
-    expect(r.fatos).toContain('1843 produtos zerados');
-    expect(r.fatos).toContain('Quantidade, status e validade apagados');
+    expect(r.fatos).toEqual(['1843 produtos zerados', 'Quantidade, status e validade apagados']);
   });
 
   it('importação omite ignoradas quando não houve', () => {
@@ -173,6 +196,16 @@ describe('descreverEvento — operações em massa', () => {
     expect(r.fatos).toContain('PDF da contagem');
     expect(r.fatos).toContain('40 de 2000 itens');
   });
+
+  it('corrigir estoque não mostra o ciclo', () => {
+    expect(descreverEvento('CORRIGIR_ESTOQUE', { conferidos: 2, ciclo: 7 }).fatos).toEqual(['2 itens conferidos']);
+  });
+
+  it('finalizar diz "Contagem fechada", sem o número', () => {
+    expect(
+      descreverEvento('FINALIZAR_CONTAGEM', { auditoriaId: 'E1_14', ciclo: 14, contados: 120, naoContados: 3, incorretos: 2 }).fatos,
+    ).toEqual(['Contagem fechada', '120 contados', '3 não contados', '2 divergentes']);
+  });
 });
 
 describe('descreverEvento — singular e plural', () => {
@@ -200,6 +233,17 @@ describe('descreverEvento — ação desconhecida', () => {
 
   it('não quebra sem detalhes', () => {
     expect(descreverEvento('LOGIN')).toEqual({ mudancas: [], fatos: [] });
+  });
+
+  it('ação sem formatação própria esconde a chave ciclo', () => {
+    expect(descreverEvento('LIMPAR_ESTOQUE', { productsUpdated: 12, ciclo: 9 }).fatos).toEqual(['productsUpdated: 12']);
+  });
+
+  // Formato do 1.x (www/app.js:3986-3990, no repositório do app): o caso próprio não lê essas chaves.
+  it('FINALIZAR_CONTAGEM do 1.x não mostra o nome nem o ciclo', () => {
+    expect(
+      descreverEvento('FINALIZAR_CONTAGEM', { auditoriaId: 'x', nome: 'Loja - Contagem #9 - 01/08/2026', cicloFinalizado: 9 }).fatos,
+    ).toEqual([]);
   });
 });
 
