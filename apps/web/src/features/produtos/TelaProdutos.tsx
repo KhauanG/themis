@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { travaAntesDeGravar } from '@themis/shared';
+import { rotuloDaRodada, travaAntesDeGravar } from '@themis/shared';
 import { useEstoque } from '../../contexts/EstoqueContext.js';
 import { useAuth } from '../../contexts/AuthContext.js';
 import { useToast } from '../../contexts/ToastContext.js';
@@ -312,8 +312,7 @@ export function TelaProdutos() {
         <h1 className="titulo-tela">Produtos e estoque</h1>
         <p className="subtitulo">
           {estoqueAtual?.nome ?? '—'} · {produtos.length}{' '}
-          {produtos.length === 1 ? 'produto' : 'produtos'} · {progresso.contados} contados no ciclo{' '}
-          {ciclo}
+          {produtos.length === 1 ? 'produto' : 'produtos'} · {progresso.contados} contados · {rotuloDaRodada(estoqueAtual)}
         </p>
       </div>
 

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { Inventory } from '@themis/shared';
+import { rotuloDaRodada, type Inventory } from '@themis/shared';
 import { useAuth } from '../../contexts/AuthContext.js';
 import { isPermissaoNegada } from '../../lib/fila-offline.js';
 import { useEstoque } from '../../contexts/EstoqueContext.js';
@@ -272,7 +272,7 @@ export function TelaEstoques() {
                   )}
                 </span>
                 <span className="acao__descricao">
-                  {e.descricao ? `${e.descricao} · ` : ''}Ciclo {e.contagemCycle ?? 1}
+                  {e.descricao ? `${e.descricao} · ` : ''}{rotuloDaRodada(e)}
                   {' · '}
                   {configurados.has(e.id) ? (
                     <span className="etiqueta etiqueta--ok">ERP ligado</span>
@@ -427,7 +427,7 @@ export function TelaEstoques() {
 
           {!editando && (
             <p className="aviso aviso--info">
-              O estoque nasce vazio, no ciclo 1. Importe a planilha em Produtos para
+              O estoque nasce vazio e sem lote. Importe a planilha em Produtos para
               carregar os itens. Ele nasce sem HashLoja; o master cola o hash depois, em Editar.
             </p>
           )}
@@ -467,8 +467,7 @@ export function TelaEstoques() {
         <div className="pilha">
           <p>
             Apaga <strong>{excluindo?.nome}</strong> e{' '}
-            <strong>todos os produtos dentro dele</strong>, incluindo as contagens do ciclo
-            atual.
+            <strong>todos os produtos dentro dele</strong>, incluindo a contagem em andamento.
           </p>
           <p className="aviso aviso--perigo">
             Não dá para desfazer. As auditorias já salvas continuam existindo — elas guardam

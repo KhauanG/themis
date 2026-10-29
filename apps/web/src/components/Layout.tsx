@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
+import { rotuloDaRodada } from '@themis/shared';
 import { useAuth } from '../contexts/AuthContext.js';
 import { useEstoque } from '../contexts/EstoqueContext.js';
 import { FaixaConexao } from './FaixaConexao.js';
@@ -15,7 +16,7 @@ interface Aba {
 
 export function Layout() {
   const { nome, papel, permissoes, usuario, sair } = useAuth();
-  const { estoques, estoqueAtual, trocarEstoque, ciclo, progresso, online, pendentes, carregandoProdutos, conciliando, lote } =
+  const { estoques, estoqueAtual, trocarEstoque, progresso, online, pendentes, carregandoProdutos, conciliando } =
     useEstoque();
 
   const [menuAberto, setMenuAberto] = useState(false);
@@ -64,9 +65,9 @@ export function Layout() {
               Era a origem do "começa alto e vai baixando".
             */}
             <p className="topo__contexto">
-              {/* O Lote substitui o Ciclo como referência da rodada. Sem lote, mostra
-                  o ciclo — auditoria antiga e rodada recém-limpa só têm ele. */}
-              <span>{lote ? `Lote ${lote}` : `Ciclo ${ciclo}`}</span>
+              {/* O Lote é a referência da rodada. Sem lote ativo, aparece "Sem lote":
+                  o contagemCycle é interno e não vai à tela. */}
+              <span>{rotuloDaRodada(estoqueAtual)}</span>
               {carregandoProdutos || conciliando ? (
                 <>
                   <span aria-hidden="true">·</span>
@@ -159,7 +160,7 @@ export function Layout() {
                   </span>
                   <span className="acao__texto">
                     <span className="acao__titulo">{e.nome ?? e.id}</span>
-                    <span className="acao__descricao">Ciclo {e.contagemCycle ?? 1}</span>
+                    <span className="acao__descricao">{rotuloDaRodada(e)}</span>
                   </span>
                   {atual && <span className="etiqueta etiqueta--acento">Atual</span>}
                 </button>

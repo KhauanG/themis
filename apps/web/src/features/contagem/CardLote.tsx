@@ -25,7 +25,7 @@ interface Props {
  * que não pode contar.
  */
 export function CardLote({ aberto, onFechar }: Props) {
-  const { abrirLoteDaRodada, estoqueAtual, ciclo } = useEstoque();
+  const { abrirLoteDaRodada, estoqueAtual } = useEstoque();
   const { mostrar } = useToast();
 
   const [texto, setTexto] = useState('');
@@ -100,8 +100,6 @@ export function CardLote({ aberto, onFechar }: Props) {
           </span>
         </label>
       </form>
-
-      <p className="campo__ajuda">Ciclo interno {ciclo} · usado só para o histórico.</p>
     </Modal>
   );
 }

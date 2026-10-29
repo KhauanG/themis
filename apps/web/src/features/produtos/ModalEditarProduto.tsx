@@ -166,7 +166,7 @@ export function ModalEditarProduto({ produto, onFechar }: Props) {
           </p>
           {contado && (
             <p className="aviso">
-              Este item já foi contado neste ciclo. A contagem some junto.
+              Este item já foi contado nesta rodada. A contagem some junto.
             </p>
           )}
           <p className="aviso aviso--perigo">
