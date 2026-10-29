@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { calcularEstatisticas } from '@themis/shared';
+import { calcularEstatisticas, nomeDaAuditoria } from '@themis/shared';
 import { Modal } from '../../components/Modal.js';
 import { useEstoque } from '../../contexts/EstoqueContext.js';
 import { useAuth } from '../../contexts/AuthContext.js';
@@ -31,9 +31,9 @@ export function ModalFinalizar({ aberto, onFechar }: Props) {
    * Se a gravação estoura o tempo mas chega ao servidor, o listener já mostra o ciclo N+1. Sem
    * isto, o clique seguinte usaria o `ciclo` da tela (N+1) e finalizaria o ciclo seguinte, que
    * ninguém contou. Com o alvo, a transação acha a auditoria N e responde "já finalizada". Se a
-   * tela já estiver noutro ciclo, o alvo pode ser de uma rodada anterior: o aviso diz qual ciclo
-   * estava salvo e o modal fica aberto. Fechar e reabrir não o perde: o `Layout` mantém este
-   * componente montado. Recarregar a página perde.
+   * tela já estiver noutro ciclo, o alvo pode ser de uma rodada anterior: o aviso diz que a
+   * finalização já estava salva, sem o número, e o modal fica aberto. Fechar e reabrir não o
+   * perde: o `Layout` mantém este componente montado. Recarregar a página perde.
    */
   const alvo = useRef<{ inventoryId: string; ciclo: number } | null>(null);
   /**
@@ -81,9 +81,8 @@ export function ModalFinalizar({ aberto, onFechar }: Props) {
       // Alvo de outro estoque não vale aqui; o deste estoque começa no ciclo da tela.
       if (alvo.current?.inventoryId !== estoqueAtual.id) alvo.current = { inventoryId: estoqueAtual.id, ciclo };
       const cicloDaTentativa = alvo.current.ciclo;
-      // Nome pelo lote quando há: é o rótulo pelo qual a equipe procura a contagem.
-      const rodada = lote ? `Lote ${lote}` : `Ciclo ${cicloDaTentativa}`;
-      const nomeAuditoria = `${estoqueAtual.nome ?? estoqueAtual.id} - ${rodada}`;
+      // Nenhuma tela mostra o nome, mas a regra o exige (de 1 a 100); a função corta em 100.
+      const nomeAuditoria = nomeDaAuditoria(estoqueAtual.nome ?? estoqueAtual.id, lote);
       const auditoria = montarAuditoria({
         nome: nomeAuditoria,
         inventoryId: estoqueAtual.id,
@@ -101,7 +100,7 @@ export function ModalFinalizar({ aberto, onFechar }: Props) {
         // O alvo guardado era de uma rodada anterior e a tela já está noutra. "Salva" e fechar
         // deixariam a rodada da tela sem auditoria; o modal fica e o próximo clique vai a ela.
         mostrar(
-          `A finalização do ciclo ${r.cicloFinalizado} já estava salva. Nada foi gravado agora. Se esta é uma contagem nova, clique em Finalizar de novo.`,
+          'Esta finalização já estava salva. Nada foi gravado agora. Se esta é uma contagem nova, clique em Finalizar de novo.',
           'warning',
         );
         return;
@@ -123,7 +122,7 @@ export function ModalFinalizar({ aberto, onFechar }: Props) {
         // Segundo clique depois de estouro, ou outro aparelho: já está salva, sem histórico novo.
         mostrar('Esta contagem já foi finalizada e está salva. Nada foi gravado de novo.', 'success');
       } else {
-        mostrar(`Esta contagem já foi finalizada: o estoque está no ciclo ${r.cicloServidor}. Nada foi gravado.`, 'warning');
+        mostrar('Esta contagem já foi finalizada em outro aparelho. Nada foi gravado.', 'warning');
       }
 
       // `encerrar`, não `fechar`: aqui a gravação ainda consta como em andamento.
@@ -167,9 +166,14 @@ export function ModalFinalizar({ aberto, onFechar }: Props) {
       }
     >
       <p>
-        Isso salva {lote ? <>o <strong>Lote {lote}</strong></> : <>a contagem do <strong>ciclo {ciclo}</strong></>}{' '}
-        como auditoria e <strong>encerra o lote</strong> — a próxima contagem vai pedir um
-        lote novo.
+        {lote ? (
+          <>
+            Isso salva o <strong>Lote {lote}</strong> como auditoria e <strong>encerra o lote</strong> — a
+            próxima contagem vai pedir um lote novo.
+          </>
+        ) : (
+          <>Isso salva a contagem (sem lote) como auditoria — a próxima contagem vai pedir um lote.</>
+        )}
       </p>
 
       {listaProvisoria && (
@@ -191,8 +195,8 @@ export function ModalFinalizar({ aberto, onFechar }: Props) {
         <p className="aviso" role="status">
           <strong>Finalizar não apaga a contagem.</strong>{' '}
           {contagemFechada
-            ? `Como já houve conferência, o ciclo ${ciclo + 1} nasce travado: ninguém conta até um administrador usar Produtos → Limpar contagem.`
-            : `Os ${estatisticas.contados} itens contados continuam marcados no ciclo ${ciclo + 1}, e a barra vai mostrar 100%. Para começar do zero, um administrador usa Produtos → Limpar contagem.`}
+            ? `Como já houve conferência, a próxima contagem nasce travada: ninguém conta até um administrador usar Produtos → Limpar contagem.`
+            : `Os ${estatisticas.contados} itens contados continuam marcados na próxima contagem, e a barra vai mostrar 100%. Para começar do zero, um administrador usa Produtos → Limpar contagem.`}
         </p>
       )}
 

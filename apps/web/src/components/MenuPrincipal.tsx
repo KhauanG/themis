@@ -116,7 +116,7 @@ export function MenuPrincipal({
           id: 'finalizar',
           icone: 'finalizar',
           titulo: 'Finalizar e salvar',
-          descricao: 'Fecha o ciclo e grava a auditoria',
+          descricao: 'Fecha o lote e grava a auditoria',
           acao: onFinalizar,
         },
         {
