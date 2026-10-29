@@ -105,8 +105,11 @@ contagem".
 
 `features/auditoria/PainelAuditoria.tsx` — auditor, admin, master.
 
-Seletor de origem: **ao vivo** (ciclo corrente) ou uma **auditoria salva**. Auditoria salva
-é somente leitura, e a tela avisa isso.
+Seletor de origem: **ao vivo** (`Ao vivo — Lote X` ou `Ao vivo — Sem lote`) ou uma
+**auditoria salva**, que aparece pelo lote e pela data: `Lote X — DD/MM/AAAA`, ou só
+`DD/MM/AAAA` quando não tem lote. Duas iguais na lista ganham a hora (`DD/MM/AAAA HH:MM`).
+O nome gravado na auditoria não aparece. Auditoria salva é somente leitura, e a tela avisa
+isso.
 
 Cartões de estatística, filtro por status, tabela com Produto / Sistema / Contado /
 Diferença / Status.

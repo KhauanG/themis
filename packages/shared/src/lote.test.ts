@@ -8,9 +8,7 @@ import {
   nomeDaAuditoria,
   normalizarLote,
   rotuloDaAuditoria,
-  rotuloDaAuditoriaCompleto,
   rotuloDaRodada,
-  rotuloDaRodadaCompleto,
   rotulosDoSeletor,
   subtituloDaAuditoriaSalva,
 } from './lote.js';
@@ -87,33 +85,6 @@ describe('rótulos', () => {
     expect(rotuloDaAuditoria({})).toBe('Sem lote');
     expect(rotuloDaAuditoria({ lote: '  ' })).toBe('Sem lote');
     expect(rotuloDaAuditoria({ lote: null })).toBe('Sem lote');
-  });
-});
-
-describe('rótulos durante a transição', () => {
-  const comLote = { lote: 'L-9', contagemCycle: 4 };
-  const semLote = { contagemCycle: 4 };
-
-  it('ligado, mostra os dois', () => {
-    expect(rotuloDaAuditoriaCompleto(comLote, true)).toBe('Lote L-9 · Ciclo 4');
-  });
-
-  it('desligado, sobra só o lote', () => {
-    expect(rotuloDaAuditoriaCompleto(comLote, false)).toBe('Lote L-9');
-  });
-
-  /*
-    Auditoria anterior ao lote só tem o ciclo. Esconder por causa do interruptor deixaria a
-    linha sem nenhuma identificação — pior que o ruído que o interruptor existe para cortar.
-  */
-  it('auditoria sem lote mostra o ciclo mesmo com o interruptor desligado', () => {
-    expect(rotuloDaAuditoriaCompleto(semLote, false)).toBe('Ciclo 4');
-  });
-
-  it('vale igual para a rodada em andamento', () => {
-    const estoque = { lote: 'L-9', loteCiclo: 4, contagemCycle: 4 } as Parameters<typeof rotuloDaRodadaCompleto>[0];
-    expect(rotuloDaRodadaCompleto(estoque, true)).toBe('Lote L-9 · Ciclo 4');
-    expect(rotuloDaRodadaCompleto(estoque, false)).toBe('Lote L-9');
   });
 });
 

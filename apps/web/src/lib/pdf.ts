@@ -13,8 +13,11 @@
  * passam pelo mesmo caminho e não há como exportar uma achando que é a outra.
  */
 import {
+  datasDaLista,
   descreverFiltro,
   filtroEstaAtivo,
+  periodoDoConsolidado,
+  rotuloDaAuditoria,
   type EstatisticasAuditoria,
   type FiltroRelatorio,
   type LinhaRelatorio,
@@ -53,14 +56,8 @@ function emDias(dias: number): string {
 
 export interface ContextoRelatorio {
   estoque: string;
-  ciclo: number;
-  /**
-   * Rótulo da rodada já montado — "Lote X · Ciclo N", ou só um dos dois.
-   *
-   * Vem pronto da tela em vez de ser montado aqui porque depende de `mostrarCiclo`, que é
-   * configuração global. O PDF não deve consultar configuração: ele desenha o que recebe.
-   */
-  rodada?: string;
+  /** Rótulo da rodada, que vem pronto da tela: `Lote X` ou `Sem lote`. O PDF desenha o que recebe. */
+  rodada: string;
   /** Data da auditoria salva; ausente na contagem ao vivo. */
   quando?: Date;
   /**
@@ -113,7 +110,7 @@ function desenharCabecalho(
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9.5);
   doc.setTextColor(...COR.suave);
-  doc.text(`${contexto.estoque} · ${contexto.rodada ?? `Ciclo ${contexto.ciclo}`}`, MARGEM, 26.5);
+  doc.text(`${contexto.estoque} · ${contexto.rodada}`, MARGEM, 26.5);
 
   // Origem e data à direita: informação de contexto, não de conteúdo.
   doc.setFontSize(8.5);
@@ -364,14 +361,7 @@ export async function exportarConsolidadoPDF(
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' }) as Documento;
 
   const t = relatorio.totais;
-  // Lote quando há; ciclo nas rodadas anteriores à funcionalidade.
-  const rotulo = (c: { lote: string; ciclo: number }) => (c.lote ? `Lote ${c.lote}` : `Ciclo ${c.ciclo}`);
-  const primeiro = relatorio.ciclos[0];
-  const ultimo = relatorio.ciclos[relatorio.ciclos.length - 1];
-  const periodo =
-    primeiro && ultimo
-      ? `${rotulo(primeiro)} a ${rotulo(ultimo)} · ${primeiro.data.toLocaleDateString('pt-BR')} a ${ultimo.data.toLocaleDateString('pt-BR')}`
-      : 'Nenhuma rodada selecionada';
+  const periodo = periodoDoConsolidado(relatorio.ciclos);
 
   const largura = doc.internal.pageSize.getWidth();
 
@@ -438,13 +428,14 @@ export async function exportarConsolidadoPDF(
   doc.setLineWidth(0.3);
   doc.line(MARGEM, inicio + 12, largura - MARGEM, inicio + 12);
 
+  const datas = datasDaLista(relatorio.ciclos);
   autoTable(doc, {
     ...ESTILO_TABELA,
     startY: inicio + 18,
     head: [['Rodada', 'Data', 'Contáveis', 'Medições', 'Cobertura', 'Corretas', 'Divergentes', 'Acerto', 'Conferidos', 'Fora do ERP']],
-    body: relatorio.ciclos.map((c) => [
-      rotulo(c),
-      c.data.toLocaleDateString('pt-BR'),
+    body: relatorio.ciclos.map((c, i) => [
+      rotuloDaAuditoria(c),
+      datas[i] ?? '',
       String(c.total),
       String(c.contados),
       `${c.percentualCobertura}%`,

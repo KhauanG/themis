@@ -1,8 +1,7 @@
 import { useMemo, useState } from 'react';
-import { consolidarCiclos, rotuloDaAuditoriaCompleto, type Auditoria } from '@themis/shared';
+import { consolidarCiclos, datasDaLista, rotuloDaAuditoria, type Auditoria } from '@themis/shared';
 import { Icone } from '../../components/Icone.js';
 import { useToast } from '../../contexts/ToastContext.js';
-import { useEstoque } from '../../contexts/EstoqueContext.js';
 import { exportarConsolidadoPDF } from '../../lib/pdf.js';
 
 interface Props {
@@ -31,7 +30,6 @@ interface Props {
  */
 export function RelatorioConsolidado({ salvas, estoque, aoExportar }: Props) {
   const { mostrar } = useToast();
-  const { configuracoes } = useEstoque();
 
   // Todos marcados na abertura: quem entra aqui quer o quadro completo, e desmarcar o que
   // não interessa é menos trabalho que marcar um por um num estoque com vinte ciclos.
@@ -58,6 +56,8 @@ export function RelatorioConsolidado({ salvas, estoque, aoExportar }: Props) {
   }
 
   const todosMarcados = escolhidos.size === salvas.length && salvas.length > 0;
+  const datasChips = datasDaLista(salvas);
+  const datasLinhas = datasDaLista(relatorio.ciclos);
 
   async function exportar() {
     if (exportando || selecionadas.length === 0) return;
@@ -102,9 +102,10 @@ export function RelatorioConsolidado({ salvas, estoque, aoExportar }: Props) {
         </div>
 
         <ul className="consolidado__ciclos">
-          {salvas.map((a) => {
+          {salvas.map((a, i) => {
             const id = a.id ?? '';
             const marcado = escolhidos.has(id);
+            const comLote = (a.lote ?? '').trim() !== '';
             return (
               <li key={id}>
                 <label className={marcado ? 'ciclo-chip ciclo-chip--ativo' : 'ciclo-chip'}>
@@ -112,10 +113,10 @@ export function RelatorioConsolidado({ salvas, estoque, aoExportar }: Props) {
                     type="checkbox"
                     checked={marcado}
                     onChange={() => alternar(id)}
-                    aria-label={`${rotuloDaAuditoriaCompleto(a, configuracoes.mostrarCiclo)} de ${a.data.toLocaleDateString('pt-BR')}`}
+                    aria-label={comLote ? `${rotuloDaAuditoria(a)} de ${datasChips[i]}` : datasChips[i]}
                   />
-                  <span className="ciclo-chip__numero">{rotuloDaAuditoriaCompleto(a, configuracoes.mostrarCiclo)}</span>
-                  <span className="ciclo-chip__data">{a.data.toLocaleDateString('pt-BR')}</span>
+                  {comLote && <span className="ciclo-chip__numero">{rotuloDaAuditoria(a)}</span>}
+                  <span className="ciclo-chip__data">{datasChips[i]}</span>
                 </label>
               </li>
             );
@@ -185,10 +186,10 @@ export function RelatorioConsolidado({ salvas, estoque, aoExportar }: Props) {
                 </tr>
               </thead>
               <tbody>
-                {relatorio.ciclos.map((c) => (
+                {relatorio.ciclos.map((c, i) => (
                   <tr key={c.auditoriaId}>
-                    <td>{rotuloDaAuditoriaCompleto({ lote: c.lote, contagemCycle: c.ciclo }, configuracoes.mostrarCiclo)}</td>
-                    <td>{c.data.toLocaleDateString('pt-BR')}</td>
+                    <td>{rotuloDaAuditoria(c)}</td>
+                    <td>{datasLinhas[i]}</td>
                     <td className="num">{c.total}</td>
                     <td className="num">{c.contados}</td>
                     <td className="num">{c.percentualCobertura}%</td>
