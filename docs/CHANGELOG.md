@@ -6,6 +6,35 @@ Categorias: **Adicionado**, **Alterado**, **Corrigido**, **Removido**, **Seguran
 
 ---
 
+## 2.23.0 — 2026-10-29
+
+Etapa 2 no site: o ciclo sai das telas. A rodada é identificada pelo lote e, nas auditorias antigas sem lote, pela data. O ciclo continua como contador interno, e o fim da contagem não muda.
+
+### Alterado
+
+- Topo, troca de estoque, Produtos, Estoques e Auditoria ao vivo mostram `Lote X` ou `Sem lote`, nunca `Ciclo N`.
+- O seletor da Auditoria mostra `Lote X — DD/MM/AAAA`, ou só a data quando não há lote. Dois itens iguais ganham a hora. O nome gravado deixa de aparecer, inclusive o texto livre do app antigo; ele continua no banco.
+- Subtítulo da auditoria salva, chips e coluna "Rodada" do consolidado e cabeçalho dos três PDFs saem sem o ciclo. Nos chips, na tabela e no PDF do consolidado, duas rodadas com o mesmo lote e a mesma data ganham a hora, como no seletor. O período do consolidado fica só com as datas quando uma das pontas não tem lote.
+- O menu diz "Fecha o lote e grava a auditoria". Os avisos do Finalizar deixam de citar o número do ciclo, e os de "Finalizar não apaga a contagem" falam da próxima contagem. Sem lote, o Finalizar diz que salva a contagem "(sem lote)", sem falar em encerrar lote.
+- Histórico: sai o "Ciclo N". O abrir lote aparece como "Abriu lote", com o lote, e o Finalizar como "Contagem fechada". Vale também para os eventos antigos.
+- O nome gravado da auditoria sem lote passa a `<estoque> - Sem lote`.
+
+### Removido
+
+- O interruptor "Mostrar o ciclo junto do lote" (`appSettings.mostrarCiclo`). O campo antigo fica no documento, sem efeito.
+
+### Corrigido
+
+- Finalizar com nome de loja longo mais o lote não é mais negado pela regra: o nome gravado é cortado em 100 caracteres.
+
+### Notas
+
+- Sem `deploy-rules`: a regra não muda.
+- A mudança é só de tela: nenhum dado é regravado.
+- Publicar depois das 21:00, com admins e masters avisados. Uma aba antiga segue na 2.22.0 até recarregar, sem risco para os dados.
+
+---
+
 ## 2.22.0 — 2026-10-28
 
 Push B da Etapa 1. O site passa às rotas do ERP por loja e manda só a loja e o login. O HashLoja não sai mais do servidor. As rotas antigas respondem 410, e o arquivo de regra fecha `hashConfigs` para clientes.
