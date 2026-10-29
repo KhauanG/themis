@@ -11,17 +11,17 @@
  * O lote guarda o **ciclo em que foi aberto** (`loteCiclo`). Ele vale enquanto esse carimbo
  * bater com o `contagemCycle` corrente.
  *
- * Isso resolve um conflito real: Finalizar é liberado para qualquer usuário, mas
- * `finalizarContagem` escreve em `inventories` pelo ramo restrito da regra, que aceita
- * **apenas** os quatro campos de ciclo (`hasOnly`). Um `lote: ''` a mais no payload seria
- * negado — é o mesmo formato do bug que o `createdAt` regenerado causou no 1.x.
+ * O Finalizar não limpa o lote: ele só sobe o `contagemCycle`, e o carimbo deixa de bater.
+ * Desde a 2.18, o ramo restrito da regra aceita também `lote` e `loteCiclo` (`hasOnly` com
+ * seis campos, `firestore/firestore.rules:197-198`), então limpar passaria. O carimbo ficou
+ * porque dispensa escrita a mais no payload do Finalizar.
  *
- * Como finalizar já incrementa o ciclo, o carimbo deixa de bater sozinho e o lote expira.
- * Nenhum campo novo no payload restrito, nenhuma regra publicada.
+ * Por isso o texto do lote velho continua no documento depois de finalizar, e quem lê o
+ * lote aplica o `loteAtivo`.
  */
 import type { Inventory } from './types.js';
 
-/** Limite do rótulo. Igual ao `name` do estoque, pelo mesmo motivo: cabe na tela. */
+/** Limite do rótulo. É o da regra: `lote.size() <= 40` (`firestore/firestore.rules:107` e `:205`). */
 export const MAX_LOTE = 40;
 
 /**
@@ -59,22 +59,22 @@ export function loteDe(
 }
 
 /**
- * Como a rodada aparece na tela e no nome da auditoria.
+ * Como a rodada aparece na tela: `Lote X` com lote ativo, senão `Sem lote`.
  *
- * Cai para "Ciclo N" quando não há lote: o acervo tem auditorias anteriores a esta
- * funcionalidade, e rotulá-las como "Lote —" apagaria a única referência que elas têm.
+ * O `contagemCycle` é contador interno e não vai à tela. Vale o carimbo, não a presença do
+ * texto: o lote vencido continua no documento depois de finalizar.
  */
 export function rotuloDaRodada(
   estoque: Pick<Inventory, 'lote' | 'loteCiclo' | 'contagemCycle'> | null,
 ): string {
   const lote = loteDe(estoque);
-  return lote ? `Lote ${lote}` : `Ciclo ${estoque?.contagemCycle ?? 1}`;
+  return lote ? `Lote ${lote}` : 'Sem lote';
 }
 
-/** Mesma regra para uma auditoria já salva, que guarda o lote junto. */
-export function rotuloDaAuditoria(auditoria: { lote?: string | null; contagemCycle: number }): string {
+/** Mesma regra para uma auditoria já salva, que guarda o lote junto. O contador interno não vai à tela. */
+export function rotuloDaAuditoria(auditoria: { lote?: string | null }): string {
   const lote = (auditoria.lote ?? '').trim();
-  return lote ? `Lote ${lote}` : `Ciclo ${auditoria.contagemCycle}`;
+  return lote ? `Lote ${lote}` : 'Sem lote';
 }
 
 /**
@@ -105,4 +105,53 @@ export function rotuloDaAuditoriaCompleto(
   const lote = (auditoria.lote ?? '').trim();
   if (!lote) return `Ciclo ${auditoria.contagemCycle}`;
   return mostrarCiclo ? `Lote ${lote} · Ciclo ${auditoria.contagemCycle}` : `Lote ${lote}`;
+}
+
+/** Limite do `nome` da auditoria na regra (`firestore/firestore.rules:248`). */
+export const MAX_NOME_AUDITORIA = 100;
+
+/**
+ * `<estoque> - Lote X` ou `<estoque> - Sem lote`, o `nome` gravado na auditoria.
+ *
+ * Nenhuma tela mostra o nome, mas a regra nega o Finalizar acima de 100, e o estoque (100)
+ * mais o lote (40) passavam disso. O `slice` conta unidades UTF-16, como o `normalizarLote`;
+ * o `replace` tira a metade alta de um emoji cortado no meio.
+ */
+export function nomeDaAuditoria(nomeEstoque: string, lote: string | null): string {
+  return `${nomeEstoque} - ${rotuloDaAuditoria({ lote })}`.slice(0, MAX_NOME_AUDITORIA).replace(/[\uD800-\uDBFF]$/, '');
+}
+
+const hora = (data: Date) => data.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+/**
+ * Uma data por item, na mesma ordem: `DD/MM/AAAA`, mais ` HH:MM` quando outro item da lista
+ * tem o mesmo lote aparado e a mesma data.
+ *
+ * O seletor de auditorias não mostra mais o `nome` gravado, e o site duplicava auditoria com
+ * dois cliques até a 2.19: sem a hora, duas do mesmo lote e dia ficariam iguais. Os chips, a
+ * tabela e o PDF do consolidado usam a mesma data, com o lote em outro lugar.
+ */
+export function datasDaLista(itens: ReadonlyArray<{ lote?: string | null; data: Date }>): string[] {
+  const chave = (i: { lote?: string | null; data: Date }) => `${(i.lote ?? '').trim()}|${i.data.toLocaleDateString('pt-BR')}`;
+  const vezes = new Map<string, number>();
+  for (const i of itens) vezes.set(chave(i), (vezes.get(chave(i)) ?? 0) + 1);
+  return itens.map((i) => {
+    const dia = i.data.toLocaleDateString('pt-BR');
+    return (vezes.get(chave(i)) ?? 0) > 1 ? `${dia} ${hora(i.data)}` : dia;
+  });
+}
+
+/** Um texto por auditoria, na mesma ordem: `Lote X — <data>` ou `<data>`, com a `<data>` do `datasDaLista`. */
+export function rotulosDoSeletor(auditorias: ReadonlyArray<{ lote?: string | null; data: Date }>): string[] {
+  return datasDaLista(auditorias).map((data, n) => {
+    const lote = (auditorias[n]?.lote ?? '').trim();
+    return lote ? `Lote ${lote} — ${data}` : data;
+  });
+}
+
+/** `Lote X · salva em <data e hora> · somente leitura` ou `Salva em <data e hora> · somente leitura`. */
+export function subtituloDaAuditoriaSalva(auditoria: { lote?: string | null; data: Date }): string {
+  const lote = (auditoria.lote ?? '').trim();
+  const quando = `${auditoria.data.toLocaleString('pt-BR')} · somente leitura`;
+  return lote ? `Lote ${lote} · salva em ${quando}` : `Salva em ${quando}`;
 }

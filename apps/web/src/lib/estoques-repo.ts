@@ -7,10 +7,10 @@
  * direto do documento devolve `undefined`, e o app passa a mostrar o ID do estoque no
  * lugar do nome.
  *
- * Cuidado com as regras: usuário comum só pode alterar os campos de ciclo
- * (`contagemCycle`, `lastFinalizedCycle`, `lastFinalizedAt`, `updatedAt`). Qualquer campo
- * a mais no payload — inclusive um `createdAt` regenerado sem querer — faz a regra negar
- * a escrita inteira.
+ * Cuidado com as regras: usuário comum só pode alterar os campos da rodada
+ * (`contagemCycle`, `lastFinalizedCycle`, `lastFinalizedAt`, `updatedAt`, `lote` e
+ * `loteCiclo`, `firestore/firestore.rules:197-198`). Qualquer campo a mais no payload —
+ * inclusive um `createdAt` regenerado sem querer — faz a regra negar a escrita inteira.
  */
 import {
   Timestamp,
@@ -93,8 +93,8 @@ export function ouvirEstoques(aoMudar: (estoques: Inventory[]) => void): () => v
  * diferir em um espaço sequer, e a escrita inteira é negada. É o mesmo formato do bug que o
  * `createdAt` regenerado causou no 1.x.
  *
- * `loteCiclo` carimba o ciclo corrente: é o que faz o lote expirar sozinho ao finalizar,
- * sem precisar de uma escrita que a regra negaria. Ver `lote.ts`.
+ * `loteCiclo` carimba o `contagemCycle` corrente: é o que faz o lote vencer sozinho ao
+ * finalizar, sem escrita a mais. Ver `lote.ts`.
  */
 export async function abrirLote(inventoryId: string, lote: string, ciclo: number): Promise<void> {
   await exigirGravacao(

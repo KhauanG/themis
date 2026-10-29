@@ -21,6 +21,7 @@
  * percentuais de cada ciclo. Média de percentual dá peso igual a um ciclo de 10 itens e a
  * um de 2.000 — e produz um número que parece razoável e está errado. Há teste para isso.
  */
+import { rotuloDaAuditoria } from './lote.js';
 import type { Auditoria } from './types.js';
 
 /** Uma linha do relatório: o resumo de um ciclo. */
@@ -148,4 +149,19 @@ export function consolidarCiclos(auditorias: readonly Auditoria[]): RelatorioCon
       percentualCobertura: percentual(contados, total),
     },
   };
+}
+
+/**
+ * O período do relatório, das pontas que chegam na ordem do `consolidarCiclos`:
+ * `Lote A a Lote B · d1 a d2`. Sem lote em alguma ponta, só `d1 a d2`: o contador interno
+ * não vai à tela.
+ */
+export function periodoDoConsolidado(ciclos: ReadonlyArray<Pick<CicloConsolidado, 'lote' | 'data'>>): string {
+  const primeiro = ciclos[0];
+  const ultimo = ciclos[ciclos.length - 1];
+  if (!primeiro || !ultimo) return 'Nenhuma rodada selecionada';
+  const datas = `${primeiro.data.toLocaleDateString('pt-BR')} a ${ultimo.data.toLocaleDateString('pt-BR')}`;
+  return primeiro.lote.trim() && ultimo.lote.trim()
+    ? `${rotuloDaAuditoria(primeiro)} a ${rotuloDaAuditoria(ultimo)} · ${datas}`
+    : datas;
 }

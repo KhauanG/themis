@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { consolidarCiclos, percentual } from './consolidado.js';
+import { consolidarCiclos, percentual, periodoDoConsolidado } from './consolidado.js';
 import type { Auditoria, EstatisticasAuditoria } from './types.js';
 
 function estatisticas(p: Partial<EstatisticasAuditoria> = {}): EstatisticasAuditoria {
@@ -128,5 +128,25 @@ describe('consolidarCiclos', () => {
     const r = consolidarCiclos([antiga]);
     expect(r.totais.corrigidos).toBe(0);
     expect(r.ciclos[0]?.corrigidosIncorretos).toBe(0);
+  });
+});
+
+describe('periodoDoConsolidado', () => {
+  const r = (lote: string, data: Date) => ({ lote, data });
+
+  it('lote nas duas pontas', () => {
+    expect(
+      periodoDoConsolidado([r('A', new Date(2026, 7, 1)), r('', new Date(2026, 8, 1)), r('B', new Date(2026, 9, 28))]),
+    ).toBe('Lote A a Lote B · 01/08/2026 a 28/10/2026');
+  });
+
+  // Antes saía "Ciclo N a Lote B"; sem o ciclo, uma ponta sem lote deixa só as datas.
+  it('uma ponta sem lote: só as datas', () => {
+    expect(periodoDoConsolidado([r('', new Date(2026, 7, 1)), r('B', new Date(2026, 9, 28))])).toBe('01/08/2026 a 28/10/2026');
+    expect(periodoDoConsolidado([r('A', new Date(2026, 7, 1)), r('', new Date(2026, 9, 28))])).toBe('01/08/2026 a 28/10/2026');
+  });
+
+  it('nenhuma rodada', () => {
+    expect(periodoDoConsolidado([])).toBe('Nenhuma rodada selecionada');
   });
 });

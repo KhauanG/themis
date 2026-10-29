@@ -65,7 +65,7 @@ interface EstoqueAPI {
   lote: string | null;
   /** Há lote aberto? Sem ele ninguém conta — ver `lote.ts`. */
   temLote: boolean;
-  /** Abre o lote da rodada. Só admin/master passa na regra. */
+  /** Abre o lote da rodada. Abre quem pode contar no estoque (`podeAcessarEstoque`). */
   abrirLoteDaRodada: (lote: string) => Promise<void>;
   /** O Firestore ainda concilia cache e servidor — os totais não são confiáveis. */
   conciliando: boolean;

@@ -160,9 +160,11 @@ continua é `podeAcessarEstoque`: ninguém abre lote em estoque que não pode co
 comum é `hasOnly` — mandar `name` junto coloca o campo no diff e nega a escrita inteira.
 
 ⚠️ **Por que finalizar expira em vez de limpar.** Finalizar é liberado para qualquer
-usuário, e escreve em `inventories` pelo ramo restrito da regra (`hasOnly` dos quatro campos
-de ciclo). Um `lote: ''` a mais seria negado — mesmo formato do bug do `createdAt` no 1.x.
-Como finalizar já incrementa o ciclo, o carimbo resolve sozinho.
+usuário e não limpa o lote: só sobe o `contagemCycle`, e o carimbo deixa de bater. Desde a
+2.18, o ramo restrito da regra tem seis campos no `hasOnly` (`firestore/firestore.rules:197-198`),
+`lote` e `loteCiclo` entre eles, então limpar também passaria. O carimbo ficou porque dispensa
+escrita a mais. Por isso o texto do lote velho fica no documento, e quem lê o lote aplica o
+`loteAtivo`.
 
 O `contagemCycle` **continua existindo** como número interno: as Security Rules exigem
 `contagemCycle is number >= 1` ao criar auditoria.
