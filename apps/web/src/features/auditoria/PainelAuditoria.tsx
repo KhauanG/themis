@@ -137,6 +137,8 @@ export function PainelAuditoria() {
     listarAuditorias(estoqueId)
       .then((pagina) => {
         if (!vivo) return;
+        // Um "Carregar mais" pedido durante esta carga usou o cursor antigo: descarta, senão pula uma auditoria.
+        geracao.current += 1;
         setSalvas(pagina.lista);
         setCursor(pagina.ultimo);
         setTemMais(pagina.temMais);
