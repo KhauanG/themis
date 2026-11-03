@@ -14,6 +14,7 @@ import {
   limit,
   orderBy,
   query,
+  startAfter,
   where,
   type DocumentData,
   type QueryDocumentSnapshot,
@@ -126,12 +127,33 @@ function paraAuditoria(snap: QueryDocumentSnapshot<DocumentData>): Auditoria {
   return { ...(d as Omit<Auditoria, 'id' | 'data' | 'createdAt'>), id: snap.id, data, createdAt };
 }
 
-export async function listarAuditorias(inventoryId?: string, maximo = 100): Promise<Auditoria[]> {
+export type CursorAuditorias = QueryDocumentSnapshot<DocumentData>;
+
+export interface PaginaAuditorias {
+  lista: Auditoria[];
+  /** Último documento devolvido; `null` quando a página veio vazia. */
+  ultimo: CursorAuditorias | null;
+  temMais: boolean;
+}
+
+/**
+ * Uma página das auditorias, mais recentes primeiro. Pede uma a mais para saber se há outra
+ * página. O `startAfter` com o snapshot usa o mesmo índice `(inventoryId, data desc)`
+ * (`firestore/firestore.indexes.json`), sem regra nova. Cada documento ainda vem inteiro, com
+ * os produtos: a lista leve fica para depois (desenho, D9).
+ */
+export async function listarAuditorias(
+  inventoryId?: string,
+  maximo = 20,
+  depois?: CursorAuditorias,
+): Promise<PaginaAuditorias> {
   const restricoes = inventoryId ? [where('inventoryId', '==', inventoryId)] : [];
+  const cursor = depois ? [startAfter(depois)] : [];
   const snap = await getDocs(
-    query(collection(db, COLECAO), ...restricoes, orderBy('data', 'desc'), limit(maximo)),
+    query(collection(db, COLECAO), ...restricoes, orderBy('data', 'desc'), ...cursor, limit(maximo + 1)),
   );
-  return snap.docs.map(paraAuditoria);
+  const docs = snap.docs.slice(0, maximo);
+  return { lista: docs.map(paraAuditoria), ultimo: docs.at(-1) ?? null, temMais: snap.docs.length > maximo };
 }
 
 export async function buscarAuditoria(id: string): Promise<Auditoria | null> {

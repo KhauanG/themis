@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { Timestamp } from 'firebase/firestore';
+import { Timestamp, getDocs } from 'firebase/firestore';
 import { calcularEstatisticas, type Auditoria } from '@themis/shared';
-import { finalizarContagem } from './auditorias-repo.js';
+import { finalizarContagem, listarAuditorias } from './auditorias-repo.js';
 import { runTransactionWithTimeout } from './firestore-write.js';
 
 // O módulo real de `firebase.js` lança sem as variáveis do `.env`; aqui só o `db` importa.
@@ -13,6 +13,13 @@ vi.mock('./firestore-write.js', () => ({
 vi.mock('firebase/firestore', async (importOriginal) => ({
   ...(await importOriginal<typeof import('firebase/firestore')>()),
   doc: (_db: unknown, ...p: string[]) => ({ path: p.join('/') }),
+  collection: (_db: unknown, nome: string) => ({ collection: nome }),
+  where: (...a: unknown[]) => ({ where: a }),
+  orderBy: (...a: unknown[]) => ({ orderBy: a }),
+  limit: (n: number) => ({ limit: n }),
+  startAfter: (s: unknown) => ({ startAfter: s }),
+  query: (...partes: unknown[]) => partes,
+  getDocs: vi.fn(),
 }));
 
 beforeEach(() => vi.clearAllMocks());
@@ -69,5 +76,51 @@ describe('finalizarContagem', () => {
   it('estoque sem contagemCycle usa o ciclo da tela, como antes', async () => {
     transacao({ 'inventories/E1': { name: 'Loja' } });
     expect((await finalizarContagem(auditoria(1))).situacao).toBe('finalizada');
+  });
+});
+
+describe('listarAuditorias', () => {
+  const docAuditoria = (n: number) => ({
+    id: `E1_${n}`,
+    data: () => ({
+      inventoryId: 'E1', contagemCycle: n, data: Timestamp.fromDate(new Date(2026, 9, n)),
+      produtos: [], estatisticas: calcularEstatisticas([]),
+    }),
+  });
+  const resposta = (qtd: number) => ({ docs: Array.from({ length: qtd }, (_, i) => docAuditoria(qtd - i)) });
+  const pedido = () => vi.mocked(getDocs).mock.calls.at(-1)![0] as unknown as unknown[];
+
+  it('primeira página pede 21 e devolve 20, com temMais', async () => {
+    const r = resposta(21);
+    vi.mocked(getDocs).mockResolvedValue(r as never);
+    const p = await listarAuditorias('E1');
+    expect(pedido()).toContainEqual({ limit: 21 });
+    expect(pedido()).toContainEqual({ where: ['inventoryId', '==', 'E1'] });
+    expect(pedido()).toContainEqual({ orderBy: ['data', 'desc'] });
+    expect(pedido().some((x) => typeof x === 'object' && x !== null && 'startAfter' in x)).toBe(false);
+    expect(p.lista.map((a) => a.id)).toEqual(r.docs.slice(0, 20).map((d) => d.id));
+    expect(p.ultimo).toBe(r.docs[19]);
+    expect(p.temMais).toBe(true);
+  });
+
+  it('próxima página começa depois do cursor', async () => {
+    vi.mocked(getDocs).mockResolvedValue(resposta(3) as never);
+    const cursor = { id: 'E1_30' };
+    await listarAuditorias('E1', 20, cursor as never);
+    expect(pedido()).toContainEqual({ startAfter: cursor });
+  });
+
+  it('exatamente 20: não há mais', async () => {
+    const r = resposta(20);
+    vi.mocked(getDocs).mockResolvedValue(r as never);
+    const p = await listarAuditorias('E1');
+    expect(p.lista).toHaveLength(20);
+    expect(p.ultimo).toBe(r.docs[19]);
+    expect(p.temMais).toBe(false);
+  });
+
+  it('nenhuma: lista vazia e sem cursor', async () => {
+    vi.mocked(getDocs).mockResolvedValue(resposta(0) as never);
+    expect(await listarAuditorias('E1')).toEqual({ lista: [], ultimo: null, temMais: false });
   });
 });

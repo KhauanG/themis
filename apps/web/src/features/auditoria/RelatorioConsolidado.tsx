@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   consolidarCiclos,
   datasDaLista,
@@ -16,6 +16,10 @@ interface Props {
   estoque: string;
   /** Chamado após exportar, para o histórico registrar. */
   aoExportar?: (ciclos: number) => void;
+  /** Há auditorias mais antigas para buscar. */
+  temMais: boolean;
+  carregandoMais: boolean;
+  aoCarregarMais: () => void;
 }
 
 /**
@@ -34,7 +38,7 @@ interface Props {
  * O cálculo mora em `consolidarCiclos`, no domínio, e é testado lá. Aqui só há escolha e
  * apresentação.
  */
-export function RelatorioConsolidado({ salvas, estoque, aoExportar }: Props) {
+export function RelatorioConsolidado({ salvas, estoque, aoExportar, temMais, carregandoMais, aoCarregarMais }: Props) {
   const { mostrar } = useToast();
 
   // Todos marcados na abertura: quem entra aqui quer o quadro completo, e desmarcar o que
@@ -47,6 +51,23 @@ export function RelatorioConsolidado({ salvas, estoque, aoExportar }: Props) {
   );
   const [exportando, setExportando] = useState(false);
 
+  // Página nova entra marcada, menos as duplicadas. Uma da página anterior que acabou de virar
+  // duplicada é desmarcada, a não ser que o usuário já tenha mexido nela.
+  const vistos = useRef(new Set(salvas.map((a) => a.id ?? '')));
+  const tocados = useRef(new Set<string>());
+  useEffect(() => {
+    const novas = salvas.map((a) => a.id ?? '').filter((id) => !vistos.current.has(id));
+    if (novas.length === 0) return;
+    for (const id of novas) vistos.current.add(id);
+    const dup = duplicadasDoConsolidado(salvas);
+    setEscolhidos((atual) => {
+      const novo = new Set(atual);
+      for (const id of novas) if (!dup.has(id)) novo.add(id);
+      for (const id of dup) if (!tocados.current.has(id)) novo.delete(id);
+      return novo;
+    });
+  }, [salvas]);
+
   const selecionadas = useMemo(
     () => salvas.filter((a) => escolhidos.has(a.id ?? '')),
     [salvas, escolhidos],
@@ -56,6 +77,7 @@ export function RelatorioConsolidado({ salvas, estoque, aoExportar }: Props) {
   const { totais } = relatorio;
 
   function alternar(id: string) {
+    tocados.current.add(id);
     setEscolhidos((atual) => {
       const novo = new Set(atual);
       if (novo.has(id)) novo.delete(id);
@@ -102,9 +124,10 @@ export function RelatorioConsolidado({ salvas, estoque, aoExportar }: Props) {
           <button
             className="botao botao--texto botao--mini"
             type="button"
-            onClick={() =>
-              setEscolhidos(todosMarcados ? new Set() : new Set(salvas.map((a) => a.id ?? '')))
-            }
+            onClick={() => {
+              for (const a of salvas) tocados.current.add(a.id ?? '');
+              setEscolhidos(todosMarcados ? new Set() : new Set(salvas.map((a) => a.id ?? '')));
+            }}
           >
             {todosMarcados ? 'Desmarcar todos' : 'Marcar todos'}
           </button>
@@ -136,6 +159,20 @@ export function RelatorioConsolidado({ salvas, estoque, aoExportar }: Props) {
             );
           })}
         </ul>
+        <p className="suave">
+          Somando {selecionadas.length}{' '}
+          {selecionadas.length === 1 ? 'rodada carregada' : 'rodadas carregadas'}
+        </p>
+        {temMais && (
+          <button
+            className="botao botao--texto botao--mini"
+            type="button"
+            onClick={aoCarregarMais}
+            disabled={carregandoMais}
+          >
+            {carregandoMais ? 'Carregando…' : 'Carregar mais antigas'}
+          </button>
+        )}
       </div>
 
       {selecionadas.length === 0 ? (

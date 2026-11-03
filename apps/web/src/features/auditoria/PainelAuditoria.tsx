@@ -28,7 +28,7 @@ import { useToast } from '../../contexts/ToastContext.js';
 import { Esqueleto } from '../../components/Esqueleto.js';
 import { RelatorioConsolidado } from './RelatorioConsolidado.js';
 import { Icone } from '../../components/Icone.js';
-import { listarAuditorias } from '../../lib/auditorias-repo.js';
+import { listarAuditorias, type CursorAuditorias } from '../../lib/auditorias-repo.js';
 import { desfazerConferido, marcarConferido } from '../../lib/produtos-repo.js';
 import { exportarContagemPDF, exportarValidadePDF, type ContextoRelatorio } from '../../lib/pdf.js';
 import { exportarPlanilha } from '../../lib/planilha.js';
@@ -100,6 +100,9 @@ export function PainelAuditoria() {
   const [filtro, setFiltro] = useState<FiltroRelatorio>(FILTRO_PADRAO);
   const [exportando, setExportando] = useState(false);
   const [corrigindo, setCorrigindo] = useState<string | null>(null);
+  const [cursor, setCursor] = useState<CursorAuditorias | null>(null);
+  const [temMais, setTemMais] = useState(false);
+  const [carregandoMais, setCarregandoMais] = useState(false);
 
   /**
    * Depende do **id**, não do objeto `estoqueAtual`.
@@ -113,9 +116,13 @@ export function PainelAuditoria() {
 
   /** Último estoque já carregado. Distingue primeira carga de rebusca. */
   const carregado = useRef<string | null>(null);
+  /** Conta as cargas da primeira página. Um "Carregar mais" que volta depois de outra carga é descartado. */
+  const geracao = useRef(0);
 
+  // `ciclo` sobe quando qualquer aparelho finaliza: recarrega a primeira página com a auditoria nova.
   useEffect(() => {
     if (!estoqueId) return;
+    geracao.current += 1;
     let vivo = true;
 
     // Esqueleto só na primeira carga deste estoque. Numa rebusca, mantém o que já está na
@@ -123,12 +130,18 @@ export function PainelAuditoria() {
     if (carregado.current !== estoqueId) {
       setCarregando(true);
       setSalvas([]);
+      setCursor(null);
+      setTemMais(false);
     }
 
     listarAuditorias(estoqueId)
-      .then((lista) => {
+      .then((pagina) => {
         if (!vivo) return;
-        setSalvas(lista);
+        setSalvas(pagina.lista);
+        setCursor(pagina.ultimo);
+        setTemMais(pagina.temMais);
+        // A escolhida pode ter saído da lista recarregada: volta para "Ao vivo" em vez de apontar para o nada.
+        setFonte((f) => (f === 'ao-vivo' || f === MODO_CONSOLIDADO || pagina.lista.some((a) => a.id === f) ? f : 'ao-vivo'));
         carregado.current = estoqueId;
       })
       .catch((erro) => {
@@ -142,7 +155,25 @@ export function PainelAuditoria() {
     return () => {
       vivo = false;
     };
-  }, [estoqueId, mostrar]);
+  }, [estoqueId, ciclo, mostrar]);
+
+  async function carregarMais() {
+    if (!estoqueId || !cursor || carregandoMais) return;
+    const minha = geracao.current;
+    setCarregandoMais(true);
+    try {
+      const pagina = await listarAuditorias(estoqueId, 20, cursor);
+      if (minha !== geracao.current) return;
+      setSalvas((atual) => [...atual, ...pagina.lista]);
+      setCursor(pagina.ultimo);
+      setTemMais(pagina.temMais);
+    } catch (erro) {
+      console.warn('[auditoria] Não foi possível listar as mais antigas:', erro);
+      mostrar('Não foi possível carregar as auditorias mais antigas.', 'error');
+    } finally {
+      setCarregandoMais(false);
+    }
+  }
 
   const auditoria = fonte === 'ao-vivo' ? null : salvas.find((a) => a.id === fonte);
   const aoVivo = !auditoria;
@@ -345,6 +376,9 @@ export function PainelAuditoria() {
 
         <RelatorioConsolidado
           salvas={salvas}
+          temMais={temMais}
+          carregandoMais={carregandoMais}
+          aoCarregarMais={() => void carregarMais()}
           estoque={estoqueAtual?.nome ?? estoqueAtual?.id ?? 'estoque'}
           aoExportar={(ciclos) => {
             if (contextoLog) {
@@ -384,6 +418,16 @@ export function PainelAuditoria() {
             ))}
           </select>
         </label>
+        {temMais && (
+          <button
+            className="botao botao--texto botao--mini"
+            type="button"
+            onClick={() => void carregarMais()}
+            disabled={carregandoMais}
+          >
+            {carregandoMais ? 'Carregando…' : 'Carregar mais antigas'}
+          </button>
+        )}
 
         <div className="barra-filtros__linha">
           <label className="campo">

@@ -95,6 +95,11 @@ Auditorias antigas do mesmo estoque e do mesmo ciclo aparecem com "duplicada" e 
 desmarcadas; fica marcada a de id fixo, ou a mais recente. Nada é apagado: quem quiser somar
 marca o chip.
 
+Soma as rodadas carregadas e marcadas, e diz quantas: "Somando N rodadas carregadas". Com
+mais auditorias no banco, "Carregar mais antigas" traz as 20 seguintes; elas entram
+marcadas, menos as duplicadas. Uma já carregada que vira duplicada com a página nova é
+desmarcada, a não ser que o chip já tenha sido mexido.
+
 ⚠️ **Cada ciclo é uma medição.** Um produto contado em dois ciclos entra duas vezes no
 total. É assim que se mede acurácia ao longo do tempo — mas é o mal-entendido natural de
 quem lê o número solto, e por isso a tela diz "medições" e o aviso vem antes dos números.
@@ -115,6 +120,10 @@ Seletor de origem: **ao vivo** (`Ao vivo — Lote X` ou `Ao vivo — Sem lote`) 
 `DD/MM/AAAA` quando não tem lote. Duas iguais na lista ganham a hora (`DD/MM/AAAA HH:MM`).
 O nome gravado na auditoria não aparece. Auditoria salva é somente leitura, e a tela avisa
 isso.
+
+O seletor traz as 20 auditorias mais recentes, e "Carregar mais antigas" traz as 20
+seguintes. Depois de um Finalizar (em qualquer aparelho), a lista volta à primeira página;
+se a auditoria escolhida saiu dela, o seletor volta para "Ao vivo".
 
 Cartões de estatística (Contados, A contar sem os conferidos, Corretos, Divergentes,
 Divergência e Conferidos, este só se houver), filtro por status, tabela com Produto / Sistema
