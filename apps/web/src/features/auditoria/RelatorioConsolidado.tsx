@@ -1,5 +1,11 @@
 import { useMemo, useState } from 'react';
-import { consolidarCiclos, datasDaLista, rotuloDaAuditoria, type Auditoria } from '@themis/shared';
+import {
+  consolidarCiclos,
+  datasDaLista,
+  duplicadasDoConsolidado,
+  rotuloDaAuditoria,
+  type Auditoria,
+} from '@themis/shared';
 import { Icone } from '../../components/Icone.js';
 import { useToast } from '../../contexts/ToastContext.js';
 import { exportarConsolidadoPDF } from '../../lib/pdf.js';
@@ -33,8 +39,11 @@ export function RelatorioConsolidado({ salvas, estoque, aoExportar }: Props) {
 
   // Todos marcados na abertura: quem entra aqui quer o quadro completo, e desmarcar o que
   // não interessa é menos trabalho que marcar um por um num estoque com vinte ciclos.
+  // A duplicada (mesmo estoque e ciclo, gravada pelo 1.x ou pelo site até a 2.19) começa
+  // desmarcada para não somar o mesmo ciclo duas vezes; quem quiser somar marca o chip.
+  const duplicadas = useMemo(() => duplicadasDoConsolidado(salvas), [salvas]);
   const [escolhidos, setEscolhidos] = useState<Set<string>>(
-    () => new Set(salvas.map((a) => a.id ?? '')),
+    () => new Set(salvas.map((a) => a.id ?? '').filter((id) => !duplicadas.has(id))),
   );
   const [exportando, setExportando] = useState(false);
 
@@ -55,7 +64,7 @@ export function RelatorioConsolidado({ salvas, estoque, aoExportar }: Props) {
     });
   }
 
-  const todosMarcados = escolhidos.size === salvas.length && salvas.length > 0;
+  const todosMarcados = salvas.length > 0 && salvas.every((a) => escolhidos.has(a.id ?? ''));
   const datasChips = datasDaLista(salvas);
   const datasLinhas = datasDaLista(relatorio.ciclos);
 
@@ -106,6 +115,7 @@ export function RelatorioConsolidado({ salvas, estoque, aoExportar }: Props) {
             const id = a.id ?? '';
             const marcado = escolhidos.has(id);
             const comLote = (a.lote ?? '').trim() !== '';
+            const duplicada = duplicadas.has(id);
             return (
               <li key={id}>
                 <label className={marcado ? 'ciclo-chip ciclo-chip--ativo' : 'ciclo-chip'}>
@@ -113,10 +123,14 @@ export function RelatorioConsolidado({ salvas, estoque, aoExportar }: Props) {
                     type="checkbox"
                     checked={marcado}
                     onChange={() => alternar(id)}
-                    aria-label={comLote ? `${rotuloDaAuditoria(a)} de ${datasChips[i]}` : datasChips[i]}
+                    aria-label={
+                      (comLote ? `${rotuloDaAuditoria(a)} de ${datasChips[i]}` : datasChips[i]) +
+                      (duplicada ? ' · duplicada' : '')
+                    }
                   />
                   {comLote && <span className="ciclo-chip__numero">{rotuloDaAuditoria(a)}</span>}
                   <span className="ciclo-chip__data">{datasChips[i]}</span>
+                  {duplicada && <span className="suave"> · duplicada</span>}
                 </label>
               </li>
             );

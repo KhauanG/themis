@@ -165,3 +165,31 @@ export function periodoDoConsolidado(ciclos: ReadonlyArray<Pick<CicloConsolidado
     ? `${rotuloDaAuditoria(primeiro)} a ${rotuloDaAuditoria(ultimo)} · ${datas}`
     : datas;
 }
+
+/**
+ * Ids das auditorias que repetem `inventoryId` + `contagemCycle` de outra da lista e não são a que fica.
+ * Fica a de id `{inventoryId}_{contagemCycle}` (o id fixo do Finalizar desde a 2.20); sem ela, a de `data`
+ * mais recente; na mesma data, a primeira da lista. Grupo de uma só nunca entra.
+ *
+ * O formato do id repete de propósito o `idAuditoria` de `apps/web/src/lib/auditorias-repo.ts`
+ * (o shared não importa do web): se um mudar, o outro muda junto. Deduplicar às cegas poderia
+ * tirar uma rodada legítima, por isso a tela só desmarca e nada é apagado.
+ */
+export function duplicadasDoConsolidado(
+  auditorias: ReadonlyArray<Pick<Auditoria, 'id' | 'inventoryId' | 'contagemCycle' | 'data'>>,
+): Set<string> {
+  const grupos = new Map<string, Array<(typeof auditorias)[number]>>();
+  for (const a of auditorias) {
+    const chave = `${a.inventoryId}|${a.contagemCycle}`;
+    grupos.set(chave, [...(grupos.get(chave) ?? []), a]);
+  }
+  const duplicadas = new Set<string>();
+  for (const grupo of grupos.values()) {
+    if (grupo.length < 2) continue;
+    const fixa = grupo.find((a) => a.id === `${a.inventoryId}_${a.contagemCycle}`);
+    // reduce com `>` estrito: no empate de data fica a primeira da lista.
+    const fica = fixa ?? grupo.reduce((m, a) => (a.data.getTime() > m.data.getTime() ? a : m));
+    for (const a of grupo) if (a !== fica) duplicadas.add(a.id ?? '');
+  }
+  return duplicadas;
+}

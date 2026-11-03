@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { consolidarCiclos, percentual, periodoDoConsolidado } from './consolidado.js';
+import { consolidarCiclos, duplicadasDoConsolidado, percentual, periodoDoConsolidado } from './consolidado.js';
 import type { Auditoria, EstatisticasAuditoria } from './types.js';
 
 function estatisticas(p: Partial<EstatisticasAuditoria> = {}): EstatisticasAuditoria {
@@ -162,5 +162,44 @@ describe('periodoDoConsolidado', () => {
 
   it('nenhuma rodada', () => {
     expect(periodoDoConsolidado([])).toBe('Nenhuma rodada selecionada');
+  });
+});
+
+describe('duplicadasDoConsolidado', () => {
+  const a = (id: string, ciclo: number, data: Date, inventoryId = 'E1') => ({ id, inventoryId, contagemCycle: ciclo, data });
+
+  it('sem repetição, nenhuma', () => {
+    expect(duplicadasDoConsolidado([a('E1_1', 1, new Date(2026, 0, 1)), a('x', 2, new Date(2026, 0, 2))])).toEqual(new Set());
+  });
+
+  it('fica a de id fixo, mesmo mais antiga', () => {
+    expect(
+      duplicadasDoConsolidado([a('aleatorio', 3, new Date(2026, 0, 9)), a('E1_3', 3, new Date(2026, 0, 3))]),
+    ).toEqual(new Set(['aleatorio']));
+  });
+
+  it('sem id fixo, fica a mais recente', () => {
+    expect(
+      duplicadasDoConsolidado([a('velha', 3, new Date(2026, 0, 3, 9)), a('nova', 3, new Date(2026, 0, 3, 18))]),
+    ).toEqual(new Set(['velha']));
+  });
+
+  it('mesma data: fica a primeira da lista', () => {
+    const d = new Date(2026, 0, 3, 9);
+    expect(duplicadasDoConsolidado([a('p', 3, d), a('q', 3, d)])).toEqual(new Set(['q']));
+  });
+
+  it('três no mesmo ciclo: só uma fica', () => {
+    expect(
+      duplicadasDoConsolidado([a('x', 3, new Date(2026, 0, 5)), a('E1_3', 3, new Date(2026, 0, 3)), a('y', 3, new Date(2026, 0, 4))]),
+    ).toEqual(new Set(['x', 'y']));
+  });
+
+  it('mesmo ciclo em estoques diferentes não é duplicata', () => {
+    expect(duplicadasDoConsolidado([a('E1_3', 3, new Date(2026, 0, 3)), a('E2_3', 3, new Date(2026, 0, 3), 'E2')])).toEqual(new Set());
+  });
+
+  it('nunca marca como duplicada a única do ciclo', () => {
+    expect(duplicadasDoConsolidado([a('aleatorio', 7, new Date(2026, 0, 7))])).toEqual(new Set());
   });
 });

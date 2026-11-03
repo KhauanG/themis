@@ -91,6 +91,10 @@ Escolhe quantos ciclos quiser do estoque aberto e soma contados, corretos e inco
 percentuais por ciclo e no total. Exporta em PDF paisagem. A cobertura conta os conferidos;
 períodos antigos mudam de número na 2.24.
 
+Auditorias antigas do mesmo estoque e do mesmo ciclo aparecem com "duplicada" e começam
+desmarcadas; fica marcada a de id fixo, ou a mais recente. Nada é apagado: quem quiser somar
+marca o chip.
+
 ⚠️ **Cada ciclo é uma medição.** Um produto contado em dois ciclos entra duas vezes no
 total. É assim que se mede acurácia ao longo do tempo — mas é o mal-entendido natural de
 quem lê o número solto, e por isso a tela diz "medições" e o aviso vem antes dos números.
