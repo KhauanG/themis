@@ -1,3 +1,4 @@
+import { hojeLocalISO } from '@themis/shared';
 /**
  * Entrega de arquivo gerado no navegador. **Dois caminhos, escolhidos por quem chama.**
  *
@@ -61,6 +62,6 @@ export function nomeDeArquivo(base: string, extensao: string): string {
     .replace(/[^a-zA-Z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .toLowerCase();
-  const data = new Date().toISOString().slice(0, 10);
+  const data = hojeLocalISO();
   return `${limpo || 'themis'}-${data}.${extensao}`;
 }

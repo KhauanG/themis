@@ -14,3 +14,4 @@ export * from './reconexao.js';
 export * from './consolidado.js';
 export * from './lote.js';
 export * from './quantidade.js';
+export * from './datas.js';

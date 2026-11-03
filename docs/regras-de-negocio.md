@@ -248,6 +248,8 @@ Em lotes de 500 — o limite do Firestore.
 - Comparação é lexicográfica: em ISO, ordem alfabética é ordem cronológica. Nada de
   `new Date()`, que desloca o fuso.
 - No card: âmbar a 30 dias do vencimento, vermelho se vencido.
+- O "hoje" do card e do PDF de validade, e a data do nome dos arquivos, são o dia local
+  (`hojeLocalISO`). Antes eram UTC, e depois das 21:00 saía o dia seguinte.
 
 ---
 

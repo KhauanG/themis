@@ -3,6 +3,7 @@ import {
   codigoBarrasDe,
   fisicoDe,
   foraDoErp,
+  hojeLocalISO,
   nomeDe,
   sistemaDe,
   statusContagemDe,
@@ -43,8 +44,8 @@ function validadeCurta(iso: string): string {
 const DIAS_ALERTA_VALIDADE = 30;
 
 function diasAte(iso: string): number {
-  const hoje = new Date().toISOString().slice(0, 10);
-  // Comparação em ISO evita fuso: a diferença é calculada em UTC dos dois lados.
+  const hoje = hojeLocalISO();
+  // "Hoje" é o dia local; a conta compara dois textos ISO, que viram meia-noite UTC dos dois lados.
   return Math.round((Date.parse(iso) - Date.parse(hoje)) / 86_400_000);
 }
 

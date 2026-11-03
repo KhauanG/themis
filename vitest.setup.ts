@@ -1,5 +1,8 @@
 import { afterEach } from 'vitest';
 
+// O CI roda em UTC. Datas locais nos testes (hojeISO, hojeLocalISO, rótulos) precisam do fuso da operação.
+process.env.TZ = 'America/Sao_Paulo';
+
 // Em 2026-10-28 um teste mandou uma requisição de verdade ao ERP de produção.
 declare global {
   var hostsBloqueados: string[];

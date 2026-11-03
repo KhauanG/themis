@@ -16,6 +16,7 @@ import {
   datasDaLista,
   descreverFiltro,
   filtroEstaAtivo,
+  hojeLocalISO,
   periodoDoConsolidado,
   rotuloDaAuditoria,
   type EstatisticasAuditoria,
@@ -46,12 +47,6 @@ const MARGEM = 16;
 function dataBR(iso: string): string {
   const [ano, mes, dia] = iso.split('-');
   return `${dia}/${mes}/${ano}`;
-}
-
-function emDias(dias: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() + dias);
-  return d.toISOString().slice(0, 10);
 }
 
 export interface ContextoRelatorio {
@@ -285,8 +280,8 @@ export async function exportarValidadePDF(
 
   if (comValidade.length === 0) return 0;
 
-  const hoje = new Date().toISOString().slice(0, 10);
-  const limiteAlerta = emDias(DIAS_ALERTA);
+  const hoje = hojeLocalISO();
+  const limiteAlerta = hojeLocalISO(DIAS_ALERTA);
   const vencidos = comValidade.filter((l) => l.validade < hoje).length;
   const proximos = comValidade.filter((l) => l.validade >= hoje && l.validade <= limiteAlerta).length;
 
