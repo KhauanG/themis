@@ -139,9 +139,17 @@ describe('descreverFiltro', () => {
     expect(descreverFiltro(com({ situacao: 'contados' }))).toBe('Somente contados');
   });
 
-  it('divergências vence a situação na descrição', () => {
-    expect(descreverFiltro(com({ situacao: 'contados', somenteDivergentes: true }))).toBe(
-      'Somente divergências',
+  // Antes a situação sumia com divergências ligado: "não contados + divergências" deixa só
+  // os FORA DO ERP, e o PDF dizia apenas "Somente divergências".
+  it('junta situação e divergências', () => {
+    expect(descreverFiltro(com({ situacao: 'nao-contados', somenteDivergentes: true }))).toBe(
+      'Somente não contados · Somente divergências',
+    );
+  });
+
+  it('divergências sozinha', () => {
+    expect(descreverFiltro(com({ somenteDivergentes: true, status: 'CRITICO' }))).toBe(
+      'Somente divergências · Status CRITICO',
     );
   });
 

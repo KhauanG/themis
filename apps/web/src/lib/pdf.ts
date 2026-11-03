@@ -41,6 +41,7 @@ const COR = {
   ok: [10, 125, 85] as [number, number, number],
   alerta: [138, 97, 0] as [number, number, number], // âmbar escuro, legível no papel
   critico: [179, 38, 30] as [number, number, number],
+  marcaClara: [27, 77, 140] as [number, number, number], // --marca-clara
 };
 
 const MARGEM = 16;
@@ -249,6 +250,7 @@ export async function exportarContagemPDF(
         if (status === 'CRITICO') dados.cell.styles.textColor = COR.critico;
         else if (status === 'ERRADO') dados.cell.styles.textColor = COR.alerta;
         else if (status === 'NÃO CONTADO') dados.cell.styles.textColor = COR.fraco;
+        else if (status === 'FORA DO ERP' && dados.column.index === 4) dados.cell.styles.textColor = COR.marcaClara;
         else if (dados.column.index === 4) dados.cell.styles.textColor = COR.ok;
       }
       if (dados.column.index === 4 && status === 'CRITICO') {
@@ -289,7 +291,7 @@ export async function exportarValidadePDF(
   const { jsPDF, autoTable } = await carregarJsPdf();
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' }) as Documento;
 
-  const inicio = desenharCabecalho(doc, 'Relatório de validade', contexto, comValidade.length);
+  const inicio = desenharCabecalho(doc, 'Relatório de validade', contexto, linhas.length);
   const largura = doc.internal.pageSize.getWidth();
 
   // Só o que exige ação aparece no resumo. Total de itens é detalhe, não decisão.
@@ -360,6 +362,7 @@ export async function exportarConsolidadoPDF(
   const periodo = periodoDoConsolidado(relatorio.ciclos);
 
   const largura = doc.internal.pageSize.getWidth();
+  const util = largura - MARGEM * 2;
 
   doc.setFillColor(...COR.marca);
   doc.rect(0, 0, largura, 3, 'F');
@@ -369,16 +372,22 @@ export async function exportarConsolidadoPDF(
   doc.setTextColor(...COR.marca);
   doc.text('Relatório consolidado de auditoria', MARGEM, 20);
 
+  // Estoque e período longos quebram em vez de encostar no "Gerado em". Cada linha a mais
+  // (4 mm) empurra o aviso e as métricas para baixo.
   doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8.5);
+  const gerado = `Gerado em ${new Date().toLocaleString('pt-BR')}`;
+  const larguraGerado = doc.getTextWidth(gerado);
+
   doc.setFontSize(9.5);
   doc.setTextColor(...COR.suave);
-  doc.text(`${estoque} · ${periodo}`, MARGEM, 26.5);
+  const sub: string[] = doc.splitTextToSize(`${estoque} · ${periodo}`, util - larguraGerado - 6);
+  doc.text(sub, MARGEM, 26.5);
+  const descida = (sub.length - 1) * 4;
 
   doc.setFontSize(8.5);
   doc.setTextColor(...COR.fraco);
-  doc.text(`Gerado em ${new Date().toLocaleString('pt-BR')}`, largura - MARGEM, 26.5, {
-    align: 'right',
-  });
+  doc.text(gerado, largura - MARGEM, 26.5, { align: 'right' });
 
   /*
     O aviso não é rodapé opcional: sem ele, "1.700 medições" em cima de um estoque de 850
@@ -386,7 +395,7 @@ export async function exportarConsolidadoPDF(
     Ver o topo de `consolidado.ts`.
   */
   doc.setFillColor(...COR.gelo);
-  doc.roundedRect(MARGEM, 31, largura - MARGEM * 2, 8, 1.5, 1.5, 'F');
+  doc.roundedRect(MARGEM, 31 + descida, largura - MARGEM * 2, 8, 1.5, 1.5, 'F');
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8);
   doc.setTextColor(...COR.marca);
@@ -394,11 +403,10 @@ export async function exportarConsolidadoPDF(
     `${t.ciclos} ${t.ciclos === 1 ? 'RODADA SOMADA' : 'RODADAS SOMADAS'} — CADA RODADA É UMA MEDIÇÃO. ` +
       'UM PRODUTO CONTADO EM DUAS RODADAS APARECE DUAS VEZES.',
     MARGEM + 3,
-    36.3,
+    36.3 + descida,
   );
 
-  const inicio = 48;
-  const util = largura - MARGEM * 2;
+  const inicio = 48 + descida;
   const metricas: Array<[string, string, [number, number, number]]> = [
     ['MEDIÇÕES', String(t.contados), COR.texto],
     ['CORRETAS', String(t.corretos), COR.ok],
@@ -441,6 +449,8 @@ export async function exportarConsolidadoPDF(
       String(c.corrigidos),
       String(c.foraDoErp),
     ]),
+    // O padrão do autoTable repete o TOTAL do período em toda página.
+    showFoot: 'lastPage',
     foot: [[
       'TOTAL',
       `${t.ciclos} ${t.ciclos === 1 ? 'rodada' : 'rodadas'}`,

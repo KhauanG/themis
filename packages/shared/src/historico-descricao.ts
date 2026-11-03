@@ -240,12 +240,13 @@ export function descreverEvento(acao: AcaoHistorico, detalhes: Detalhes = {}): D
         contagem: 'PDF da contagem',
         validade: 'PDF de validade',
         planilha: 'Planilha .xlsx',
+        consolidado: 'PDF consolidado',
       };
       if (d['tipo']) fatos.push(tipos[String(d['tipo'])] ?? texto(d['tipo']));
       if (d['itens'] !== undefined && d['de'] !== undefined) {
         fatos.push(`${texto(d['itens'])} de ${texto(d['de'])} itens`);
       }
-      if (d['origem'] && d['origem'] !== 'ao-vivo') fatos.push('De uma auditoria salva');
+      if (d['origem'] && d['origem'] !== 'ao-vivo' && d['origem'] !== 'consolidado') fatos.push('De uma auditoria salva');
       return { mudancas, fatos };
     }
 

@@ -209,7 +209,11 @@ export function PainelAuditoria() {
           await exportarContagemPDF(visiveis, contexto, estatisticas);
         } else if (qual === 'validade') {
           const total = await exportarValidadePDF(visiveis, contexto);
-          if (total === 0) mostrar('Nenhum item do recorte tem validade preenchida.', 'info');
+          if (total === 0) {
+            // Sem arquivo gerado, não há exportação a registrar.
+            mostrar('Nenhum item do recorte tem validade preenchida.', 'info');
+            return;
+          }
         } else {
           await exportarPlanilha(visiveis, contexto.estoque);
         }

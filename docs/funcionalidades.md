@@ -153,6 +153,8 @@ não baixa 1,5 MB de biblioteca de relatório.
 
 Entrega por **Web Share** (abre a folha nativa do Android), com download como alternativa.
 
+O recorte no PDF diz a situação e as divergências juntas ("Somente não contados · Somente divergências"). O PDF de validade diz "N de M itens" sobre o recorte de itens da contagem e não registra exportação quando nenhum item tem validade. No PDF consolidado, o TOTAL sai só na última página.
+
 ---
 
 ## Produtos

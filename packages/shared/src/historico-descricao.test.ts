@@ -197,6 +197,12 @@ describe('descreverEvento — operações em massa', () => {
     expect(r.fatos).toContain('40 de 2000 itens');
   });
 
+  it('PDF consolidado tem nome e não diz "De uma auditoria salva"', () => {
+    expect(descreverEvento('EXPORTAR_PLANILHA', { tipo: 'consolidado', origem: 'consolidado', ciclos: 4 }).fatos).toEqual([
+      'PDF consolidado',
+    ]);
+  });
+
   it('corrigir estoque não mostra o ciclo', () => {
     expect(descreverEvento('CORRIGIR_ESTOQUE', { conferidos: 2, ciclo: 7 }).fatos).toEqual(['2 itens conferidos']);
   });

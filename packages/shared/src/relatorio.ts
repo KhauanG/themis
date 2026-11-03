@@ -256,8 +256,8 @@ export function filtrarLinhas(
 export function descreverFiltro(filtro: FiltroRelatorio): string {
   const partes: string[] = [];
 
+  if (filtro.situacao !== 'todos') partes.push(ROTULO_SITUACAO[filtro.situacao]);
   if (filtro.somenteDivergentes) partes.push('Somente divergências');
-  else if (filtro.situacao !== 'todos') partes.push(ROTULO_SITUACAO[filtro.situacao]);
 
   if (filtro.status !== 'TODOS') partes.push(`Status ${filtro.status}`);
 
