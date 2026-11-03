@@ -6,6 +6,37 @@ Categorias: **Adicionado**, **Alterado**, **Corrigido**, **Removido**, **Seguran
 
 ---
 
+## 2.24.0 — 2026-11-03
+
+Etapa 3 no site: a auditoria e os relatórios mostram os números certos, para o app copiar. Nada do que está gravado muda.
+
+### Adicionado
+
+- "Carregar mais antigas" no seletor da Auditoria e no consolidado. A lista vem de 20 em 20, e o consolidado diz "Somando N rodadas carregadas".
+- No consolidado, auditorias antigas do mesmo ciclo aparecem como "duplicada" e começam desmarcadas. Nada é apagado.
+
+### Alterado
+
+- A Cobertura do consolidado conta os conferidos: `(contados + conferidos) / total`. Relatórios de períodos antigos mudam de número.
+- O recorte no PDF diz a situação e "Somente divergências" juntas.
+
+### Corrigido
+
+- "A contar" (cartão, PDF da contagem e Finalizar) não conta mais os itens conferidos, e o Finalizar não avisa mais que eles serão salvos como NÃO CONTADO. O evento do histórico também, daqui para frente.
+- Depois das 21:00, o nome dos arquivos, o "hoje" do PDF de validade e a etiqueta "vencido" do card usavam o dia seguinte.
+- A lista de auditorias parava em 100 sem aviso.
+- No PDF consolidado, o TOTAL saía em toda página, e o cabeçalho podia encostar no "Gerado em".
+- O painel quebrava ao abrir uma auditoria antiga sem o bloco de conferidos.
+- No PDF da contagem, FORA DO ERP saía verde. O PDF de validade diz "N de M" sobre o recorte e não registra exportação quando não gera arquivo. O histórico chama o PDF consolidado pelo nome, e não de "auditoria salva".
+
+### Notas
+
+- Sem `deploy-rules` nem `deploy-indexes`: regra e índice não mudam.
+- Os testes fixam o fuso `America/Sao_Paulo`, para passar também no CI em UTC.
+- Publicar depois das 21:00, com admins e masters avisados. Uma aba antiga segue na 2.23.0 até recarregar, sem risco para os dados.
+
+---
+
 ## 2.23.0 — 2026-10-29
 
 Etapa 2 no site: o ciclo sai das telas. A rodada é identificada pelo lote e, nas auditorias antigas sem lote, pela data. O ciclo continua como contador interno, e o fim da contagem não muda.
