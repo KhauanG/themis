@@ -13,6 +13,7 @@
  * passam pelo mesmo caminho e não há como exportar uma achando que é a outra.
  */
 import {
+  aContar,
   datasDaLista,
   descreverFiltro,
   filtroEstaAtivo,
@@ -197,7 +198,7 @@ export async function exportarContagemPDF(
   const util = largura - MARGEM * 2;
   const metricas: Array<[string, string, [number, number, number]]> = [
     ['CONTADOS', String(estatisticas.contados), COR.texto],
-    ['A CONTAR', String(estatisticas.naoContados), COR.texto],
+    ['A CONTAR', String(aContar(estatisticas)), COR.texto],
     ['CORRETOS', String(estatisticas.corretos), COR.ok],
     ['DIVERGENTES', String(estatisticas.incorretos), COR.alerta],
     ['DIVERGÊNCIA', `${estatisticas.percentualIncorretos}%`, COR.texto],

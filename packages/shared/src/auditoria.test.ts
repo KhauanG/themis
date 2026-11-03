@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { calcularEstatisticas, diferencaDe, montarSnapshotProdutos, statusDe } from './auditoria.js';
+import { aContar, calcularEstatisticas, diferencaDe, montarSnapshotProdutos, statusDe } from './auditoria.js';
 import type { Produto } from './types.js';
 
 function produto(over: Partial<Produto> = {}): Produto {
@@ -206,5 +206,32 @@ describe('calcularEstatisticas com produtos fora do ERP', () => {
   it('contados + naoContados continua fechando com o total', () => {
     const est = calcularEstatisticas(base);
     expect(est.contados + est.naoContados).toBe(est.total);
+  });
+});
+
+describe('aContar', () => {
+  // O mesmo conjunto do primeiro teste de calcularEstatisticas: naoContados é 3
+  // (1 pendente + 2 conferidos), mas só 1 falta contar.
+  it('não soma os conferidos', () => {
+    const est = calcularEstatisticas([
+      produto({ id: 'a', quantidade: 10, estoqueSistema: 10 }),
+      produto({ id: 'b', quantidade: 3, estoqueSistema: 10 }),
+      produto({ id: 'c', productStatus: null }),
+      produto({ id: 'd', productStatus: 'CONFERIDO', quantidade: 8, estoqueSistema: 8 }),
+      produto({ id: 'e', productStatus: 'CONFERIDO', quantidade: 8, estoqueSistema: 8, corrigidoIncorreto: true }),
+    ]);
+    expect(est.naoContados).toBe(3);
+    expect(aContar(est)).toBe(1);
+  });
+
+  it('fora do ERP não entra', () => {
+    const est = calcularEstatisticas([produto({ id: 'a', productStatus: null }), produto({ id: 'f', apiNotFound: true })]);
+    expect(aContar(est)).toBe(1);
+  });
+
+  // Auditoria do 1.x sem o bloco: o painel quebrava em estatisticas.corrigidos.total.
+  it('auditoria antiga sem o bloco corrigidos', () => {
+    expect(aContar({ total: 10, contados: 7 })).toBe(3);
+    expect(aContar({ total: 10, contados: 7, corrigidos: null })).toBe(3);
   });
 });

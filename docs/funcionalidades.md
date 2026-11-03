@@ -88,7 +88,8 @@ e tratamento de falha em [regras-de-negocio.md](regras-de-negocio.md) §Ciclo.
 Auditoria. **Mesma permissão do painel** (admin, auditor, master).
 
 Escolhe quantos ciclos quiser do estoque aberto e soma contados, corretos e incorretos, com
-percentuais por ciclo e no total. Exporta em PDF paisagem.
+percentuais por ciclo e no total. Exporta em PDF paisagem. A cobertura conta os conferidos;
+períodos antigos mudam de número na 2.24.
 
 ⚠️ **Cada ciclo é uma medição.** Um produto contado em dois ciclos entra duas vezes no
 total. É assim que se mede acurácia ao longo do tempo — mas é o mal-entendido natural de
@@ -111,8 +112,9 @@ Seletor de origem: **ao vivo** (`Ao vivo — Lote X` ou `Ao vivo — Sem lote`) 
 O nome gravado na auditoria não aparece. Auditoria salva é somente leitura, e a tela avisa
 isso.
 
-Cartões de estatística, filtro por status, tabela com Produto / Sistema / Contado /
-Diferença / Status.
+Cartões de estatística (Contados, A contar sem os conferidos, Corretos, Divergentes,
+Divergência e Conferidos, este só se houver), filtro por status, tabela com Produto / Sistema
+/ Contado / Diferença / Status.
 
 ### Conferência do admin
 

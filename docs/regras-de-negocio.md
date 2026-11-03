@@ -109,6 +109,12 @@ Sem isso uma correção contaria duas vezes. Regra herdada do painel do auditor 
 
 `contados + naoContados == total` sempre. Há teste.
 
+`naoContados` inclui os conferidos e fica gravado assim. O que a tela chama de "A contar"
+(o cartão, o PDF da contagem, o Finalizar e o evento do histórico, desde a 2.24) é
+`aContar = total − contados − corrigidos.total`: conferido foi contado. Auditoria do 1.x sem
+o bloco `corrigidos` conta 0 conferidos. A cobertura do consolidado é
+`(contados + corrigidos) / total`.
+
 ⚠️ A marcação explícita do admin (`corrigidoIncorreto`) **vence o cálculo automático**. Se
 o admin diz que a divergência se confirmou, é isso, mesmo que os números batam.
 

@@ -113,6 +113,15 @@ export function calcularEstatisticas(produtos: Produto[]): EstatisticasAuditoria
 }
 
 /**
+ * Itens contáveis que ninguém contou: total − contados − conferidos. Conferido foi contado.
+ * Número de tela: o `naoContados` gravado fica como está (o consolidado e o acervo o leem).
+ * Sem o bloco `corrigidos` (auditoria do 1.x), conta 0.
+ */
+export function aContar(e: { total: number; contados: number; corrigidos?: { total?: number } | null }): number {
+  return e.total - e.contados - (e.corrigidos?.total ?? 0);
+}
+
+/**
  * Snapshot dos produtos gravado dentro da auditoria.
  * Formato idêntico ao que o Themis 1.x grava — auditorias antigas e novas
  * continuam legíveis pelo mesmo código de leitura.

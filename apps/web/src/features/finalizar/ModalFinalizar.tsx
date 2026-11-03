@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { calcularEstatisticas, nomeDaAuditoria } from '@themis/shared';
+import { aContar, calcularEstatisticas, nomeDaAuditoria } from '@themis/shared';
 import { Modal } from '../../components/Modal.js';
 import { useEstoque } from '../../contexts/EstoqueContext.js';
 import { useAuth } from '../../contexts/AuthContext.js';
@@ -43,6 +43,8 @@ export function ModalFinalizar({ aberto, onFechar }: Props) {
   const gravando = useRef(false);
 
   const estatisticas = calcularEstatisticas(produtos);
+  // O que ninguém contou: conferido foi contado. O número gravado (`naoContados`) não muda.
+  const faltam = aContar(estatisticas);
   /**
    * Lista ainda não conciliada com o servidor.
    *
@@ -113,7 +115,7 @@ export function ModalFinalizar({ aberto, onFechar }: Props) {
             auditoriaId: r.auditoriaId,
             ciclo: r.cicloFinalizado,
             contados: estatisticas.contados,
-            naoContados: estatisticas.naoContados,
+            naoContados: faltam,
             incorretos: estatisticas.incorretos,
             foraDoErp: estatisticas.foraDoErp,
           });
@@ -207,7 +209,7 @@ export function ModalFinalizar({ aberto, onFechar }: Props) {
         </li>
         <li>
           <span>Não contados</span>
-          <strong>{estatisticas.naoContados}</strong>
+          <strong>{faltam}</strong>
         </li>
         {/*
           Contagem às cegas: "corretos" e "divergentes" comparam com o saldo do sistema.
@@ -246,9 +248,9 @@ export function ModalFinalizar({ aberto, onFechar }: Props) {
         </p>
       )}
 
-      {estatisticas.naoContados > 0 && (
+      {faltam > 0 && (
         <p className="aviso" role="alert">
-          Ainda há {estatisticas.naoContados} {estatisticas.naoContados === 1 ? 'item' : 'itens'} sem
+          Ainda há {faltam} {faltam === 1 ? 'item' : 'itens'} sem
           contagem. Eles serão salvos como NÃO CONTADO.
         </p>
       )}

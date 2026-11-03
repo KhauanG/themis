@@ -5,6 +5,7 @@ import {
   ROTULO_SITUACAO,
   direcaoDaColuna,
   ordemAoClicar,
+  aContar,
   calcularEstatisticas,
   filtrarLinhas,
   linhasDeProdutos,
@@ -453,7 +454,7 @@ export function PainelAuditoria() {
         </li>
         <li className="metrica">
           <span className="metrica__rotulo">A contar</span>
-          <strong className="metrica__valor">{estatisticas.naoContados}</strong>
+          <strong className="metrica__valor">{aContar(estatisticas)}</strong>
         </li>
         <li className="metrica metrica--ok">
           <span className="metrica__rotulo">Corretos</span>
@@ -467,10 +468,10 @@ export function PainelAuditoria() {
           <span className="metrica__rotulo">Divergência</span>
           <strong className="metrica__valor">{estatisticas.percentualIncorretos}%</strong>
         </li>
-        {estatisticas.corrigidos.total > 0 && (
+        {(estatisticas.corrigidos?.total ?? 0) > 0 && (
           <li className="metrica">
             <span className="metrica__rotulo">Conferidos</span>
-            <strong className="metrica__valor">{estatisticas.corrigidos.total}</strong>
+            <strong className="metrica__valor">{estatisticas.corrigidos?.total ?? 0}</strong>
           </li>
         )}
       </ul>

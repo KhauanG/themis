@@ -46,7 +46,7 @@ export interface CicloConsolidado {
   /** Sobre os contados. `0` quando nada foi contado. */
   percentualCorretos: number;
   percentualIncorretos: number;
-  /** Quanto do estoque o ciclo cobriu: contados sobre o total contável. */
+  /** Quanto do estoque o ciclo cobriu: contados mais conferidos sobre o total contável. */
   percentualCobertura: number;
 }
 
@@ -102,7 +102,7 @@ function doCiclo(a: Auditoria): CicloConsolidado {
     foraDoErp: e.foraDoErp ?? 0,
     percentualCorretos: percentual(e.corretos ?? 0, e.contados ?? 0),
     percentualIncorretos: percentual(e.incorretos ?? 0, e.contados ?? 0),
-    percentualCobertura: percentual(e.contados ?? 0, e.total ?? 0),
+    percentualCobertura: percentual((e.contados ?? 0) + (corrigidos.total ?? 0), e.total ?? 0),
   };
 }
 
@@ -146,7 +146,7 @@ export function consolidarCiclos(auditorias: readonly Auditoria[]): RelatorioCon
       // Das SOMAS, nunca da média dos percentuais de cada ciclo — ver o topo do arquivo.
       percentualCorretos: percentual(corretos, contados),
       percentualIncorretos: percentual(incorretos, contados),
-      percentualCobertura: percentual(contados, total),
+      percentualCobertura: percentual(contados + soma('corrigidos'), total),
     },
   };
 }

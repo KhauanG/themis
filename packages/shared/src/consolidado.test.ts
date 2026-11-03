@@ -92,6 +92,20 @@ describe('consolidarCiclos', () => {
     expect(r.totais.percentualCobertura).toBe(25);
   });
 
+  // Conferido foi contado: uma rodada 100% contada com 30 conferidos não pode sair com 70%.
+  it('cobertura soma contados e conferidos sobre o total contável', () => {
+    const r = consolidarCiclos([
+      auditoria(1, {
+        total: 200, contados: 50, naoContados: 150, corretos: 50, incorretos: 0,
+        corrigidos: { total: 30, corretos: 30, incorretos: 0, percentualIncorretos: 0 },
+      }),
+      auditoria(2, { total: 100, contados: 100, naoContados: 0 }),
+    ]);
+    expect(r.ciclos[0]?.percentualCobertura).toBe(40);
+    expect(r.ciclos[1]?.percentualCobertura).toBe(100);
+    expect(r.totais.percentualCobertura).toBe(60);
+  });
+
   it('soma os conferidos à parte, sem misturar com os contados', () => {
     const r = consolidarCiclos([
       auditoria(1, {
