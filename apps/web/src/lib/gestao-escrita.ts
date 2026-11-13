@@ -61,3 +61,10 @@ export function mensagemDeFalha(erro: unknown, textos: { recusa?: string; teto?:
   if (isWriteTimeout(erro)) return textos.teto ?? TEXTO_SEM_CONFIRMACAO;
   return TEXTO_FALHA;
 }
+
+/** Mensagem do primeiro acesso: recusa da regra = campo fora do padrão; teto ou rede = sem internet. */
+export function mensagemDoPrimeiroAcesso(erro: unknown): string {
+  if (isPermissaoNegada(erro)) return 'Seu perfil tem um campo fora do padrão. Avise o dono.';
+  if (isWriteTimeout(erro) || (erro as { code?: string } | null)?.code === 'unavailable') return 'Sem internet, tente de novo.';
+  return TEXTO_FALHA;
+}

@@ -6,6 +6,7 @@ import { Toasts } from './components/Toasts.js';
 import { Carregando } from './components/Carregando.js';
 import { Layout } from './components/Layout.js';
 import { Login } from './features/auth/Login.js';
+import { PerfilIndisponivel, PrimeiroAcesso } from './features/auth/PrimeiroAcesso.js';
 import { TelaContagem } from './features/contagem/TelaContagem.js';
 import { PainelAuditoria } from './features/auditoria/PainelAuditoria.js';
 import { TelaProdutos } from './features/produtos/TelaProdutos.js';
@@ -69,10 +70,14 @@ function Protegida({ permitido, children }: { permitido: boolean; children: Reac
 }
 
 function Rotas() {
-  const { usuario, carregando, permissoes } = useAuth();
+  const { usuario, carregando, permissoes, primeiroAcesso } = useAuth();
 
   if (carregando) return <Carregando texto="Entrando..." tela />;
   if (!usuario) return <Login />;
+  // O app só monta com perfil confirmado: nada de contagem, histórico ou estoque sem nome.
+  if (primeiroAcesso === 'aguarda') return <Carregando texto="Carregando seu perfil..." tela />;
+  if (primeiroAcesso === 'completar-nome') return <PrimeiroAcesso />;
+  if (primeiroAcesso === 'pede-internet') return <PerfilIndisponivel />;
 
   return (
     <EstoqueProvider>

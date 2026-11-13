@@ -496,9 +496,10 @@ export function EstoqueProvider({ children }: { children: ReactNode }) {
     (id: string) => {
       setEstoqueId(id);
       gravar(CHAVES.estoqueAtual, id);
-      if (usuario) void registrarUltimoEstoque(usuario.uid, id);
+      // Sem perfil o `setDoc` com merge criaria um documento só com `lastEstoque`.
+      if (usuario && perfil) void registrarUltimoEstoque(usuario.uid, id);
     },
-    [usuario],
+    [usuario, perfil],
   );
 
   const contextoLog = useMemo(

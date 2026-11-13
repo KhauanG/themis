@@ -1,8 +1,9 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { getDocFromServer } from 'firebase/firestore';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { runTransactionWithTimeout } from './firestore-write.js';
 import { DocumentoAusenteError } from './gestao-escrita.js';
 import { transacaoFalsa } from './transacao-falsa.js';
-import { salvarEstoquesPermitidos, salvarPapeis } from './usuarios-repo.js';
+import { buscarPerfilDoServidor, completarPerfil, salvarEstoquesPermitidos, salvarPapeis } from './usuarios-repo.js';
 
 vi.mock('./firebase.js', () => ({ db: {} }));
 vi.mock('./firestore-write.js', async (original) => ({
@@ -13,6 +14,7 @@ vi.mock('firebase/firestore', async (original) => ({
   ...(await original<typeof import('firebase/firestore')>()),
   collection: (base: { path?: string }, ...p: string[]) => ({ path: [base.path, ...p].filter(Boolean).join('/') }),
   doc: (base: { path?: string }, ...p: string[]) => ({ path: [base.path, ...p].filter(Boolean).join('/') }),
+  getDocFromServer: vi.fn(),
 }));
 
 // `docs` é o que o servidor tem. Devolve a lista do que a função gravou.
@@ -65,5 +67,41 @@ describe('salvarEstoquesPermitidos', () => {
   it('seleção igual à abertura: nada mudou, sem transação', async () => {
     expect((await salvarEstoquesPermitidos('u1', ['X'], ['X'])).resultado).toBe('NADA_MUDOU');
     expect(runTransactionWithTimeout).not.toHaveBeenCalled();
+  });
+});
+
+describe('completarPerfil', () => {
+  it('perfil não existe: cria com flags falsas e createdAt', async () => {
+    const gravacoes = servidor({});
+    await completarPerfil('u1', 'ana@x.com', 'Ana', 'Souza');
+    expect(gravacoes).toHaveLength(1);
+    expect(gravacoes[0]!.path).toBe('users/u1');
+    expect(gravacoes[0]!.opcoes).toEqual({ merge: true });
+    expect(Object.keys(gravacoes[0]!.dados!).sort()).toEqual([
+      'createdAt', 'displayName', 'email', 'firstName', 'isAdmin', 'isAuditor', 'isMaster', 'lastName', 'updatedAt',
+    ]);
+  });
+  it('perfil existe sem nome: completa sem mandar flags', async () => {
+    const gravacoes = servidor({ 'users/u1': { isAdmin: true, email: 'ana@x.com' } });
+    await completarPerfil('u1', 'ana@x.com', 'Ana', 'Souza');
+    expect(Object.keys(gravacoes[0]!.dados!).sort()).toEqual(['displayName', 'email', 'firstName', 'lastName', 'updatedAt']);
+  });
+});
+
+describe('buscarPerfilDoServidor', () => {
+  afterEach(() => vi.useRealTimers());
+  it('devolve o perfil lido, ou null se não existe', async () => {
+    vi.mocked(getDocFromServer).mockResolvedValueOnce({ exists: () => true, id: 'u1', data: () => ({ firstName: 'Ana' }) } as never);
+    expect(await buscarPerfilDoServidor('u1')).toMatchObject({ uid: 'u1', firstName: 'Ana' });
+    vi.mocked(getDocFromServer).mockResolvedValueOnce({ exists: () => false } as never);
+    expect(await buscarPerfilDoServidor('u1')).toBeNull();
+  });
+  it('sem resposta em 8 s: rejeita', async () => {
+    vi.useFakeTimers();
+    vi.mocked(getDocFromServer).mockReturnValueOnce(new Promise(() => {}) as never);
+    const pedido = buscarPerfilDoServidor('u1');
+    const espera = expect(pedido).rejects.toMatchObject({ isWriteTimeout: true });
+    await vi.advanceTimersByTimeAsync(8_000);
+    await espera;
   });
 });

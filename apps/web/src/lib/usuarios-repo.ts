@@ -10,16 +10,26 @@ import {
   collection,
   doc,
   getDoc,
+  getDocFromServer,
   getDocs,
   onSnapshot,
   setDoc,
   type DocumentData,
   type QueryDocumentSnapshot,
 } from 'firebase/firestore';
-import { estoquesPermitidos, flagsDoPapel, papelDe, type Papel, type ResultadoGestao, type UserProfile } from '@themis/shared';
+import {
+  ESPERA_SERVIDOR_MS,
+  dadosDoPrimeiroAcesso,
+  estoquesPermitidos,
+  flagsDoPapel,
+  papelDe,
+  type Papel,
+  type ResultadoGestao,
+  type UserProfile,
+} from '@themis/shared';
 import { db } from './firebase.js';
 import { assinaturaResiliente } from './assinatura.js';
-import { withWriteTimeout } from './firestore-write.js';
+import { WriteTimeoutError, runTransactionWithTimeout, withWriteTimeout } from './firestore-write.js';
 import { gravarCampoDeGestao } from './gestao-escrita.js';
 
 const COLECAO = 'users';
@@ -147,4 +157,34 @@ export function salvarPapeis(uid: string, papel: Papel, abertura: Papel): Promis
     dados: (p) => ({ ...flagsDoPapel(p), updatedAt: new Date() }),
     exigeDocumento: true,
   });
+}
+
+/**
+ * Lê `users/{uid}` do servidor, nunca do cache. O listener do perfil entrega o cache primeiro,
+ * e "documento ausente" no cache não prova nada: só o servidor confirma que falta o perfil.
+ * Teto de `ESPERA_SERVIDOR_MS`: estourou, rejeita com `WriteTimeoutError`.
+ */
+export async function buscarPerfilDoServidor(uid: string): Promise<UserProfile | null> {
+  let temporizador: ReturnType<typeof setTimeout> | undefined;
+  const teto = new Promise<never>((_, rejeitar) => {
+    temporizador = setTimeout(() => rejeitar(new WriteTimeoutError('perfil')), ESPERA_SERVIDOR_MS);
+  });
+  try {
+    const snap = await Promise.race([getDocFromServer(doc(db, COLECAO, uid)), teto]);
+    return snap.exists() ? paraPerfil(snap.id, snap.data()) : null;
+  } finally {
+    clearTimeout(temporizador);
+  }
+}
+
+/** Grava nome e sobrenome. Cria o documento com as flags falsas; se já existe, não manda flags. */
+export function completarPerfil(uid: string, email: string, firstName: string, lastName: string): Promise<void> {
+  const ref = doc(db, COLECAO, uid);
+  return runTransactionWithTimeout(
+    async (tx) => {
+      const snap = await tx.get(ref);
+      tx.set(ref, dadosDoPrimeiroAcesso({ firstName, lastName }, email, snap.exists(), new Date()), { merge: true });
+    },
+    { label: 'completar perfil' },
+  );
 }

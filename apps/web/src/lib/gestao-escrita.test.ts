@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { TEXTO_FALHA, TEXTO_SEM_CONFIRMACAO, TEXTO_SEM_PERMISSAO } from '@themis/shared';
 import { WriteTimeoutError, runTransactionWithTimeout } from './firestore-write.js';
 import { transacaoFalsa } from './transacao-falsa.js';
-import { DocumentoAusenteError, gravarCampoDeGestao, mensagemDeFalha } from './gestao-escrita.js';
+import { DocumentoAusenteError, gravarCampoDeGestao, mensagemDeFalha, mensagemDoPrimeiroAcesso } from './gestao-escrita.js';
 
 vi.mock('./firebase.js', () => ({ db: {} }));
 vi.mock('./firestore-write.js', async (original) => ({
@@ -79,5 +79,19 @@ describe('mensagemDeFalha', () => {
     expect(mensagemDeFalha(new Error('qualquer'))).toBe(TEXTO_FALHA);
     expect(mensagemDeFalha(undefined)).toBe(TEXTO_FALHA);
     expect(mensagemDeFalha(new DocumentoAusenteError())).toBe(TEXTO_FALHA);
+  });
+});
+
+describe('mensagemDoPrimeiroAcesso', () => {
+  it('recusa da regra: perfil fora do padrão', () => {
+    expect(mensagemDoPrimeiroAcesso(Object.assign(new Error('x'), { code: 'permission-denied' })))
+      .toBe('Seu perfil tem um campo fora do padrão. Avise o dono.');
+  });
+  it('teto e rede', () => {
+    expect(mensagemDoPrimeiroAcesso(new WriteTimeoutError('t'))).toBe('Sem internet, tente de novo.');
+    expect(mensagemDoPrimeiroAcesso(Object.assign(new Error('x'), { code: 'unavailable' }))).toBe('Sem internet, tente de novo.');
+  });
+  it('outro erro', () => {
+    expect(mensagemDoPrimeiroAcesso(new Error('qualquer'))).toBe(TEXTO_FALHA);
   });
 });
