@@ -38,6 +38,12 @@ export interface ContextoLog {
   inventoryName: string;
 }
 
+/** Quem fez, sem estoque: para ações que não são de um estoque só. */
+export type AutorLog = Pick<ContextoLog, 'userId' | 'userEmail' | 'userName'>;
+
+/** Contexto das ações globais (configurações), que não pertencem a um estoque. */
+export const CONTEXTO_GLOBAL = { inventoryId: 'global', inventoryName: 'Todos os estoques' } as const;
+
 export async function registrar(
   acao: AcaoHistorico,
   contexto: ContextoLog,

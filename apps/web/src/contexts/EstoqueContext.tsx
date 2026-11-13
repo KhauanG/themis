@@ -26,7 +26,7 @@ import {
 } from '@themis/shared';
 import { abrirLote, carregarEstoques, ouvirEstoques } from '../lib/estoques-repo.js';
 import { atualizarProduto, drenarFila, ouvirProdutos, type BaseCliente } from '../lib/produtos-repo.js';
-import { drenarHistorico, registrar } from '../lib/historico.js';
+import { CONTEXTO_GLOBAL, drenarHistorico, registrar, type AutorLog } from '../lib/historico.js';
 import {
   REMOVER,
   aplicarPendentes,
@@ -41,9 +41,10 @@ import { registrarUltimoEstoque } from '../lib/usuarios-repo.js';
 import {
   CONFIGURACOES_PADRAO,
   ouvirConfiguracoes,
-  salvarConfiguracoes,
+  salvarModoContagem,
   type Configuracoes,
 } from '../lib/configuracoes-repo.js';
+import { mensagemDeFalha } from '../lib/gestao-escrita.js';
 import { useAuth } from './AuthContext.js';
 import { useToast } from './ToastContext.js';
 
@@ -78,7 +79,10 @@ interface EstoqueAPI {
    * Destrava com "Limpar contagem" ou desfazendo as conferências.
    */
   contagemFechada: boolean;
-  alterarConfiguracoes: (mudanca: Partial<Configuracoes>) => Promise<void>;
+  /** Grava o modo contagem, registra o histórico e avisa o erro. Devolve se salvou. A tela muda quando o listener confirma. */
+  alterarModoContagem: (valor: boolean) => Promise<boolean>;
+  /** Quem está logado, sem estoque. `null` sem usuário. */
+  autorLog: AutorLog | null;
   /** Contexto pronto para `registrar()`. `null` enquanto não há usuário ou estoque. */
   contextoLog: {
     userId: string;
@@ -252,21 +256,31 @@ export function EstoqueProvider({ children }: { children: ReactNode }) {
     [produtos, carregandoProdutos, conciliando],
   );
 
-  const alterarConfiguracoes = useCallback(
-    async (mudanca: Partial<Configuracoes>) => {
-      const novo = { ...configuracoes, ...mudanca };
-      // Estado otimista: o listener confirma em seguida, mas o interruptor precisa
-      // responder na hora ao toque.
-      setConfiguracoes(novo);
+  const autorLog = useMemo<AutorLog | null>(
+    () => (usuario ? { userId: usuario.uid, userEmail: usuario.email ?? '', userName: nome } : null),
+    [usuario, nome],
+  );
+
+  const alterarModoContagem = useCallback(
+    async (valor: boolean): Promise<boolean> => {
+      // Sem estado otimista: o interruptor muda quando o listener entrega o valor confirmado.
       try {
-        await salvarConfiguracoes(novo);
+        const r = await salvarModoContagem(valor, configuracoes.modoContagem);
+        // O histórico só sai depois do aceite do servidor.
+        if (r.resultado !== 'NADA_MUDOU' && autorLog) {
+          void registrar('ALTERAR_CONFIGURACAO', { ...autorLog, ...CONTEXTO_GLOBAL }, {
+            modoContagemDe: r.de,
+            modoContagemPara: valor,
+          });
+        }
+        return true;
       } catch (erro) {
         console.error('[configuracoes] Falha ao salvar:', erro);
-        setConfiguracoes(configuracoes);
-        mostrar('Não foi possível salvar. Só admin ou master pode alterar isto.', 'error');
+        mostrar(mensagemDeFalha(erro), 'error');
+        return false;
       }
     },
-    [configuracoes, mostrar],
+    [configuracoes.modoContagem, autorLog, mostrar],
   );
 
   useEffect(() => {
@@ -489,16 +503,10 @@ export function EstoqueProvider({ children }: { children: ReactNode }) {
 
   const contextoLog = useMemo(
     () =>
-      usuario && estoqueAtual
-        ? {
-            userId: usuario.uid,
-            userEmail: usuario.email ?? '',
-            userName: nome,
-            inventoryId: estoqueAtual.id,
-            inventoryName: estoqueAtual.nome ?? estoqueAtual.id,
-          }
+      autorLog && estoqueAtual
+        ? { ...autorLog, inventoryId: estoqueAtual.id, inventoryName: estoqueAtual.nome ?? estoqueAtual.id }
         : null,
-    [usuario, estoqueAtual, nome],
+    [autorLog, estoqueAtual],
   );
 
   const abrirLoteDaRodada = useCallback(
@@ -634,7 +642,8 @@ export function EstoqueProvider({ children }: { children: ReactNode }) {
       contextoLog,
       configuracoes,
       contagemFechada: rodadaFechada,
-      alterarConfiguracoes,
+      alterarModoContagem,
+      autorLog,
     }),
     [
       estoques,
@@ -657,7 +666,8 @@ export function EstoqueProvider({ children }: { children: ReactNode }) {
       contextoLog,
       configuracoes,
       rodadaFechada,
-      alterarConfiguracoes,
+      alterarModoContagem,
+      autorLog,
     ],
   );
 

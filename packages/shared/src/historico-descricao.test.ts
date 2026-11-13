@@ -259,6 +259,12 @@ describe('descreverEvento — configuração', () => {
     expect(descreverEvento('ALTERAR_CONFIGURACAO', { estoqueTravado: 'Loja Sul' }).fatos).toEqual(['Travou: Loja Sul']);
     expect(descreverEvento('ALTERAR_CONFIGURACAO', { estoqueLiberado: 'Loja Sul' }).fatos).toEqual(['Liberou: Loja Sul']);
   });
+  it('versão do app de → para; vazio vira traço', () => {
+    expect(descreverEvento('ALTERAR_CONFIGURACAO', { versaoAppDe: '', versaoAppPara: '5.4.0' }).mudancas)
+      .toEqual([{ campo: 'Versão do app', de: '—', para: '5.4.0' }]);
+    expect(descreverEvento('ALTERAR_CONFIGURACAO', { versaoAppDe: '5.3.0', versaoAppPara: '' }).mudancas)
+      .toEqual([{ campo: 'Versão do app', de: '5.3.0', para: '—' }]);
+  });
 });
 
 describe('tabelas de rótulo e cor', () => {

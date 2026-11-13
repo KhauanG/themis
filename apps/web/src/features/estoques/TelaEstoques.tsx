@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { rotuloDaRodada, type Inventory } from '@themis/shared';
+import { TEXTO_NADA_MUDOU, rotuloDaRodada, versaoAppValida, type Inventory } from '@themis/shared';
 import { useAuth } from '../../contexts/AuthContext.js';
 import { isPermissaoNegada } from '../../lib/fila-offline.js';
 import { useEstoque } from '../../contexts/EstoqueContext.js';
@@ -8,7 +8,9 @@ import { Icone } from '../../components/Icone.js';
 import { Modal } from '../../components/Modal.js';
 import { criarEstoque, excluirEstoque, renomearEstoque } from '../../lib/estoques-repo.js';
 import { apagarHashDaLoja, lerHashesConfigurados, salvarHashDaLoja, testarHash, tomDoTeste } from '../../lib/erp.js';
-import { registrar } from '../../lib/historico.js';
+import { salvarVersaoApp } from '../../lib/configuracoes-repo.js';
+import { mensagemDeFalha } from '../../lib/gestao-escrita.js';
+import { CONTEXTO_GLOBAL, registrar } from '../../lib/historico.js';
 
 type Formulario = { id: string | null; nome: string; descricao: string; hashLoja: string };
 
@@ -18,7 +20,7 @@ export function TelaEstoques() {
   const { permissoes, papel } = useAuth();
   // papelDe aceita "true" e 1, e a API não. O C2 garante que nenhum perfil está assim.
   const ehMaster = papel === 'master';
-  const { estoques, estoqueAtual, trocarEstoque, contextoLog, configuracoes, alterarConfiguracoes } =
+  const { estoques, estoqueAtual, trocarEstoque, contextoLog, configuracoes, alterarModoContagem, autorLog } =
     useEstoque();
   const { mostrar } = useToast();
 
@@ -30,6 +32,12 @@ export function TelaEstoques() {
   const [testando, setTestando] = useState(false);
   // A leitura falhou: o selo "sem HashLoja" pode estar errado.
   const [erroHashes, setErroHashes] = useState(false);
+  const [salvandoModo, setSalvandoModo] = useState(false);
+  // Campo da versão do app: `versaoAberta` é o último valor vindo do banco; `versaoSuja`, a pessoa digitou.
+  const [versao, setVersao] = useState('');
+  const [versaoAberta, setVersaoAberta] = useState('');
+  const [versaoSuja, setVersaoSuja] = useState(false);
+  const [salvandoVersao, setSalvandoVersao] = useState(false);
 
   const editando = form?.id != null;
 
@@ -47,14 +55,51 @@ export function TelaEstoques() {
 
   useEffect(recarregarHashes, [recarregarHashes]);
 
+  // Quem está digitando não perde o texto quando o listener entrega outro valor.
+  useEffect(() => {
+    if (versaoSuja) return;
+    setVersao(configuracoes.versaoApp);
+    setVersaoAberta(configuracoes.versaoApp);
+  }, [configuracoes.versaoApp, versaoSuja]);
+
   async function alternarModoContagem() {
-    const antes = configuracoes.modoContagem;
-    await alterarConfiguracoes({ modoContagem: !antes });
-    if (contextoLog) {
-      void registrar('ALTERAR_CONFIGURACAO', contextoLog, {
-        modoContagemDe: antes,
-        modoContagemPara: !antes,
-      });
+    setSalvandoModo(true);
+    try {
+      // O contexto grava, registra o histórico e avisa o erro.
+      await alterarModoContagem(!configuracoes.modoContagem);
+    } finally {
+      setSalvandoModo(false);
+    }
+  }
+
+  async function salvarVersao() {
+    const texto = versao.trim();
+    if (!versaoAppValida(texto)) {
+      mostrar('Use números e pontos, como 5.4.0.', 'error');
+      return;
+    }
+    setSalvandoVersao(true);
+    try {
+      const r = await salvarVersaoApp(texto, versaoAberta);
+      if (r.resultado === 'NADA_MUDOU') {
+        mostrar(TEXTO_NADA_MUDOU, 'info');
+        return;
+      }
+      // O histórico só sai depois do aceite do servidor.
+      if (autorLog) {
+        void registrar('ALTERAR_CONFIGURACAO', { ...autorLog, ...CONTEXTO_GLOBAL }, {
+          versaoAppDe: r.de,
+          versaoAppPara: texto,
+        });
+      }
+      mostrar('Versão mais nova do app salva.', 'success');
+      setVersaoAberta(texto);
+      setVersaoSuja(false);
+    } catch (erro) {
+      console.error('[configuracoes] Falha ao salvar a versão do app:', erro);
+      mostrar(mensagemDeFalha(erro), 'error');
+    } finally {
+      setSalvandoVersao(false);
     }
   }
 
@@ -185,16 +230,44 @@ export function TelaEstoques() {
             className={configuracoes.modoContagem ? 'alternador alternador--ligado' : 'alternador'}
             onClick={() => void alternarModoContagem()}
             aria-pressed={configuracoes.modoContagem}
+            disabled={salvandoModo}
           >
             <span className="alternador__marca" aria-hidden="true" />
             Modo contagem
           </button>
 
           <p className="campo__ajuda">
-            Ligado, bloqueia importar planilha e limpar contagem — <strong>mesmo para
-            admin</strong>. Serve para ninguém apagar a contagem no meio da operação. Vale
-            para todos os aparelhos, na hora.
+            Ligado, bloqueia cadastrar, importar, editar cadastro, limpar contagem e apagar
+            produtos — <strong>mesmo para admin</strong>. Serve para ninguém mexer no cadastro no
+            meio da operação. Vale para todos os aparelhos, na hora.
           </p>
+
+          <label className="campo">
+            <span className="campo__rotulo">Versão mais nova do app</span>
+            <input
+              className="campo__entrada"
+              value={versao}
+              onChange={(e) => {
+                setVersao(e.target.value);
+                setVersaoSuja(true);
+              }}
+              inputMode="decimal"
+              autoComplete="off"
+            />
+            <span className="campo__ajuda">
+              Quem estiver numa versão menor vê o aviso de app desatualizado. Use números e
+              pontos, como 5.4.0. Vazio desliga o aviso.
+            </span>
+          </label>
+          <button
+            className="botao botao--secundario"
+            type="button"
+            style={{ alignSelf: 'flex-start' }}
+            onClick={() => void salvarVersao()}
+            disabled={salvandoVersao}
+          >
+            Salvar
+          </button>
         </div>
       </div>
 

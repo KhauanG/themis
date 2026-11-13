@@ -9,29 +9,37 @@
  * e do interruptor antigo do ciclo (que saiu do site: o campo fica no documento, sem efeito) —
  * e o campo de data chama `lastUpdated`, não `updatedAt`. Escrita exige admin ou master.
  */
-import { Timestamp, doc, onSnapshot, setDoc, type DocumentData } from 'firebase/firestore';
+import { Timestamp, doc, onSnapshot, type DocumentData } from 'firebase/firestore';
+import type { ResultadoGestao } from '@themis/shared';
 import { db } from './firebase.js';
 import { assinaturaResiliente } from './assinatura.js';
-import { withWriteTimeout } from './firestore-write.js';
+import { gravarCampoDeGestao } from './gestao-escrita.js';
 
 const DOC = 'global';
 
 export interface Configuracoes {
   /**
-   * Trava as ações em massa (importar, limpar, exportar) **mesmo para admin**, enquanto
-   * uma contagem está em andamento. Existe para ninguém apagar a contagem por engano no
-   * meio da operação.
+   * Bloqueia cadastrar, importar, editar cadastro, limpar contagem e apagar produtos, mesmo
+   * para admin, enquanto uma contagem está em andamento. Só na tela.
    */
   modoContagem: boolean;
+  /** Versão mais nova do app nativo (`latestNativeAppVersion`). Vazio desliga o aviso de app desatualizado. */
+  versaoApp: string;
 }
 
 export const CONFIGURACOES_PADRAO: Configuracoes = {
   modoContagem: false,
+  versaoApp: '',
 };
 
-function paraConfiguracoes(dados: DocumentData | undefined): Configuracoes {
+export function paraConfiguracoes(dados: DocumentData | undefined): Configuracoes {
   if (!dados) return CONFIGURACOES_PADRAO;
-  return { modoContagem: dados['modoContagem'] === true };
+  const versao = dados['latestNativeAppVersion'];
+  return {
+    modoContagem: dados['modoContagem'] === true,
+    // O Console aceita número (5.4); o app lê texto.
+    versaoApp: typeof versao === 'string' ? versao : typeof versao === 'number' ? String(versao) : '',
+  };
 }
 
 export function ouvirConfiguracoes(aoMudar: (c: Configuracoes) => void): () => void {
@@ -49,24 +57,29 @@ export function ouvirConfiguracoes(aoMudar: (c: Configuracoes) => void): () => v
   );
 }
 
-/**
- * Grava as chaves que a tela conhece, de uma vez.
- *
- * Com `merge`, porque o documento tem campos que esta tela não conhece
- * (`latestNativeAppVersion`, posto à mão no Console e lido pelo app nativo): `setDoc` sem
- * `merge` os apagava a cada ajuste.
- */
-export async function salvarConfiguracoes(config: Configuracoes): Promise<void> {
-  await withWriteTimeout(
-    setDoc(
-      doc(db, 'appSettings', DOC),
-      {
-        modoContagem: config.modoContagem,
-        // A regra cobra `lastUpdated`; `updatedAt` seria negado.
-        lastUpdated: Timestamp.fromDate(new Date()),
-      },
-      { merge: true },
-    ),
-    { label: 'salvar configurações' },
-  );
+/** Cada ajuste grava só a própria chave (e `lastUpdated`, que a regra cobra) numa transação: o resto do documento nunca é regravado. */
+const ref = () => doc(db, 'appSettings', DOC);
+const agora = () => Timestamp.fromDate(new Date());
+
+export function salvarModoContagem(valor: boolean, abertura: boolean): Promise<ResultadoGestao<boolean>> {
+  return gravarCampoDeGestao({
+    ref: ref(),
+    rotulo: 'salvar modo contagem',
+    abertura,
+    pedido: valor,
+    ler: (d) => paraConfiguracoes(d).modoContagem,
+    dados: (v) => ({ modoContagem: v, lastUpdated: agora() }),
+  });
+}
+
+export function salvarVersaoApp(versao: string, abertura: string): Promise<ResultadoGestao<string>> {
+  return gravarCampoDeGestao({
+    ref: ref(),
+    rotulo: 'salvar versão do app',
+    abertura,
+    pedido: versao.trim(),
+    ler: (d) => paraConfiguracoes(d).versaoApp,
+    // A regra cobra `lastUpdated`; `updatedAt` seria negado.
+    dados: (v) => ({ latestNativeAppVersion: v, lastUpdated: agora() }),
+  });
 }

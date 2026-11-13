@@ -277,6 +277,7 @@ export function descreverEvento(acao: AcaoHistorico, detalhes: Detalhes = {}): D
 
     case 'ALTERAR_CONFIGURACAO': {
       adicionar(mudanca('Modo contagem', d['modoContagemDe'], d['modoContagemPara']));
+      adicionar(mudanca('Versão do app', d['versaoAppDe'], d['versaoAppPara']));
       if (d['estoqueTravado']) fatos.push(`Travou: ${texto(d['estoqueTravado'])}`);
       if (d['estoqueLiberado']) fatos.push(`Liberou: ${texto(d['estoqueLiberado'])}`);
       return { mudancas, fatos };
