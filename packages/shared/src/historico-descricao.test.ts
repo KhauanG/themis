@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { COR_ACAO, ROTULO_ACAO, descreverEvento } from './historico-descricao.js';
 import type { AcaoHistorico } from './types.js';
@@ -223,26 +224,20 @@ describe('descreverEvento — singular e plural', () => {
 });
 
 /**
- * Entradas gravadas pelo 1.x podem trazer chaves que o 2.0 não conhece. Esconder seria
- * pior que mostrar cru: registro parcial ainda é registro.
+ * Ação sem caso próprio mostra só o rótulo. O leitor não imprime mais os pares crus: ele
+ * mostraria qualquer segredo que um cliente antigo tivesse gravado em `details`.
  */
-describe('descreverEvento — ação desconhecida', () => {
-  it('mostra os pares crus em vez de sumir com eles', () => {
-    const r = descreverEvento('LIMPAR_ESTOQUE', { productsUpdated: 12, errors: 0 });
-    expect(r.fatos).toEqual(['productsUpdated: 12', 'errors: 0']);
-  });
-
-  it('ignora objetos aninhados', () => {
-    const r = descreverEvento('LIMPAR_ESTOQUE', { ok: 1, detalhe: { a: 1 } });
-    expect(r.fatos).toEqual(['ok: 1']);
-  });
-
+describe('descreverEvento — ação sem caso próprio', () => {
   it('não quebra sem detalhes', () => {
     expect(descreverEvento('LOGIN')).toEqual({ mudancas: [], fatos: [] });
   });
 
-  it('ação sem formatação própria esconde a chave ciclo', () => {
-    expect(descreverEvento('LIMPAR_ESTOQUE', { productsUpdated: 12, ciclo: 9 }).fatos).toEqual(['productsUpdated: 12']);
+  it('não mostra os pares crus', () => {
+    expect(descreverEvento('LIMPAR_ESTOQUE', { productsUpdated: 12, errors: 0, hashLoja: 'H-X-0001' }).fatos).toEqual([]);
+  });
+
+  it('ação que não existe na lista devolve vazio, sem quebrar', () => {
+    expect(descreverEvento('ACAO_DO_FUTURO' as never, { a: 1 })).toEqual({ mudancas: [], fatos: [] });
   });
 
   // Formato do 1.x (www/app.js:3986-3990, no repositório do app): o caso próprio não lê essas chaves.
@@ -316,5 +311,23 @@ describe('tabelas de rótulo e cor', () => {
     for (const a of ['LIMPAR_CONTAGEM', 'EXCLUIR_ESTOQUE', 'EXCLUIR_PRODUTO'] as AcaoHistorico[]) {
       expect(COR_ACAO[a], a).toBe('#b3261e');
     }
+  });
+});
+
+const casosDoHistorico = JSON.parse(readFileSync(new URL('../casos/historico.json', import.meta.url), 'utf8')) as {
+  acao: AcaoHistorico; details: Record<string, unknown>; esperado: Record<string, unknown>;
+}[];
+
+describe('historico.json', () => {
+  it('o arquivo não tem BOM nem CRLF', () => {
+    const bytes = readFileSync(new URL('../casos/historico.json', import.meta.url));
+    expect(bytes[0]).toBe(0x5b);
+    expect(bytes.includes(0x0d)).toBe(false);
+  });
+  it('cobre as 19 ações', () => {
+    expect([...new Set(casosDoHistorico.map((c) => c.acao))].sort()).toEqual(Object.keys(ROTULO_ACAO).sort());
+  });
+  it.each(casosDoHistorico.map((c, i) => [i + 1, c.acao, c] as const))('caso %i · %s', (_i, _acao, c) => {
+    expect(descreverEvento(c.acao, c.details)).toEqual(c.esperado);
   });
 });

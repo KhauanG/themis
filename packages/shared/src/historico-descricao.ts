@@ -144,6 +144,7 @@ export function descreverEvento(acao: AcaoHistorico, detalhes: Detalhes = {}): D
 
     case 'CRIAR_PRODUTO': {
       if (d['codigoBarras']) fatos.push(`Código ${texto(d['codigoBarras'])}`);
+      if (d['idErp']) fatos.push(`Código no ERP ${texto(d['idErp'])}`);
       if (d['estoqueSistema'] !== undefined) {
         fatos.push(`Estoque do sistema ${texto(d['estoqueSistema'])}`);
       }
@@ -167,7 +168,8 @@ export function descreverEvento(acao: AcaoHistorico, detalhes: Detalhes = {}): D
         );
       }
       if (d['contado'] !== undefined && d['sistema'] !== undefined) {
-        fatos.push(`Contado ${texto(d['contado'])} · sistema ${texto(d['sistema'])}`);
+        // '-' é "sem saldo do sistema" e lê como vazio, igual a null.
+        fatos.push(`Contado ${texto(d['contado'])} · sistema ${texto(d['sistema'] === '-' ? null : d['sistema'])}`);
       }
       return { alvo: d['produto'] ? String(d['produto']) : undefined, mudancas, fatos };
     }
@@ -181,6 +183,16 @@ export function descreverEvento(acao: AcaoHistorico, detalhes: Detalhes = {}): D
     }
 
     case 'IMPORTAR_PLANILHA': {
+      if ('semMudanca' in d) {
+        // Formato novo (2.25.0). A 2.24.0 também grava atualizados e linhas, então só semMudanca marca o novo.
+        fatos.push(plural(Number(d['criados']), 'produto novo', 'produtos novos'));
+        fatos.push(plural(Number(d['atualizados']), 'atualizado', 'atualizados'));
+        fatos.push(`${Number(d['semMudanca'])} sem mudança`);
+        if (Number(d['recusadas']) > 0) fatos.push(plural(Number(d['recusadas']), 'recusada', 'recusadas'));
+        if (Number(d['ignoradas']) > 0) fatos.push(plural(Number(d['ignoradas']), 'linha ignorada', 'linhas ignoradas'));
+        if (d['parcial'] === true) fatos.push('Importação interrompida');
+        return { alvo: d['arquivo'] ? String(d['arquivo']) : undefined, mudancas, fatos };
+      }
       if (d['criados'] !== undefined) {
         fatos.push(plural(Number(d['criados']), 'produto importado', 'produtos importados'));
       }
@@ -188,6 +200,13 @@ export function descreverEvento(acao: AcaoHistorico, detalhes: Detalhes = {}): D
         fatos.push(`${plural(Number(d['ignoradas']), 'linha ignorada', 'linhas ignoradas')}`);
       }
       return { alvo: d['arquivo'] ? String(d['arquivo']) : undefined, mudancas, fatos };
+    }
+
+    case 'LIMPAR_ESTOQUE': {
+      if (d['apagados'] !== undefined) {
+        fatos.push(plural(Number(d['apagados']), 'produto apagado', 'produtos apagados'));
+      }
+      return { mudancas, fatos };
     }
 
     case 'BUSCAR_ESTOQUE': {
@@ -292,16 +311,11 @@ export function descreverEvento(acao: AcaoHistorico, detalhes: Detalhes = {}): D
     }
 
     case 'LOGIN':
+    case 'ABRIR_AUDITORIA':
       return { mudancas, fatos };
 
-    default: {
-      // Ação sem formatação própria (ou gravada pelo 1.x com outro formato): mostra os
-      // pares crus em vez de esconder. Registro parcial é melhor que registro nenhum.
-      for (const [chave, valor] of Object.entries(d)) {
-        if (chave === 'ciclo' || valor === null || valor === undefined || typeof valor === 'object') continue;
-        fatos.push(`${chave}: ${texto(valor)}`);
-      }
+    default:
+      // Sem caso próprio: só o rótulo. Listar o que veio em details mostraria qualquer segredo gravado ali.
       return { mudancas, fatos };
-    }
   }
 }
