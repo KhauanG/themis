@@ -6,6 +6,56 @@ Categorias: **Adicionado**, **Alterado**, **Corrigido**, **Removido**, **Seguran
 
 ---
 
+## 2.25.0 — 2026-11-13
+
+Etapa 4 no site: a gestão (configurações, estoques, usuários, produtos e histórico) corrigida, para o app copiar o mesmo formato. Uma regra nova do Firestore fica pronta e testada; publicar é decisão do dono.
+
+### Adicionado
+
+- Campo "Versão mais nova do app" em Estoques. Antes só existia no Console.
+- Primeiro acesso: quem entra só pelo site e ainda não tem perfil responde "Como você se chama?".
+- Produtos ganha a "Lista de produtos", com busca e "Editar", sem depender de lote nem de contagem aberta.
+- Histórico com filtros de estoque (ou todos), ação (as 19), usuário e data, e "Carregar mais". Sem índice novo.
+- Script do dono `scripts/travas-estoque.mjs`: lista as lojas travadas e, com `--aplicar`, esvazia a lista.
+
+### Alterado
+
+- Toda gravação de gestão de um documento vai numa transação e só diz "salvo" depois de o servidor aceitar. Falhas têm três textos: "Sem permissão para esta ação.", "Sem confirmação do servidor. Confira a conexão e tente de novo." e "Não foi possível salvar. Tente de novo."
+- Repetir um "Salvar" depois de "Sem confirmação" não duplica nem regrava: o id de estoque e de produto novos nasce quando o formulário abre.
+- Lista de estoques permitidos só com estoques excluídos passa a valer **nenhum estoque**. Antes a pessoa via todos.
+- Master passa a ser gravado com `isMaster` e `isAdmin`.
+- Cadastro de produto exige o código no ERP (só números). O estoque do sistema deixa de ser digitado. A edição grava só o que mudou.
+- Modo contagem ligado bloqueia também "Editar" produto.
+- O histórico de criar e editar estoque leva o estoque afetado; papel e configuração levam "Todos os estoques". A troca de estoques de um usuário ganha chaves próprias.
+
+### Corrigido
+
+- Excluir estoque deixava o id na lista de quem podia vê-lo, o hash no servidor e lixo em `updatedItems`, e dizia "excluído" sem confirmação. Agora avisa quem fica sem nenhum estoque e limpa as três coisas.
+- Criar estoque duas vezes seguidas duplicava o estoque. Nome repetido agora é recusado.
+- Código no ERP como "12abc" era enviado ao ERP como 12. Agora não é enviado e aparece como "(ID do ERP inválido)".
+- Produto antigo com o código do ERP gravado só no campo `idProdut` não casava com o ERP: o Buscar estoque o marcava "fora do ERP" e o Corrigir não o enviava. Agora casa.
+- Limpar contagem não removia `corrigidoCritico`, e o aviso de tempo esgotado mandava não repetir.
+- A fila local do histórico travava para sempre numa entrada de outro usuário do mesmo aparelho.
+- O histórico culpava um índice em qualquer erro e só olhava o estoque aberto.
+
+### Removido
+
+- "Somente leitura" por estoque (botão "Travar", etiqueta e trava da contagem). O site não lê nem grava mais `readonlyInventories`.
+- O histórico não mostra mais os pares crus de ações sem texto próprio.
+
+### Segurança
+
+- Regra nova **preparada, não publicada**: cadastro do produto só por admin e master; em `users`, apagar campo de papel não passa e admin não edita outro perfil; `appSettings` exige a versão como texto e a lista de travas vazia.
+
+### Notas
+
+- ⚠️ A partir desta versão, `firestore/firestore.rules` é a regra **nova**. `npm run deploy-rules` publica ela. Só com as condições de `DEPLOY.md` e o OK do dono. A regra da 2.24.0 está em `firestore/anteriores/`; `npm run deploy-rules-anterior` volta.
+- O site 2.25.0 funciona com a regra velha e com a nova. Sem `deploy-indexes`.
+- Antes de publicar, o dono roda `scripts/travas-estoque.mjs`. Ao esvaziar a lista, contagens presas nos celulares sobem sozinhas.
+- Publicar depois das 21:00, com admins e masters avisados. Uma aba antiga segue na 2.24.0 até recarregar.
+
+---
+
 ## 2.24.0 — 2026-11-03
 
 Etapa 3 no site: a auditoria e os relatórios mostram os números certos, para o app copiar. Nada do que está gravado muda.
