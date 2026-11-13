@@ -3,10 +3,12 @@ import {
   TEXTO_FALHA,
   TEXTO_NADA_MUDOU,
   nomeEstoqueRepetido,
+  planejarLimpezaDePermissoes,
   podeAcessarEstoque,
   rotuloDaRodada,
   versaoAppValida,
   type Inventory,
+  type UserProfile,
 } from '@themis/shared';
 import { useAuth } from '../../contexts/AuthContext.js';
 import { useEstoque } from '../../contexts/EstoqueContext.js';
@@ -15,15 +17,16 @@ import { Icone } from '../../components/Icone.js';
 import { Modal } from '../../components/Modal.js';
 import {
   criarEstoque,
-  excluirEstoque,
   novoIdDeEstoque,
   renomearEstoque,
   type CamposEstoque,
 } from '../../lib/estoques-repo.js';
-import { apagarHashDaLoja, lerHashesConfigurados, salvarHashDaLoja, testarHash, tomDoTeste } from '../../lib/erp.js';
+import { lerHashesConfigurados, salvarHashDaLoja, testarHash, tomDoTeste } from '../../lib/erp.js';
 import { salvarVersaoApp } from '../../lib/configuracoes-repo.js';
+import { TEXTOS_EXCLUSAO, excluirEstoque, mensagemDaExclusao } from '../../lib/excluir-estoque.js';
 import { mensagemDeFalha } from '../../lib/gestao-escrita.js';
 import { CONTEXTO_GLOBAL, registrar } from '../../lib/historico.js';
+import { listarUsuariosDoServidor, nomeExibivel } from '../../lib/usuarios-repo.js';
 
 /** `abertura`: nome e descrição como a tela abriu. O id de um estoque novo nasce com o formulário e vale para todo "Criar". */
 type Formulario = {
@@ -44,7 +47,6 @@ export function TelaEstoques() {
     todosEstoques,
     estoqueAtual,
     trocarEstoque,
-    contextoLog,
     configuracoes,
     alterarModoContagem,
     autorLog,
@@ -52,7 +54,11 @@ export function TelaEstoques() {
   const { mostrar } = useToast();
 
   const [form, setForm] = useState<Formulario | null>(null);
-  const [excluindo, setExcluindo] = useState<Inventory | null>(null);
+  // `plano` é só o aviso do modal. Quem limpa as permissões relê cada lista na hora de gravar.
+  const [excluindo, setExcluindo] = useState<{
+    estoque: Inventory;
+    plano: { afetados: UserProfile[]; semNenhum: UserProfile[] };
+  } | null>(null);
   const [confirmacao, setConfirmacao] = useState('');
   const [ocupado, setOcupado] = useState('');
   const [configurados, setConfigurados] = useState<Set<string>>(new Set());
@@ -230,33 +236,46 @@ export function TelaEstoques() {
     }
   }
 
-  async function excluir() {
-    if (!excluindo) return;
-    const alvo = excluindo;
-    setExcluindo(null);
-    setConfirmacao('');
-    setOcupado('Apagando produtos…');
+  async function abrirExclusao(e: Inventory) {
+    setOcupado('Lendo os usuários…');
     try {
-      const total = await excluirEstoque(alvo.id, (feitos, tudo) =>
-        setOcupado(`Apagando produtos… ${feitos} de ${tudo}`),
-      );
-      // Só depois da exclusão (spec 4.7). Se falhar, a chave fica órfã, ninguém a lê, e a limpeza do dono a tira.
-      const r = await apagarHashDaLoja(alvo.id);
-      if (!r.ok) console.warn('[estoques] O HashLoja do estoque excluído ficou no servidor:', r.erro);
-      setConfigurados((s) => { const n = new Set(s); n.delete(alvo.id); return n; });
-      mostrar(`Estoque excluído, com ${total} ${total === 1 ? 'produto' : 'produtos'}.`, 'success');
-      if (contextoLog) {
-        void registrar('EXCLUIR_ESTOQUE', contextoLog, { estoque: alvo.nome, produtos: total });
-      }
+      const usuarios = await listarUsuariosDoServidor();
+      setExcluindo({ estoque: e, plano: planejarLimpezaDePermissoes(usuarios, todosEstoques, e.id) });
     } catch (erro) {
-      console.error('[estoques] Exclusão falhou:', erro);
-      mostrar('Não foi possível excluir. Só master pode apagar estoques.', 'error');
+      console.error('[estoques] Não foi possível ler os usuários:', erro);
+      mostrar('Não foi possível ler os usuários. Sem isso não dá para excluir com segurança. Tente de novo.', 'error');
     } finally {
       setOcupado('');
     }
   }
 
-  const nomeConfere = excluindo ? confirmacao.trim() === (excluindo.nome ?? '').trim() : false;
+  async function excluir() {
+    if (!excluindo) return;
+    const { estoque, plano } = excluindo;
+    setExcluindo(null);
+    setConfirmacao('');
+    setOcupado('Apagando produtos…');
+    try {
+      // O histórico e a limpeza das permissões são de `excluirEstoque`, depois que o servidor apagou o estoque.
+      const r = await excluirEstoque({
+        alvo: { id: estoque.id, nome: estoque.nome ?? estoque.id },
+        afetados: plano.afetados,
+        estoquesRestantes: todosEstoques.filter((x) => x.id !== estoque.id),
+        autor: autorLog,
+        aoProgredir: setOcupado,
+      });
+      setConfigurados((s) => { const n = new Set(s); n.delete(estoque.id); return n; });
+      const tudoCerto = r.hashRemovido && r.semNenhum.length === 0 && r.falhasDePermissao.length === 0;
+      mostrar(mensagemDaExclusao(r), tudoCerto ? 'success' : 'warning');
+    } catch (erro) {
+      console.error('[estoques] Exclusão falhou:', erro);
+      mostrar(mensagemDeFalha(erro, TEXTOS_EXCLUSAO), 'error');
+    } finally {
+      setOcupado('');
+    }
+  }
+
+  const nomeConfere = excluindo ? confirmacao.trim() === (excluindo.estoque.nome ?? '').trim() : false;
 
   return (
     <section className="pilha-g">
@@ -399,7 +418,7 @@ export function TelaEstoques() {
                   <button
                     className="botao botao--perigo botao--mini"
                     type="button"
-                    onClick={() => setExcluindo(e)}
+                    onClick={() => void abrirExclusao(e)}
                     // Excluir o estoque aberto deixaria o app sem contexto no meio da
                     // operação. Troque de estoque antes.
                     disabled={Boolean(ocupado) || atual}
@@ -509,7 +528,7 @@ export function TelaEstoques() {
 
       <Modal
         aberto={excluindo !== null}
-        titulo="Excluir estoque e reiniciar Lote"
+        titulo="Excluir estoque"
         onFechar={() => {
           setExcluindo(null);
           setConfirmacao('');
@@ -539,17 +558,23 @@ export function TelaEstoques() {
       >
         <div className="pilha">
           <p>
-            Apaga <strong>{excluindo?.nome}</strong> e{' '}
+            Apaga <strong>{excluindo?.estoque.nome}</strong> e{' '}
             <strong>todos os produtos dentro dele</strong>, incluindo a contagem em andamento.
           </p>
           <p className="aviso aviso--perigo">
-            Não dá para desfazer. As auditorias já salvas continuam existindo — elas guardam
-            uma cópia própria dos produtos.
+            Não dá para desfazer. As auditorias já salvas continuam guardadas, mas nenhuma tela as
+            abre depois que o estoque some.
           </p>
+          {excluindo && excluindo.plano.semNenhum.length > 0 && (
+            <p className="aviso">
+              Ficam sem nenhum estoque: {excluindo.plano.semNenhum.map((u) => nomeExibivel(u)).join(', ')}.
+              Depois, libere outro para elas em Usuários.
+            </p>
+          )}
 
           <label className="campo">
             <span className="campo__rotulo">
-              Digite <strong>{excluindo?.nome}</strong> para confirmar
+              Digite <strong>{excluindo?.estoque.nome}</strong> para confirmar
             </span>
             <input
               className="campo__entrada"

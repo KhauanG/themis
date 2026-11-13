@@ -274,6 +274,15 @@ describe('descreverEvento — estoques', () => {
     expect(r.alvo).toBe('Loja Sul');
     expect(r.fatos).toEqual(['Rua 1']);
   });
+  it('excluir estoque diz quantas pessoas ficaram sem nenhum e se o hash ficou', () => {
+    expect(descreverEvento('EXCLUIR_ESTOQUE', { estoque: 'Loja Sul', produtos: 3, semNenhumEstoque: 1, hashRemovido: false }).fatos)
+      .toEqual(['3 produtos apagados', '1 pessoa ficou sem nenhum estoque', 'HashLoja não removido']);
+    expect(descreverEvento('EXCLUIR_ESTOQUE', { estoque: 'Loja Sul', produtos: 1, semNenhumEstoque: 2, hashRemovido: true }).fatos)
+      .toEqual(['1 produto apagado', '2 pessoas ficaram sem nenhum estoque']);
+  });
+  it('entrada antiga de excluir estoque, só com produtos, fica como era', () => {
+    expect(descreverEvento('EXCLUIR_ESTOQUE', { estoque: 'Loja Sul', produtos: 1 }).fatos).toEqual(['1 produto apagado']);
+  });
 });
 
 describe('descreverEvento — usuários', () => {

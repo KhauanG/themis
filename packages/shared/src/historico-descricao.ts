@@ -266,6 +266,9 @@ export function descreverEvento(acao: AcaoHistorico, detalhes: Detalhes = {}): D
       if (d['produtos'] !== undefined) {
         fatos.push(`${plural(Number(d['produtos']), 'produto apagado', 'produtos apagados')}`);
       }
+      const semNenhum = Number(d['semNenhumEstoque']);
+      if (semNenhum > 0) fatos.push(plural(semNenhum, 'pessoa ficou sem nenhum estoque', 'pessoas ficaram sem nenhum estoque'));
+      if (d['hashRemovido'] === false) fatos.push('HashLoja não removido');
       return { alvo: d['estoque'] ? String(d['estoque']) : undefined, mudancas, fatos };
     }
 

@@ -1,9 +1,16 @@
-import { getDocFromServer } from 'firebase/firestore';
+import { getDocFromServer, getDocsFromServer } from 'firebase/firestore';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { runTransactionWithTimeout } from './firestore-write.js';
 import { DocumentoAusenteError } from './gestao-escrita.js';
 import { transacaoFalsa } from './transacao-falsa.js';
-import { buscarPerfilDoServidor, completarPerfil, salvarEstoquesPermitidos, salvarPapeis } from './usuarios-repo.js';
+import {
+  buscarPerfilDoServidor,
+  completarPerfil,
+  limparEstoqueDoUsuario,
+  listarUsuariosDoServidor,
+  salvarEstoquesPermitidos,
+  salvarPapeis,
+} from './usuarios-repo.js';
 
 vi.mock('./firebase.js', () => ({ db: {} }));
 vi.mock('./firestore-write.js', async (original) => ({
@@ -15,6 +22,7 @@ vi.mock('firebase/firestore', async (original) => ({
   collection: (base: { path?: string }, ...p: string[]) => ({ path: [base.path, ...p].filter(Boolean).join('/') }),
   doc: (base: { path?: string }, ...p: string[]) => ({ path: [base.path, ...p].filter(Boolean).join('/') }),
   getDocFromServer: vi.fn(),
+  getDocsFromServer: vi.fn(),
 }));
 
 // `docs` é o que o servidor tem. Devolve a lista do que a função gravou.
@@ -103,5 +111,42 @@ describe('buscarPerfilDoServidor', () => {
     const espera = expect(pedido).rejects.toMatchObject({ isWriteTimeout: true });
     await vi.advanceTimersByTimeAsync(8_000);
     await espera;
+  });
+});
+
+describe('limparEstoqueDoUsuario', () => {
+  // Entre abrir o modal e chegar aqui passam minutos. Vale a lista de agora, não a do modal.
+  it('usa a lista lida na transação', async () => {
+    const gravacoes = servidor({ 'users/u1': { allowedInventories: ['A', 'C'] } });
+    expect(await limparEstoqueDoUsuario('u1', 'A')).toEqual(['C']);
+    expect(gravacoes[0]!.path).toBe('users/u1');
+    expect(gravacoes[0]!.opcoes).toEqual({ merge: true });
+    expect(Object.keys(gravacoes[0]!.dados!).sort()).toEqual(['allowedInventories', 'updatedAt']);
+    expect(gravacoes[0]!.dados!['allowedInventories']).toEqual(['C']);
+  });
+  // Lista vazia vale "todos". O id morto fica: é o que guarda "sem nenhum estoque".
+  it('lista que ficaria vazia não é gravada', async () => {
+    const gravacoes = servidor({ 'users/u1': { allowedInventories: ['A', ''] } });
+    expect(await limparEstoqueDoUsuario('u1', 'A')).toEqual(['A']);
+    expect(gravacoes).toEqual([]);
+  });
+  it('outro master já tirou o id: não grava', async () => {
+    const gravacoes = servidor({ 'users/u1': { allowedInventories: ['B'] } });
+    expect(await limparEstoqueDoUsuario('u1', 'A')).toEqual(['B']);
+    expect(gravacoes).toEqual([]);
+  });
+  it('perfil que não existe mais: lista vazia, sem gravar', async () => {
+    const gravacoes = servidor({});
+    expect(await limparEstoqueDoUsuario('u1', 'A')).toEqual([]);
+    expect(gravacoes).toEqual([]);
+  });
+});
+
+describe('listarUsuariosDoServidor', () => {
+  it('lê do servidor e ordena por e-mail', async () => {
+    vi.mocked(getDocsFromServer).mockResolvedValue({
+      docs: [{ id: 'u2', data: () => ({ email: 'b@x.com' }) }, { id: 'u1', data: () => ({ email: 'a@x.com' }) }],
+    } as never);
+    expect((await listarUsuariosDoServidor()).map((p) => p.uid)).toEqual(['u1', 'u2']);
   });
 });

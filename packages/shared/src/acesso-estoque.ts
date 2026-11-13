@@ -11,6 +11,7 @@
  *  - **master enxerga tudo**, independente da lista.
  *  - sem documento de perfil, libera — não trancar ninguém para fora por falha de leitura.
  */
+import { papelDe } from './papeis.js';
 import type { Inventory, Papel, UserProfile } from './types.js';
 
 type PerfilAcesso = Pick<UserProfile, 'allowedInventories'> | null;
@@ -87,4 +88,24 @@ export function novaListaSemEstoque(
   const lista = estoquesPermitidos({ allowedInventories: (listaAtual ?? undefined) as string[] | undefined });
   const nova = lista.filter((id) => id !== idExcluido);
   return nova.length === lista.length || nova.length === 0 ? null : nova;
+}
+
+type PerfilDaLimpeza = Pick<UserProfile, 'allowedInventories' | 'isMaster' | 'isAdmin' | 'isAuditor'>;
+
+/**
+ * Só para o aviso do modal de exclusão. `afetados`: quem tem o id na lista. `semNenhum`: afetados que não são
+ * master e ficariam com lista de ids e nenhum estoque existente. A gravação relê a lista; isto não decide nada.
+ */
+export function planejarLimpezaDePermissoes<U extends PerfilDaLimpeza>(
+  usuarios: readonly U[],
+  estoques: readonly { id: string }[],
+  idExcluido: string,
+): { afetados: U[]; semNenhum: U[] } {
+  const restantes = estoques.filter((e) => e.id !== idExcluido);
+  const afetados = usuarios.filter((u) => estoquesPermitidos(u).includes(idExcluido));
+  const semNenhum = afetados.filter((u) => {
+    const efetiva = novaListaSemEstoque(u.allowedInventories, idExcluido) ?? estoquesPermitidos(u);
+    return papelDe(u) !== 'master' && semNenhumEstoque(efetiva, restantes);
+  });
+  return { afetados, semNenhum };
 }

@@ -15,7 +15,6 @@
 import {
   Timestamp,
   collection,
-  deleteDoc,
   doc,
   getDocs,
   onSnapshot,
@@ -26,9 +25,8 @@ import {
 } from 'firebase/firestore';
 import { decidirEdicao, normalizarLote, type Inventory, type Repeticao } from '@themis/shared';
 import { db } from './firebase.js';
-import { exigirGravacao, runTransactionWithTimeout, withWriteTimeout } from './firestore-write.js';
+import { exigirGravacao, runTransactionWithTimeout } from './firestore-write.js';
 import { DocumentoAusenteError, type ResultadoCriacao } from './gestao-escrita.js';
-import { colecaoProdutos } from './produtos-repo.js';
 import { assinaturaResiliente } from './assinatura.js';
 
 const COLECAO = 'inventories';
@@ -197,33 +195,28 @@ export async function renomearEstoque(
   );
 }
 
+/** Apaga `inventories/{id}` numa transação. Documento que já não existe conta como apagado (repetir a exclusão é seguro). */
+export function apagarDocumentoDoEstoque(id: string): Promise<void> {
+  return runTransactionWithTimeout(
+    async (tx) => {
+      const ref = doc(db, COLECAO, id);
+      const snap = await tx.get(ref);
+      if (snap.exists()) tx.delete(ref);
+    },
+    { label: 'excluir estoque' },
+  );
+}
+
 /**
- * Exclui o estoque e todos os seus produtos.
- *
- * ⚠️ O Firestore **não apaga subcoleções** junto com o documento pai. Apagar só
- * `inventories/{id}` deixaria milhares de produtos órfãos em `estoques/{id}/produtos`,
- * invisíveis no app e cobrados na fatura para sempre. Por isso os produtos vão primeiro,
- * em lotes, e o documento do estoque só no fim — se algo falhar no meio, o estoque
- * continua existindo e a operação pode ser repetida.
- *
- * Só master: é o que as regras permitem para exclusão.
+ * O Firestore não apaga subcoleção junto com o pai. `estoques/{id}/updatedItems` é legado do 1.x (o 2.0 não usa),
+ * então quem chama trata a falha como aviso. Devolve quantos apagou.
  */
-export async function excluirEstoque(
-  inventoryId: string,
-  aoProgredir?: (apagados: number, total: number) => void,
-): Promise<number> {
-  const produtos = await getDocs(colecaoProdutos(inventoryId));
-  const total = produtos.size;
-  let apagados = 0;
-
-  for (let i = 0; i < produtos.docs.length; i += LIMITE_BATCH) {
+export async function apagarUpdatedItems(id: string): Promise<number> {
+  const { docs } = await getDocs(collection(db, 'estoques', id, 'updatedItems'));
+  for (let i = 0; i < docs.length; i += LIMITE_BATCH) {
     const lote = writeBatch(db);
-    for (const p of produtos.docs.slice(i, i + LIMITE_BATCH)) lote.delete(p.ref);
-    await exigirGravacao(lote.commit(), { ms: 20_000, label: 'excluir produtos' });
-    apagados += Math.min(LIMITE_BATCH, produtos.docs.length - i);
-    aoProgredir?.(apagados, total);
+    for (const d of docs.slice(i, i + LIMITE_BATCH)) lote.delete(d.ref);
+    await exigirGravacao(lote.commit(), { ms: 20_000, label: 'apagar updatedItems' });
   }
-
-  await withWriteTimeout(deleteDoc(doc(db, COLECAO, inventoryId)), { label: 'excluir estoque' });
-  return total;
+  return docs.length;
 }

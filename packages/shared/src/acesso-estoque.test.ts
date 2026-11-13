@@ -3,6 +3,7 @@ import {
   estoquesExistentes,
   estoquesPermitidos,
   filtrarEstoquesPermitidos,
+  planejarLimpezaDePermissoes,
   podeAcessarEstoque,
   semNenhumEstoque,
   semRestricaoDeEstoque,
@@ -134,5 +135,39 @@ describe('textoEstoquesPermitidos', () => {
   it('nenhum existente', () => expect(textoEstoquesPermitidos(['apagado'], estoques)).toBe('nenhum estoque'));
   it('estoque sem nome usa o id', () => {
     expect(textoEstoquesPermitidos(['x'], [{ id: 'x' }])).toBe('x');
+  });
+});
+
+describe('planejarLimpezaDePermissoes', () => {
+  const lojas = [{ id: 'A' }, { id: 'B' }];
+  const u = (uid: string, allowedInventories: unknown, extra: object = {}) =>
+    ({ uid, allowedInventories, ...extra }) as { uid: string; allowedInventories: string[] };
+  const ids = (lista: { uid: string }[]) => lista.map((p) => p.uid);
+  const plano = (...usuarios: ReturnType<typeof u>[]) => planejarLimpezaDePermissoes(usuarios, lojas, 'A');
+
+  it('quem só tinha o excluído fica sem nenhum', () => {
+    const r = plano(u('1', ['A']));
+    expect(ids(r.afetados)).toEqual(['1']);
+    expect(ids(r.semNenhum)).toEqual(['1']);
+  });
+  it('quem tem outro estoque vivo é afetado, mas não fica sem nenhum', () => {
+    const r = plano(u('2', ['A', 'B']));
+    expect(ids(r.afetados)).toEqual(['2']);
+    expect(r.semNenhum).toEqual([]);
+  });
+  it('o outro id é de estoque que já não existe: fica sem nenhum', () => {
+    expect(ids(plano(u('3', ['A', 'morto'])).semNenhum)).toEqual(['3']);
+  });
+  it('id em branco não conta como estoque', () => {
+    expect(ids(plano(u('4', ['A', ''])).semNenhum)).toEqual(['4']);
+  });
+  // Master vê tudo, qualquer que seja a lista. A lista dele é limpa, mas ele não assusta ninguém no aviso.
+  it('master é afetado, mas fica fora do aviso', () => {
+    const r = plano(u('5', ['A'], { isMaster: true }));
+    expect(ids(r.afetados)).toEqual(['5']);
+    expect(r.semNenhum).toEqual([]);
+  });
+  it('quem não tem o id na lista não é afetado', () => {
+    expect(plano(u('6', ['B']), u('7', []), u('8', undefined)).afetados).toEqual([]);
   });
 });

@@ -12,6 +12,7 @@ import {
   getDoc,
   getDocFromServer,
   getDocs,
+  getDocsFromServer,
   onSnapshot,
   setDoc,
   type DocumentData,
@@ -22,6 +23,7 @@ import {
   dadosDoPrimeiroAcesso,
   estoquesPermitidos,
   flagsDoPapel,
+  novaListaSemEstoque,
   papelDe,
   type Papel,
   type ResultadoGestao,
@@ -118,6 +120,36 @@ export async function listarUsuarios(): Promise<UserProfile[]> {
   return snap.docs
     .map((s: QueryDocumentSnapshot<DocumentData>) => paraPerfil(s.id, s.data()))
     .sort((a, b) => (a.email ?? '').localeCompare(b.email ?? '', 'pt-BR'));
+}
+
+/** `users` inteira, lida do servidor (nunca do cache). */
+export async function listarUsuariosDoServidor(): Promise<UserProfile[]> {
+  const snap = await getDocsFromServer(collection(db, COLECAO));
+  return snap.docs
+    .map((s: QueryDocumentSnapshot<DocumentData>) => paraPerfil(s.id, s.data()))
+    .sort((a, b) => (a.email ?? '').localeCompare(b.email ?? '', 'pt-BR'));
+}
+
+/**
+ * Tira `idExcluido` da lista de estoques da pessoa, numa transação que relê a lista: entre abrir o
+ * modal de exclusão e chegar aqui passam minutos, e vale a lista de agora. Devolve a lista com que
+ * a pessoa ficou. Não grava quando o id já não está lá, nem quando a lista ficaria vazia (vazia vale
+ * "todos"; o id morto que sobra é o que guarda "sem nenhum estoque").
+ */
+export function limparEstoqueDoUsuario(uid: string, idExcluido: string): Promise<string[]> {
+  const ref = doc(db, COLECAO, uid);
+  return runTransactionWithTimeout(
+    async (tx) => {
+      const snap = await tx.get(ref);
+      if (!snap.exists()) return [];
+      const lista = snap.data()['allowedInventories'] as unknown[] | undefined;
+      const nova = novaListaSemEstoque(lista, idExcluido);
+      if (nova === null) return estoquesPermitidos({ allowedInventories: lista as string[] | undefined });
+      tx.set(ref, { allowedInventories: nova, updatedAt: new Date() }, { merge: true });
+      return nova;
+    },
+    { label: 'limpar estoque do usuário' },
+  );
 }
 
 /** Nome exibível. Cai para o e-mail e, por último, para um rótulo genérico. */

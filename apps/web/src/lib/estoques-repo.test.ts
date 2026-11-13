@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { getDocs, writeBatch } from 'firebase/firestore';
 import { runTransactionWithTimeout } from './firestore-write.js';
 import { transacaoFalsa } from './transacao-falsa.js';
 import { DocumentoAusenteError } from './gestao-escrita.js';
-import { criarEstoque, renomearEstoque } from './estoques-repo.js';
+import { apagarDocumentoDoEstoque, apagarUpdatedItems, criarEstoque, renomearEstoque } from './estoques-repo.js';
 
 vi.mock('./firebase.js', () => ({ db: {} }));
 vi.mock('./assinatura.js', () => ({ assinaturaResiliente: vi.fn() }));
@@ -14,6 +15,8 @@ vi.mock('firebase/firestore', async (original) => ({
   ...(await original<typeof import('firebase/firestore')>()),
   collection: (base: { path?: string }, ...p: string[]) => ({ path: [base.path, ...p].filter(Boolean).join('/') }),
   doc: (base: { path?: string }, ...p: string[]) => ({ path: [base.path, ...p].filter(Boolean).join('/') }),
+  getDocs: vi.fn(),
+  writeBatch: vi.fn(),
 }));
 
 // `docs` é o que o servidor tem. Devolve a lista do que a função gravou.
@@ -89,5 +92,32 @@ describe('renomearEstoque', () => {
     const gravacoes = servidor({ 'inventories/E1': { name: 'Loja Sul' } });
     await renomearEstoque('E1', { nome: 'Loja Sul 2', descricao: '' }, { nome: 'Loja Sul', descricao: '' });
     expect(Object.keys(gravacoes[0]!.dados!).sort()).toEqual(['name', 'updatedAt']);
+  });
+});
+
+describe('apagarDocumentoDoEstoque', () => {
+  it('existe: apaga na transação', async () => {
+    const gravacoes = servidor({ 'inventories/E1': { name: 'Loja Sul' } });
+    await apagarDocumentoDoEstoque('E1');
+    expect(gravacoes).toEqual([{ tipo: 'delete', path: 'inventories/E1' }]);
+  });
+  it('já não existe: conta como apagado', async () => {
+    const gravacoes = servidor({});
+    await expect(apagarDocumentoDoEstoque('E1')).resolves.toBeUndefined();
+    expect(gravacoes).toEqual([]);
+  });
+});
+
+describe('apagarUpdatedItems', () => {
+  it('501 documentos saem em dois lotes', async () => {
+    const docs = Array.from({ length: 501 }, (_, i) => ({ ref: { path: `estoques/E1/updatedItems/u${i}` } }));
+    vi.mocked(getDocs).mockResolvedValue({ docs } as never);
+    const tamanhos: number[] = [];
+    vi.mocked(writeBatch).mockImplementation((() => {
+      let n = 0;
+      return { delete: () => { n++; }, commit: async () => { tamanhos.push(n); } };
+    }) as never);
+    expect(await apagarUpdatedItems('E1')).toBe(501);
+    expect(tamanhos).toEqual([500, 1]);
   });
 });
