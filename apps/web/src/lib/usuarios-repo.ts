@@ -1,9 +1,9 @@
 /**
  * Coleção `users`: perfil e papéis.
  *
- * As Security Rules permitem que cada um leia o próprio documento; a lista completa é só
- * para master. O app 1.x tolerava flags gravadas como string ou número — `papelDe` em
- * `@themis/shared` mantém essa tolerância para não deslogar perfis antigos.
+ * Cada um lê o próprio documento; a lista completa é de admin e master (regra `users`), e só
+ * master grava papel e estoques de outra pessoa. O app 1.x tolerava flags gravadas como string
+ * ou número — `papelDe` em `@themis/shared` mantém essa tolerância para não deslogar perfis antigos.
  */
 import {
   Timestamp,
@@ -16,10 +16,11 @@ import {
   type DocumentData,
   type QueryDocumentSnapshot,
 } from 'firebase/firestore';
-import type { UserProfile } from '@themis/shared';
+import { estoquesPermitidos, flagsDoPapel, papelDe, type Papel, type ResultadoGestao, type UserProfile } from '@themis/shared';
 import { db } from './firebase.js';
 import { assinaturaResiliente } from './assinatura.js';
 import { withWriteTimeout } from './firestore-write.js';
+import { gravarCampoDeGestao } from './gestao-escrita.js';
 
 const COLECAO = 'users';
 
@@ -85,12 +86,21 @@ export function ouvirPerfil(
   );
 }
 
-/** Estoques que o usuário pode ver. Lista vazia = todos. Só master pode alterar. */
-export async function salvarEstoquesPermitidos(uid: string, estoques: string[]): Promise<void> {
-  await withWriteTimeout(
-    setDoc(doc(db, COLECAO, uid), { allowedInventories: estoques, updatedAt: new Date() }, { merge: true }),
-    { label: 'salvar estoques permitidos' },
-  );
+/** Estoques que o usuário pode ver. Lista vazia = todos. Só master pode alterar. `abertura` é a lista que a tela abriu. */
+export function salvarEstoquesPermitidos(
+  uid: string,
+  estoques: string[],
+  abertura: string[],
+): Promise<ResultadoGestao<string[]>> {
+  return gravarCampoDeGestao({
+    ref: doc(db, COLECAO, uid),
+    rotulo: 'salvar estoques permitidos',
+    abertura,
+    pedido: estoques,
+    ler: (dados) => estoquesPermitidos({ allowedInventories: dados?.['allowedInventories'] }),
+    dados: (lista) => ({ allowedInventories: [...lista], updatedAt: new Date() }),
+    exigeDocumento: true,
+  });
 }
 
 export async function listarUsuarios(): Promise<UserProfile[]> {
@@ -126,13 +136,15 @@ export async function registrarUltimoEstoque(uid: string, inventoryId: string): 
   }
 }
 
-/** Altera papéis. Só master — a regra nega para os demais. */
-export async function salvarPapeis(
-  uid: string,
-  papeis: Pick<UserProfile, 'isAdmin' | 'isAuditor' | 'isMaster'>,
-): Promise<void> {
-  await withWriteTimeout(
-    setDoc(doc(db, COLECAO, uid), { ...papeis, updatedAt: new Date() }, { merge: true }),
-    { label: 'salvar permissões' },
-  );
+/** Altera o papel. Só master — a regra nega para os demais. `abertura` é o papel que a tela abriu. */
+export function salvarPapeis(uid: string, papel: Papel, abertura: Papel): Promise<ResultadoGestao<Papel>> {
+  return gravarCampoDeGestao({
+    ref: doc(db, COLECAO, uid),
+    rotulo: 'salvar papel',
+    abertura,
+    pedido: papel,
+    ler: (dados) => papelDe(dados ?? null),
+    dados: (p) => ({ ...flagsDoPapel(p), updatedAt: new Date() }),
+    exigeDocumento: true,
+  });
 }

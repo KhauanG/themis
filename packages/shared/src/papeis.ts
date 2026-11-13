@@ -24,6 +24,11 @@ export function papelDe(perfil: Pick<UserProfile, 'isMaster' | 'isAdmin' | 'isAu
   return 'comum';
 }
 
+/** Flags gravadas em users/{uid}. Master leva isAdmin também (desenho 6.3). */
+export function flagsDoPapel(papel: Papel): { isAdmin: boolean; isAuditor: boolean; isMaster: boolean } {
+  return { isAdmin: papel === 'admin' || papel === 'master', isAuditor: papel === 'auditor', isMaster: papel === 'master' };
+}
+
 export const ROTULO_PAPEL: Record<Papel, string> = {
   master: 'Master',
   admin: 'Administrador',

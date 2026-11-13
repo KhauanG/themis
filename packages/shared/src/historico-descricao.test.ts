@@ -267,6 +267,23 @@ describe('descreverEvento — configuração', () => {
   });
 });
 
+describe('descreverEvento — usuários', () => {
+  it('troca de estoques tem rótulo próprio e mudança Estoques', () => {
+    const r = descreverEvento('ALTERAR_PAPEL', {
+      usuario: 'Ana (ana@x.com)', estoquesDe: 'todos os estoques', estoquesPara: 'Loja Sul, Loja Norte',
+    });
+    expect(r.rotulo).toBe('Alterou estoques de usuário');
+    expect(r.alvo).toBe('Ana (ana@x.com)');
+    expect(r.mudancas).toEqual([{ campo: 'Estoques', de: 'todos os estoques', para: 'Loja Sul, Loja Norte' }]);
+  });
+  // Até a 2.24.0 a troca de estoques reusava papelDe/papelPara. Essas entradas ficam como estão.
+  it('entrada antiga, com texto de estoques em papelDe, continua saindo como Papel', () => {
+    const r = descreverEvento('ALTERAR_PAPEL', { usuario: 'Ana', papelDe: 'todos os estoques', papelPara: 'Loja Sul' });
+    expect(r.rotulo).toBeUndefined();
+    expect(r.mudancas).toEqual([{ campo: 'Papel', de: 'todos os estoques', para: 'Loja Sul' }]);
+  });
+});
+
 describe('tabelas de rótulo e cor', () => {
   const acoes = Object.keys(ROTULO_ACAO) as AcaoHistorico[];
 

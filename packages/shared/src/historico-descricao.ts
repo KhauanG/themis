@@ -271,8 +271,14 @@ export function descreverEvento(acao: AcaoHistorico, detalhes: Detalhes = {}): D
     }
 
     case 'ALTERAR_PAPEL': {
+      const alvo = d['usuario'] ? String(d['usuario']) : undefined;
+      // Até a 2.24.0 a troca de estoques reusava papelDe/papelPara; essas entradas seguem como Papel.
+      if ('estoquesDe' in d || 'estoquesPara' in d) {
+        adicionar(mudanca('Estoques', d['estoquesDe'], d['estoquesPara']));
+        return { rotulo: 'Alterou estoques de usuário', alvo, mudancas, fatos };
+      }
       adicionar(mudanca('Papel', d['papelDe'], d['papelPara']));
-      return { alvo: d['usuario'] ? String(d['usuario']) : undefined, mudancas, fatos };
+      return { alvo, mudancas, fatos };
     }
 
     case 'ALTERAR_CONFIGURACAO': {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { papelDe, permissoesDe } from './papeis.js';
+import { flagsDoPapel, papelDe, permissoesDe } from './papeis.js';
 
 describe('papelDe', () => {
   it('sem perfil ou sem flag é usuário comum', () => {
@@ -68,5 +68,18 @@ describe('permissoesDe', () => {
 
   it('só master gerencia usuários', () => {
     expect(permissoesDe('master').gerenciarUsuarios).toBe(true);
+  });
+});
+
+describe('flagsDoPapel', () => {
+  it('os quatro papéis', () => {
+    expect(flagsDoPapel('comum')).toEqual({ isAdmin: false, isAuditor: false, isMaster: false });
+    expect(flagsDoPapel('auditor')).toEqual({ isAdmin: false, isAuditor: true, isMaster: false });
+    expect(flagsDoPapel('admin')).toEqual({ isAdmin: true, isAuditor: false, isMaster: false });
+    // Master leva as duas: quem lê só isAdmin (o app antigo, a API) não o trata como comum.
+    expect(flagsDoPapel('master')).toEqual({ isAdmin: true, isAuditor: false, isMaster: true });
+  });
+  it('ida e volta com papelDe', () => {
+    for (const p of ['comum', 'auditor', 'admin', 'master'] as const) expect(papelDe(flagsDoPapel(p))).toBe(p);
   });
 });
