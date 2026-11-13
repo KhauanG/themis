@@ -42,9 +42,12 @@ import {
   type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing';
 import { deleteDoc, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
-import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 let ambiente: RulesTestEnvironment;
+
+/** Sem a variável, a regra do arquivo principal. Com ela, a regra guardada (ver vitest.regras-anterior.config.ts). */
+const ARQUIVO_DA_REGRA = process.env['REGRAS_ARQUIVO'] ?? 'firestore/firestore.rules';
 
 /** Produto mínimo que passa em `validProductData`. Faltar campo aqui mascara o teste. */
 const PRODUTO_VALIDO = { nome: 'Cerveja Lata', quantidade: 0, codigoBarras: '789' };
@@ -53,7 +56,7 @@ beforeAll(async () => {
   ambiente = await initializeTestEnvironment({
     projectId: 'themis-regras-teste',
     firestore: {
-      rules: readFileSync(new URL('./firestore.rules', import.meta.url), 'utf8'),
+      rules: readFileSync(new URL(`../${ARQUIVO_DA_REGRA}`, import.meta.url), 'utf8'),
       host: '127.0.0.1',
       port: 8280,
     },
@@ -95,6 +98,10 @@ beforeEach(async () => {
       lastName: 'Y',
       allowedInventories: ['Y'],
     });
+    await setDoc(doc(db, 'users/adminX'), { firstName: 'A', lastName: 'X', isAdmin: true, allowedInventories: ['X'] });
+    await setDoc(doc(db, 'users/auditor'), { firstName: 'U', lastName: 'U', isAuditor: true });
+    await setDoc(doc(db, 'appSettings/global'), { modoContagem: false });
+    await setDoc(doc(db, 'estoques/X/updatedItems/u1'), { productId: 'p1', updatedAt: new Date() });
 
     // `semDoc` de propósito não existe em `users/`.
 
@@ -429,5 +436,162 @@ describe('auditoria com id fixo', () => {
     };
     await assertSucceeds(setDoc(doc(como('semLista'), 'auditorias/X_1'), dados));
     await assertFails(setDoc(doc(como('semLista'), 'auditorias/X_1'), dados));
+  });
+});
+
+describe('qual regra está em teste', () => {
+  it('o arquivo da variável existe e é uma regra', () => {
+    expect(readFileSync(new URL(`../${ARQUIVO_DA_REGRA}`, import.meta.url), 'utf8')).toContain('rules_version');
+  });
+});
+
+/** O que o site 2.24.0, o site 2.25.0 e o app 5.3.0 gravam. Passa na regra velha e na nova. */
+describe('compatibilidade — users', () => {
+  const agora = () => new Date();
+
+  it('cria o próprio perfil sem elevar', async () => {
+    await assertSucceeds(setDoc(doc(como('novo'), 'users/novo'), {
+      firstName: 'Nova', lastName: 'Pessoa', displayName: 'Nova Pessoa', email: 'n@b.c',
+      isAdmin: false, isAuditor: false, isMaster: false, createdAt: agora(), updatedAt: agora(),
+    }));
+  });
+  it('não cria o próprio perfil já elevado', async () => {
+    await assertFails(setDoc(doc(como('novo'), 'users/novo'), { firstName: 'N', lastName: 'P', isAdmin: true }));
+  });
+  it('não cria o perfil de outra pessoa', async () => {
+    await assertFails(setDoc(doc(como('novo'), 'users/outro'), { firstName: 'N', lastName: 'P' }));
+  });
+  it('o próprio grava lastEstoque e o nome, com merge', async () => {
+    await assertSucceeds(setDoc(doc(como('soLojaX'), 'users/soLojaX'), { lastEstoque: 'X', updatedAt: agora() }, { merge: true }));
+    await assertSucceeds(setDoc(doc(como('soLojaX'), 'users/soLojaX'), {
+      firstName: 'Xis', lastName: 'Novo', displayName: 'Xis Novo', email: 'x@b.c', updatedAt: agora(),
+    }, { merge: true }));
+  });
+  it('o próprio não muda o próprio papel', async () => {
+    await assertFails(setDoc(doc(como('semLista'), 'users/semLista'), { isAdmin: true }, { merge: true }));
+  });
+  it('master grava papel e lista de outro', async () => {
+    await assertSucceeds(setDoc(doc(como('master'), 'users/semLista'),
+      { isAdmin: true, isAuditor: false, isMaster: false, updatedAt: agora() }, { merge: true }));
+    await assertSucceeds(setDoc(doc(como('master'), 'users/semLista'),
+      { allowedInventories: ['X'], updatedAt: agora() }, { merge: true }));
+  });
+  it('master grava outro master com as duas flags', async () => {
+    await assertSucceeds(setDoc(doc(como('master'), 'users/semLista'),
+      { isMaster: true, isAdmin: true, isAuditor: false, updatedAt: agora() }, { merge: true }));
+  });
+  it('admin não muda papel nem lista de outro', async () => {
+    await assertFails(setDoc(doc(como('admin'), 'users/semLista'), { isAdmin: true }, { merge: true }));
+    await assertFails(setDoc(doc(como('admin'), 'users/soLojaX'), { allowedInventories: [] }, { merge: true }));
+  });
+  it('nome com 51 letras nega', async () => {
+    await assertFails(setDoc(doc(como('semLista'), 'users/semLista'), { firstName: 'x'.repeat(51) }, { merge: true }));
+  });
+});
+
+describe('compatibilidade — appSettings', () => {
+  const ref = (uid: string) => doc(como(uid), 'appSettings/global');
+
+  it('admin grava modoContagem com merge', async () => {
+    await assertSucceeds(setDoc(ref('admin'), { modoContagem: true, lastUpdated: new Date() }, { merge: true }));
+  });
+  it('a aba do 2.24.0 grava a lista vazia junto', async () => {
+    await assertSucceeds(setDoc(ref('admin'), { modoContagem: true, readonlyInventories: [], lastUpdated: new Date() }, { merge: true }));
+  });
+  it('versão do app como texto, e vazia', async () => {
+    await assertSucceeds(setDoc(ref('master'), { latestNativeAppVersion: '5.4.0', lastUpdated: new Date() }, { merge: true }));
+    await assertSucceeds(setDoc(ref('master'), { latestNativeAppVersion: '', lastUpdated: new Date() }, { merge: true }));
+  });
+  it('quem só conta e o auditor não gravam', async () => {
+    await assertFails(setDoc(ref('semLista'), { modoContagem: true, lastUpdated: new Date() }, { merge: true }));
+    await assertFails(setDoc(ref('auditor'), { modoContagem: true, lastUpdated: new Date() }, { merge: true }));
+  });
+  it('lastUpdated que não é data nega', async () => {
+    await assertFails(setDoc(ref('admin'), { modoContagem: true, lastUpdated: 'ontem' }, { merge: true }));
+  });
+  it('todo autenticado lê', async () => {
+    await assertSucceeds(getDoc(ref('semLista')));
+  });
+});
+
+describe('compatibilidade — inventories', () => {
+  const novo = () => ({ name: 'Loja Nova', description: '', contagemCycle: 1, createdAt: new Date(), updatedAt: new Date() });
+
+  it('admin cria e renomeia', async () => {
+    await assertSucceeds(setDoc(doc(como('admin'), 'inventories/novo'), novo()));
+    await assertSucceeds(setDoc(doc(como('admin'), 'inventories/novo'), { name: 'Outro Nome', updatedAt: new Date() }, { merge: true }));
+  });
+  it('quem só conta não cria', async () => {
+    await assertFails(setDoc(doc(como('semLista'), 'inventories/novo'), novo()));
+  });
+  it('admin com lista restrita cria, mas não renomeia o que criou', async () => {
+    await assertSucceeds(setDoc(doc(como('adminX'), 'inventories/novo'), novo()));
+    await assertFails(setDoc(doc(como('adminX'), 'inventories/novo'), { name: 'Outro Nome', updatedAt: new Date() }, { merge: true }));
+  });
+  it('admin com lista restrita renomeia o da lista', async () => {
+    await assertSucceeds(setDoc(doc(como('adminX'), 'inventories/X'), { name: 'Loja X 2', updatedAt: new Date() }, { merge: true }));
+  });
+  it('nome com 100 passa e com 101 nega', async () => {
+    await assertSucceeds(setDoc(doc(como('admin'), 'inventories/n100'), { ...novo(), name: 'x'.repeat(100) }));
+    await assertFails(setDoc(doc(como('admin'), 'inventories/n101'), { ...novo(), name: 'x'.repeat(101) }));
+  });
+  it('master exclui; admin não', async () => {
+    await assertFails(deleteDoc(doc(como('admin'), 'inventories/X')));
+    await assertSucceeds(deleteDoc(doc(como('master'), 'inventories/X')));
+  });
+});
+
+describe('compatibilidade — produtos', () => {
+  /** O documento que o cadastro do 2.25.0 grava (desenho 5.6). */
+  const cadastro = () => ({
+    nome: 'Agua 500ml', NomeProduto: 'Agua 500ml', codigoBarras: '', CodigoBarras: '', temCodigoBarras: false,
+    IdProduto: '123', quantidade: 0, estoqueSistema: 0, EstoqueAtual: 0, inventoryId: 'X',
+    createdAt: new Date(), lastModified: new Date(), modifiedBy: 'aparelho',
+  });
+
+  it('admin cria', async () => {
+    await assertSucceeds(setDoc(doc(como('admin'), 'estoques/X/produtos/novo'), cadastro()));
+  });
+  it('quem só conta não cria', async () => {
+    await assertFails(setDoc(doc(como('semLista'), 'estoques/X/produtos/novo'), cadastro()));
+  });
+  it('admin com lista restrita não cria fora da lista', async () => {
+    await assertFails(setDoc(doc(como('adminX'), 'estoques/Y/produtos/novo'), cadastro()));
+    await assertSucceeds(setDoc(doc(como('adminX'), 'estoques/X/produtos/novo'), cadastro()));
+  });
+  it('quem só conta grava os cinco campos da contagem', async () => {
+    await assertSucceeds(updateDoc(doc(como('semLista'), 'estoques/X/produtos/p1'), {
+      quantidade: 7, dataValidade: '2026-12-31', productStatus: 'ATUALIZADO', lastModified: new Date(), modifiedBy: 'aparelho',
+    }));
+  });
+  it('admin edita o cadastro: nome, código e código no ERP', async () => {
+    await assertSucceeds(updateDoc(doc(como('admin'), 'estoques/X/produtos/p1'), {
+      nome: 'Novo Nome', NomeProduto: 'Novo Nome', codigoBarras: '790', CodigoBarras: '790', temCodigoBarras: true,
+      IdProduto: '77', lastModified: new Date(), modifiedBy: 'aparelho',
+    }));
+  });
+});
+
+describe('compatibilidade — updatedItems', () => {
+  it('master apaga; quem só conta não', async () => {
+    await assertFails(deleteDoc(doc(como('semLista'), 'estoques/X/updatedItems/u1')));
+    await assertSucceeds(deleteDoc(doc(como('master'), 'estoques/X/updatedItems/u1')));
+  });
+});
+
+describe('compatibilidade — historico_geral', () => {
+  const registro = { action: 'LOGIN', userId: 'admin', userEmail: 'a@b.c', userName: 'A', timestamp: new Date() };
+  beforeEach(async () => {
+    await ambiente.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'historico_geral/e1'), registro);
+    });
+  });
+
+  it('auditor não lê', async () => {
+    await assertFails(getDoc(doc(como('auditor'), 'historico_geral/e1')));
+  });
+  it('ninguém altera nem apaga, nem master', async () => {
+    await assertFails(updateDoc(doc(como('master'), 'historico_geral/e1'), { userName: 'Outro' }));
+    await assertFails(deleteDoc(doc(como('master'), 'historico_geral/e1')));
   });
 });

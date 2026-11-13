@@ -27,6 +27,7 @@
     "mapa": "node scripts/mapa-codigo.mjs",
     "auditar-produtos": "npm run build --workspace @themis/shared && node --env-file=apps/web/.env scripts/auditar-produtos.mjs",
     "testar-regras": "npx firebase-tools emulators:exec --only firestore \"npx vitest run --config vitest.regras.config.ts\"",
+    "testar-regras-anterior": "npx firebase-tools emulators:exec --only firestore \"npx vitest run --config vitest.regras-anterior.config.ts\"",
     "deploy-rules": "npx firebase-tools deploy --only firestore:rules",
     "deploy-indexes": "npx firebase-tools deploy --only firestore:indexes"
   },

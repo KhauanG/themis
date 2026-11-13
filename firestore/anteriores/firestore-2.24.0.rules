@@ -1,0 +1,301 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function userDoc(uid) {
+      return /databases/$(database)/documents/users/$(uid);
+    }
+
+    function hasUserDoc() {
+      return signedIn() && exists(userDoc(request.auth.uid));
+    }
+
+    function isMaster() {
+      return hasUserDoc() &&
+        get(userDoc(request.auth.uid)).data.isMaster == true;
+    }
+
+    function isAdmin() {
+      return hasUserDoc() &&
+        get(userDoc(request.auth.uid)).data.isAdmin == true;
+    }
+
+    function isAuditor() {
+      return hasUserDoc() &&
+        get(userDoc(request.auth.uid)).data.isAuditor == true;
+    }
+
+    function isAdminOrMaster() {
+      return isAdmin() || isMaster();
+    }
+
+    function isAuditorOrMaster() {
+      return isAuditor() || isMaster();
+    }
+
+    // O usuario pode ESCREVER neste estoque?
+    //
+    // Ate 2.13 isso era so filtro de interface: qualquer autenticado escrevia em qualquer
+    // estoque, e `allowedInventories` apenas escondia os outros da lista. Era assim porque
+    // as regras eram compartilhadas com o Themis 1.x. Com o 1.x fora do ar, virou barreira
+    // de verdade.
+    //
+    // Leitura continua liberada de proposito: o app lista todos os estoques para montar o
+    // seletor e filtra do lado do cliente. Fechar a leitura quebraria o seletor e cobraria
+    // um get() por documento lido.
+    //
+    // A ordem dos `||` importa: o curto-circuito faz o master nem chegar a olhar a lista.
+    // E os `get()` repetidos para o mesmo caminho sao cacheados pelo motor de regras, entao
+    // isto custa UMA leitura por avaliacao, nao quatro.
+    //
+    // As tres portas abertas sao deliberadas, e todas evitam trancar alguem fora:
+    //   - master passa sempre;
+    //   - quem nao tem documento de perfil passa (falha de leitura nao pode parar contagem);
+    //   - lista vazia significa "todos", que e o padrao de quem nunca foi configurado.
+    // Inverter qualquer uma delas tranca a equipe no meio de um inventario.
+    function podeAcessarEstoque(estoqueId) {
+      return isMaster()
+        || !hasUserDoc()
+        || !('allowedInventories' in get(userDoc(request.auth.uid)).data)
+        || !(get(userDoc(request.auth.uid)).data.allowedInventories is list)
+        || get(userDoc(request.auth.uid)).data.allowedInventories.size() == 0
+        || estoqueId in get(userDoc(request.auth.uid)).data.allowedInventories;
+    }
+
+    function validOptionalUserFields(data) {
+      return (!('firstName' in data) || (data.firstName is string && data.firstName.size() > 0 && data.firstName.size() <= 50)) &&
+        (!('lastName' in data) || (data.lastName is string && data.lastName.size() > 0 && data.lastName.size() <= 50)) &&
+        (!('displayName' in data) || data.displayName is string) &&
+        (!('email' in data) || data.email is string) &&
+        (!('lastEstoque' in data) || data.lastEstoque is string) &&
+        (!('allowedInventories' in data) || data.allowedInventories is list) &&
+        (!('updatedAt' in data) || data.updatedAt is timestamp) &&
+        (!('createdAt' in data) || data.createdAt is timestamp) &&
+        (!('isAdmin' in data) || data.isAdmin is bool) &&
+        (!('isAuditor' in data) || data.isAuditor is bool) &&
+        (!('isMaster' in data) || data.isMaster is bool);
+    }
+
+    function rolesAreNotElevatedOnCreate(data) {
+      return (!('isAdmin' in data) || data.isAdmin == false) &&
+        (!('isAuditor' in data) || data.isAuditor == false) &&
+        (!('isMaster' in data) || data.isMaster == false);
+    }
+
+    function ownRoleFieldsUnchanged(data) {
+      return (!('isAdmin' in data) || data.isAdmin == resource.data.isAdmin) &&
+        (!('isAuditor' in data) || data.isAuditor == resource.data.isAuditor) &&
+        (!('isMaster' in data) || data.isMaster == resource.data.isMaster) &&
+        (!('allowedInventories' in data) || data.allowedInventories == resource.data.allowedInventories);
+    }
+
+    function validInventoryData(data) {
+      return data.keys().hasAll(['name']) &&
+        data.name is string &&
+        data.name.size() > 0 &&
+        data.name.size() <= 100 &&
+        (!('description' in data) || data.description is string) &&
+        (!('createdAt' in data) || data.createdAt is timestamp) &&
+        (!('updatedAt' in data) || data.updatedAt is timestamp) &&
+        (!('contagemCycle' in data) || data.contagemCycle is number) &&
+        (!('lastFinalizedCycle' in data) || data.lastFinalizedCycle is number) &&
+        (!('lastFinalizedAt' in data) || data.lastFinalizedAt is timestamp) &&
+        (!('lote' in data) || (data.lote is string && data.lote.size() <= 40)) &&
+        (!('loteCiclo' in data) || data.loteCiclo is number);
+    }
+
+    // Usuário comum só pode marcar productStatus 'ATUALIZADO' e não pode tocar nos
+    // campos de correção (CONFERIDO / corrigido* são exclusivos do fluxo admin/master).
+    function podeAlterarStatusProduto() {
+      let mudancas = request.resource.data.diff(resource.data).affectedKeys();
+      return isAdminOrMaster() || (
+        !mudancas.hasAny(['corrigidoIncorreto', 'corrigidoCritico']) &&
+        (!mudancas.hasAny(['productStatus']) || (
+          request.resource.data.get('productStatus', '') == 'ATUALIZADO' &&
+          resource.data.get('productStatus', '') != 'CONFERIDO'
+        ))
+      );
+    }
+
+    function validProductData(data) {
+      return data.keys().hasAll(['nome', 'quantidade', 'codigoBarras']) &&
+        data.nome is string &&
+        data.nome.size() > 0 &&
+        data.nome.size() <= 300 &&
+        data.quantidade is number &&
+        data.codigoBarras is string &&
+        (!('estoqueSistema' in data) || data.estoqueSistema is number) &&
+        (!('EstoqueAtual' in data) || data.EstoqueAtual is number) &&
+        (!('EstoqueMinimo' in data) || data.EstoqueMinimo is number) &&
+        (!('estoqueMinimo' in data) || data.estoqueMinimo is number) &&
+        (!('PrecoVenda' in data) || data.PrecoVenda is number) &&
+        (!('precoVenda' in data) || data.precoVenda is number) &&
+        (!('apiNotFound' in data) || data.apiNotFound is bool) &&
+        (!('temCodigoBarras' in data) || data.temCodigoBarras is bool) &&
+        (!('inventoryId' in data) || data.inventoryId is string) &&
+        (!('IdProduto' in data) || data.IdProduto is string || data.IdProduto is number) &&
+        (!('idProduto' in data) || data.idProduto is string || data.idProduto is number) &&
+        (!('idProdut' in data) || data.idProdut is string || data.idProdut is number) &&
+        (!('lastModified' in data) || data.lastModified is timestamp) &&
+        (!('createdAt' in data) || data.createdAt is timestamp) &&
+        (!('lastImportDate' in data) || data.lastImportDate is timestamp) &&
+        (!('lastSyncFromERP' in data) || data.lastSyncFromERP is timestamp) &&
+        (!('modifiedBy' in data) || data.modifiedBy is string) &&
+        (!('createdBy' in data) || data.createdBy is string) &&
+        (!('productStatus' in data) || data.productStatus in ['ATUALIZADO', 'CONFERIDO']) &&
+        (!('corrigidoIncorreto' in data) || data.corrigidoIncorreto is bool) &&
+        (!('corrigidoCritico' in data) || data.corrigidoCritico is bool) &&
+        (!('dataValidade' in data) || data.dataValidade is string);
+    }
+
+    match /estoques/{estoqueId} {
+      allow read: if signedIn();
+      allow create, update: if isAdminOrMaster() && validInventoryData(request.resource.data);
+      allow delete: if isMaster();
+
+      match /produtos/{produtoId} {
+        allow read: if signedIn();
+        allow create: if isAdminOrMaster()
+          && podeAcessarEstoque(estoqueId)
+          && validProductData(request.resource.data);
+        allow update: if signedIn()
+          && podeAcessarEstoque(estoqueId)
+          && validProductData(request.resource.data)
+          && podeAlterarStatusProduto();
+        allow delete: if isMaster();
+      }
+
+      match /updatedItems/{itemId} {
+        allow read: if signedIn();
+        allow create, update: if signedIn() &&
+          request.resource.data.keys().hasAll(['productId', 'updatedAt']) &&
+          request.resource.data.productId is string &&
+          request.resource.data.productId.size() > 0 &&
+          request.resource.data.updatedAt is timestamp;
+        allow delete: if isAdminOrMaster();
+      }
+    }
+
+    match /inventories/{inventoryId} {
+      allow read: if signedIn();
+      allow create: if isAdminOrMaster() && validInventoryData(request.resource.data);
+      // Update normal (nome/descrição/etc) segue admin/master. Ao usuario comum é liberado
+      // SOMENTE o conjunto de campos da rodada: os quatro do ciclo (finalizar contagem) e os
+      // dois do lote (abrir o lote da rodada). O lote e digitado por quem conta, entao quem
+      // conta precisa poder grava-lo -- por isso ele esta neste ramo, e nao so no de admin.
+      // `podeAcessarEstoque` tambem aqui: fechar o ciclo de um estoque que a pessoa nao
+      // pode contar e tao errado quanto contar nele. Nao vale para `create` -- estoque
+      // recem-criado nao esta na lista de ninguem, e exigi-lo impediria a propria criacao.
+      allow update: if podeAcessarEstoque(inventoryId)
+        && ((isAdminOrMaster() && validInventoryData(request.resource.data))
+            || (signedIn()
+                && request.resource.data.diff(resource.data).affectedKeys()
+                     .hasOnly(['contagemCycle', 'lastFinalizedCycle', 'lastFinalizedAt',
+                               'updatedAt', 'lote', 'loteCiclo'])
+                && request.resource.data.contagemCycle is number
+                && request.resource.data.contagemCycle >= 1
+                // O lote e digitado por quem conta. Limitar tamanho e tipo aqui e o que
+                // impede um cliente adulterado de gravar texto arbitrario no estoque.
+                && (!('lote' in request.resource.data)
+                    || (request.resource.data.lote is string
+                        && request.resource.data.lote.size() <= 40))
+                && (!('loteCiclo' in request.resource.data)
+                    || request.resource.data.loteCiclo is number)));
+      allow delete: if isMaster();
+    }
+
+    match /produtos/{produtoId} {
+      allow read: if signedIn();
+      allow write: if false;
+    }
+
+    match /updatedItems/{itemId} {
+      allow read: if signedIn();
+      allow write: if false;
+    }
+
+    match /hashConfigs/{configId} {
+      // O hash é credencial do ERP. Desde a 2.22.0 só a API lê e grava, com a conta de
+      // serviço, que não passa por regra. O catch-all do fim já fecha; o bloco explícito
+      // existe para ninguém reabrir por engano.
+      allow read, write: if false;
+    }
+
+    match /appSettings/{settingId} {
+      allow read: if signedIn();
+      allow create, update: if isAdminOrMaster() &&
+        (!('modoContagem' in request.resource.data) || request.resource.data.modoContagem is bool) &&
+        (!('readonlyInventories' in request.resource.data) || request.resource.data.readonlyInventories is list) &&
+        (!('mostrarCiclo' in request.resource.data) || request.resource.data.mostrarCiclo is bool) &&
+        (!('lastUpdated' in request.resource.data) || request.resource.data.lastUpdated is timestamp);
+      allow delete: if isMaster();
+    }
+
+    match /backups/{backupId} {
+      allow read, create, update, delete: if isMaster();
+    }
+
+    match /auditorias/{auditoriaId} {
+      allow read: if signedIn();
+      allow create: if signedIn() &&
+        request.resource.data.keys().hasAll(['nome', 'inventoryId', 'data', 'produtos', 'estatisticas', 'contagemCycle']) &&
+        request.resource.data.nome is string &&
+        request.resource.data.nome.size() > 0 &&
+        request.resource.data.nome.size() <= 100 &&
+        request.resource.data.inventoryId is string &&
+        request.resource.data.data is timestamp &&
+        request.resource.data.produtos is list &&
+        request.resource.data.estatisticas is map &&
+        request.resource.data.contagemCycle is number &&
+        request.resource.data.contagemCycle >= 1;
+      allow update, delete: if isMaster();
+    }
+
+    match /users/{userId} {
+      // Auditores leem apenas o próprio perfil (auditoria.js só consulta o próprio uid)
+      allow read: if signedIn() && (request.auth.uid == userId || isAdminOrMaster());
+      allow create: if signedIn() &&
+        request.auth.uid == userId &&
+        request.resource.data.keys().hasAll(['firstName', 'lastName']) &&
+        validOptionalUserFields(request.resource.data) &&
+        rolesAreNotElevatedOnCreate(request.resource.data);
+      allow update: if signedIn() &&
+        request.auth.uid == userId &&
+        validOptionalUserFields(request.resource.data) &&
+        ownRoleFieldsUnchanged(request.resource.data);
+      allow update: if signedIn() &&
+        isAdmin() &&
+        !isMaster() &&
+        validOptionalUserFields(request.resource.data) &&
+        (!('isAdmin' in request.resource.data) || request.resource.data.isAdmin == resource.data.isAdmin) &&
+        (!('isAuditor' in request.resource.data) || request.resource.data.isAuditor == resource.data.isAuditor) &&
+        (!('isMaster' in request.resource.data) || request.resource.data.isMaster == resource.data.isMaster) &&
+        (!('allowedInventories' in request.resource.data) || request.resource.data.allowedInventories == resource.data.allowedInventories);
+      allow update: if signedIn() && isMaster() && validOptionalUserFields(request.resource.data);
+      allow delete: if false;
+    }
+
+    match /userSettings/{settingsId} {
+      allow read, delete: if signedIn();
+      allow create, update: if signedIn() &&
+        (!('lastUpdated' in request.resource.data) || request.resource.data.lastUpdated is timestamp);
+    }
+
+    match /historico_geral/{logId} {
+      allow read: if signedIn() && isMaster();
+      allow create: if signedIn() &&
+        request.resource.data.keys().hasAll(['action', 'userId', 'userEmail', 'userName', 'timestamp']) &&
+        request.resource.data.action is string &&
+        request.resource.data.userId == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
