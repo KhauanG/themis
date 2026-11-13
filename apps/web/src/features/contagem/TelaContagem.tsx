@@ -30,7 +30,6 @@ export function TelaContagem() {
     lote,
     salvarContagem,
     progresso,
-    somenteLeitura,
     contagemFechada,
   } = useEstoque();
   const { permissoes } = useAuth();
@@ -284,7 +283,6 @@ export function TelaContagem() {
                 onAlternar={alternar}
                 onSalvar={salvarContagem}
                 onEditar={permissoes.gerenciarProdutos ? setEditando : undefined}
-                somenteLeitura={somenteLeitura}
                 verSistema={verSistema}
                 podeReabrirConferido={podeReabrirConferido}
                 contagemFechada={contagemFechada}

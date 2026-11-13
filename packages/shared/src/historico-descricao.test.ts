@@ -253,6 +253,14 @@ describe('descreverEvento — ação desconhecida', () => {
   });
 });
 
+describe('descreverEvento — configuração', () => {
+  // O botão de travar loja saiu na 2.25.0. As entradas antigas continuam legíveis.
+  it('entrada antiga de travar e liberar loja continua aparecendo', () => {
+    expect(descreverEvento('ALTERAR_CONFIGURACAO', { estoqueTravado: 'Loja Sul' }).fatos).toEqual(['Travou: Loja Sul']);
+    expect(descreverEvento('ALTERAR_CONFIGURACAO', { estoqueLiberado: 'Loja Sul' }).fatos).toEqual(['Liberou: Loja Sul']);
+  });
+});
+
 describe('tabelas de rótulo e cor', () => {
   const acoes = Object.keys(ROTULO_ACAO) as AcaoHistorico[];
 

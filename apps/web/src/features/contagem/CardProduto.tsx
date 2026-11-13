@@ -20,7 +20,6 @@ interface Props {
   onSalvar: (produto: Produto, quantidade: number, validade: string) => Promise<boolean>;
   /** Só admin/master recebe. */
   onEditar?: ((produto: Produto) => void) | undefined;
-  somenteLeitura?: boolean;
   /**
    * Mostrar saldo do sistema e diferença. Falso para quem só conta — ver
    * `permissoes.verEstoqueSistema`.
@@ -57,7 +56,6 @@ function CardProdutoBase({
   onAlternar,
   onSalvar,
   onEditar,
-  somenteLeitura = false,
   verSistema = false,
   podeReabrirConferido = false,
   contagemFechada = false,
@@ -202,7 +200,6 @@ function CardProdutoBase({
           onCancelar={() => onAlternar(produto.id)}
           onSalvar={(quantidade, validadeNova) => onSalvar(produto, quantidade, validadeNova)}
           onEditar={onEditar ? () => onEditar(produto) : undefined}
-          somenteLeitura={somenteLeitura}
           verSistema={verSistema}
         />
       )}

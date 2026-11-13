@@ -73,8 +73,6 @@ interface EstoqueAPI {
   sincronizar: () => Promise<void>;
   /** Configurações globais, em tempo real. */
   configuracoes: Configuracoes;
-  /** `true` quando o estoque aberto está travado para contagem. */
-  somenteLeitura: boolean;
   /**
    * A rodada foi encerrada por uma conferência e ninguém mais conta neste estoque.
    * Destrava com "Limpar contagem" ou desfazendo as conferências.
@@ -236,8 +234,6 @@ export function EstoqueProvider({ children }: { children: ReactNode }) {
       inventoryName: estoqueAtual.nome ?? estoqueAtual.id,
     });
   }, [usuario, estoqueAtual, nome]);
-
-  const somenteLeitura = Boolean(estoqueId && configuracoes.somenteLeitura.includes(estoqueId));
 
   /**
    * Conferiu um item, fechou a rodada — para todo mundo, inclusive admin.
@@ -524,11 +520,6 @@ export function EstoqueProvider({ children }: { children: ReactNode }) {
     async (produto: Produto, quantidade: number, validade: string): Promise<boolean> => {
       if (!estoqueId) return false;
 
-      if (somenteLeitura) {
-        mostrar('Este estoque está em modo somente leitura. Não é possível contar.', 'warning');
-        return false;
-      }
-
       /**
        * Trava também aqui, não só no card.
        *
@@ -618,7 +609,7 @@ export function EstoqueProvider({ children }: { children: ReactNode }) {
         return false;
       }
     },
-    [estoqueId, ciclo, mostrar, contextoLog, somenteLeitura, rodadaFechada, temLote],
+    [estoqueId, ciclo, mostrar, contextoLog, rodadaFechada, temLote],
   );
 
   const valor = useMemo<EstoqueAPI>(
@@ -642,7 +633,6 @@ export function EstoqueProvider({ children }: { children: ReactNode }) {
       sincronizar,
       contextoLog,
       configuracoes,
-      somenteLeitura,
       contagemFechada: rodadaFechada,
       alterarConfiguracoes,
     }),
@@ -666,7 +656,6 @@ export function EstoqueProvider({ children }: { children: ReactNode }) {
       sincronizar,
       contextoLog,
       configuracoes,
-      somenteLeitura,
       rodadaFechada,
       alterarConfiguracoes,
     ],

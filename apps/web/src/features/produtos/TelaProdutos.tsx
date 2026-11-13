@@ -50,7 +50,6 @@ export function TelaProdutos() {
     contextoLog,
     progresso,
     configuracoes,
-    somenteLeitura,
   } = useEstoque();
   const { mostrar } = useToast();
   const { permissoes } = useAuth();
@@ -336,12 +335,6 @@ export function TelaProdutos() {
         <p className="aviso">
           Modo contagem ligado. Importar planilha e limpar contagem ficam bloqueados até
           alguém desligar em Estoques — é o que impede apagar a contagem no meio da operação.
-        </p>
-      )}
-
-      {somenteLeitura && (
-        <p className="aviso">
-          Este estoque está em modo somente leitura. Ninguém consegue contar nele.
         </p>
       )}
 

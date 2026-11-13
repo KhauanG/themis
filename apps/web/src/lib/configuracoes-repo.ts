@@ -1,15 +1,15 @@
 /**
  * Configurações globais — `appSettings/global`.
  *
- * São dois interruptores que mudam o que a equipe pode fazer, e por isso valem para todo
- * mundo ao mesmo tempo, com listener em tempo real: ligar o modo contagem no escritório
- * precisa refletir no celular do depósito sem ninguém recarregar nada.
+ * O modo contagem muda o que a equipe pode fazer, e por isso vale para todo mundo ao mesmo
+ * tempo, com listener em tempo real: ligar no escritório precisa refletir no celular do
+ * depósito sem ninguém recarregar nada.
  *
- * ⚠️ A regra do Firestore confere o tipo de `modoContagem`, `readonlyInventories`, `lastUpdated`
+ * ⚠️ A regra do Firestore confere o tipo de `modoContagem`, de `lastUpdated`, da versão do app
  * e do interruptor antigo do ciclo (que saiu do site: o campo fica no documento, sem efeito) —
  * e o campo de data chama `lastUpdated`, não `updatedAt`. Escrita exige admin ou master.
  */
-import { Timestamp, doc, getDoc, onSnapshot, setDoc, type DocumentData } from 'firebase/firestore';
+import { Timestamp, doc, onSnapshot, setDoc, type DocumentData } from 'firebase/firestore';
 import { db } from './firebase.js';
 import { assinaturaResiliente } from './assinatura.js';
 import { withWriteTimeout } from './firestore-write.js';
@@ -23,27 +23,15 @@ export interface Configuracoes {
    * meio da operação.
    */
   modoContagem: boolean;
-  /** Estoques onde ninguém pode contar nem editar produto. */
-  somenteLeitura: string[];
 }
 
 export const CONFIGURACOES_PADRAO: Configuracoes = {
   modoContagem: false,
-  somenteLeitura: [],
 };
 
 function paraConfiguracoes(dados: DocumentData | undefined): Configuracoes {
   if (!dados) return CONFIGURACOES_PADRAO;
-  const lista = dados['readonlyInventories'];
-  return {
-    modoContagem: dados['modoContagem'] === true,
-    somenteLeitura: Array.isArray(lista) ? lista.map(String) : [],
-  };
-}
-
-export async function carregarConfiguracoes(): Promise<Configuracoes> {
-  const snap = await getDoc(doc(db, 'appSettings', DOC));
-  return paraConfiguracoes(snap.exists() ? snap.data() : undefined);
+  return { modoContagem: dados['modoContagem'] === true };
 }
 
 export function ouvirConfiguracoes(aoMudar: (c: Configuracoes) => void): () => void {
@@ -66,8 +54,7 @@ export function ouvirConfiguracoes(aoMudar: (c: Configuracoes) => void): () => v
  *
  * Com `merge`, porque o documento tem campos que esta tela não conhece
  * (`latestNativeAppVersion`, posto à mão no Console e lido pelo app nativo): `setDoc` sem
- * `merge` os apagava a cada ajuste. A lista vai inteira, porque com `merge` o array é
- * substituído, não somado.
+ * `merge` os apagava a cada ajuste.
  */
 export async function salvarConfiguracoes(config: Configuracoes): Promise<void> {
   await withWriteTimeout(
@@ -75,7 +62,6 @@ export async function salvarConfiguracoes(config: Configuracoes): Promise<void> 
       doc(db, 'appSettings', DOC),
       {
         modoContagem: config.modoContagem,
-        readonlyInventories: config.somenteLeitura,
         // A regra cobra `lastUpdated`; `updatedAt` seria negado.
         lastUpdated: Timestamp.fromDate(new Date()),
       },

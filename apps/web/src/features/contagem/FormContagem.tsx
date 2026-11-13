@@ -7,8 +7,6 @@ interface Props {
   onSalvar: (quantidade: number, validade: string) => Promise<boolean>;
   /** Só admin/master recebe; abre a edição de cadastro. */
   onEditar?: (() => void) | undefined;
-  /** Estoque travado: mostra o motivo em vez de deixar o usuário tentar e falhar. */
-  somenteLeitura?: boolean;
   /** Mostrar saldo do sistema e diferença. Falso para quem só conta. */
   verSistema?: boolean;
 }
@@ -30,7 +28,6 @@ export function FormContagem({
   onCancelar,
   onSalvar,
   onEditar,
-  somenteLeitura = false,
   verSistema = false,
 }: Props) {
   const [quantidade, setQuantidade] = useState(
@@ -123,12 +120,6 @@ export function FormContagem({
         </p>
       )}
 
-      {somenteLeitura && (
-        <p className="aviso" role="status" style={{ marginBottom: 'var(--e4)' }}>
-          Este estoque está em modo somente leitura. A contagem está travada.
-        </p>
-      )}
-
       <div className="card__acoes">
         {onEditar && (
           <button className="botao botao--secundario" type="button" onClick={onEditar}>
@@ -142,7 +133,7 @@ export function FormContagem({
           className="botao botao--primario"
           type="button"
           onClick={() => void salvar()}
-          disabled={!validacao.ok || salvando || somenteLeitura}
+          disabled={!validacao.ok || salvando}
         >
           {salvando ? 'Salvando…' : 'Salvar'}
         </button>

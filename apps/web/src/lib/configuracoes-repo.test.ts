@@ -11,12 +11,11 @@ vi.mock('firebase/firestore', async (importOriginal) => ({
 }));
 
 describe('salvarConfiguracoes', () => {
-  // Sem merge, cada ajuste apagava latestNativeAppVersion (aviso de versão do app nativo).
-  // O interruptor antigo do ciclo saiu na 2.23: o campo fica no documento, e o merge o preserva.
-  it('grava com merge e só as chaves que a tela conhece', async () => {
-    await salvarConfiguracoes({ modoContagem: true, somenteLeitura: ['E1'] });
+  // O site não grava mais a lista de lojas travadas: a lista velha é esvaziada pelo script do dono.
+  it('grava com merge e só modoContagem e lastUpdated', async () => {
+    await salvarConfiguracoes({ modoContagem: true });
     const [, dados, opcoes] = vi.mocked(setDoc).mock.calls[0]!;
     expect(opcoes).toEqual({ merge: true });
-    expect(Object.keys(dados as object).sort()).toEqual(['lastUpdated', 'modoContagem', 'readonlyInventories']);
+    expect(Object.keys(dados as object).sort()).toEqual(['lastUpdated', 'modoContagem']);
   });
 });

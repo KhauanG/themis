@@ -47,24 +47,6 @@ export function TelaEstoques() {
 
   useEffect(recarregarHashes, [recarregarHashes]);
 
-  /** Travar ou destravar a contagem de um estoque. Reflete em todos os aparelhos. */
-  async function alternarSomenteLeitura(inventoryId: string) {
-    const atual = configuracoes.somenteLeitura;
-    const travando = !atual.includes(inventoryId);
-    const novo = travando
-      ? [...atual, inventoryId]
-      : atual.filter((id) => id !== inventoryId);
-
-    await alterarConfiguracoes({ somenteLeitura: novo });
-
-    if (contextoLog) {
-      const nome = estoques.find((e) => e.id === inventoryId)?.nome ?? inventoryId;
-      void registrar('ALTERAR_CONFIGURACAO', contextoLog, {
-        [travando ? 'estoqueTravado' : 'estoqueLiberado']: nome,
-      });
-    }
-  }
-
   async function alternarModoContagem() {
     const antes = configuracoes.modoContagem;
     await alterarConfiguracoes({ modoContagem: !antes });
@@ -228,7 +210,6 @@ export function TelaEstoques() {
       <ul className="acoes-lista">
         {estoques.map((e) => {
           const atual = e.id === estoqueAtual?.id;
-          const travado = configuracoes.somenteLeitura.includes(e.id);
           return (
             <li key={e.id} className="acao" style={{ cursor: 'default' }}>
               <span className="acao__icone">
@@ -252,34 +233,10 @@ export function TelaEstoques() {
                   ) : (
                     <span className="etiqueta etiqueta--alerta">sem HashLoja</span>
                   )}
-                  {travado && (
-                    <>
-                      {' '}
-                      <span className="etiqueta etiqueta--critico">somente leitura</span>
-                    </>
-                  )}
                 </span>
               </span>
 
               <span className="acoes-linha">
-                <button
-                  className={
-                    travado
-                      ? 'botao botao--perigo botao--mini'
-                      : 'botao botao--secundario botao--mini'
-                  }
-                  type="button"
-                  onClick={() => void alternarSomenteLeitura(e.id)}
-                  disabled={Boolean(ocupado)}
-                  title={
-                    travado
-                      ? 'Destravar: a equipe volta a poder contar'
-                      : 'Travar: ninguém consegue contar neste estoque'
-                  }
-                >
-                  {travado ? 'Travado' : 'Travar'}
-                </button>
-
                 <button
                   className="botao botao--secundario botao--mini"
                   type="button"
