@@ -1,27 +1,54 @@
 import { useCallback, useEffect, useState } from 'react';
-import { TEXTO_NADA_MUDOU, rotuloDaRodada, versaoAppValida, type Inventory } from '@themis/shared';
+import {
+  TEXTO_FALHA,
+  TEXTO_NADA_MUDOU,
+  nomeEstoqueRepetido,
+  podeAcessarEstoque,
+  rotuloDaRodada,
+  versaoAppValida,
+  type Inventory,
+} from '@themis/shared';
 import { useAuth } from '../../contexts/AuthContext.js';
-import { isPermissaoNegada } from '../../lib/fila-offline.js';
 import { useEstoque } from '../../contexts/EstoqueContext.js';
 import { useToast } from '../../contexts/ToastContext.js';
 import { Icone } from '../../components/Icone.js';
 import { Modal } from '../../components/Modal.js';
-import { criarEstoque, excluirEstoque, renomearEstoque } from '../../lib/estoques-repo.js';
+import {
+  criarEstoque,
+  excluirEstoque,
+  novoIdDeEstoque,
+  renomearEstoque,
+  type CamposEstoque,
+} from '../../lib/estoques-repo.js';
 import { apagarHashDaLoja, lerHashesConfigurados, salvarHashDaLoja, testarHash, tomDoTeste } from '../../lib/erp.js';
 import { salvarVersaoApp } from '../../lib/configuracoes-repo.js';
 import { mensagemDeFalha } from '../../lib/gestao-escrita.js';
 import { CONTEXTO_GLOBAL, registrar } from '../../lib/historico.js';
 
-type Formulario = { id: string | null; nome: string; descricao: string; hashLoja: string };
-
-const VAZIO: Formulario = { id: null, nome: '', descricao: '', hashLoja: '' };
+/** `abertura`: nome e descrição como a tela abriu. O id de um estoque novo nasce com o formulário e vale para todo "Criar". */
+type Formulario = {
+  id: string;
+  novo: boolean;
+  nome: string;
+  descricao: string;
+  hashLoja: string;
+  abertura: CamposEstoque;
+};
 
 export function TelaEstoques() {
-  const { permissoes, papel } = useAuth();
+  const { permissoes, papel, perfil } = useAuth();
   // papelDe aceita "true" e 1, e a API não. O C2 garante que nenhum perfil está assim.
   const ehMaster = papel === 'master';
-  const { estoques, estoqueAtual, trocarEstoque, contextoLog, configuracoes, alterarModoContagem, autorLog } =
-    useEstoque();
+  const {
+    estoques,
+    todosEstoques,
+    estoqueAtual,
+    trocarEstoque,
+    contextoLog,
+    configuracoes,
+    alterarModoContagem,
+    autorLog,
+  } = useEstoque();
   const { mostrar } = useToast();
 
   const [form, setForm] = useState<Formulario | null>(null);
@@ -38,8 +65,10 @@ export function TelaEstoques() {
   const [versaoAberta, setVersaoAberta] = useState('');
   const [versaoSuja, setVersaoSuja] = useState(false);
   const [salvandoVersao, setSalvandoVersao] = useState(false);
+  // O estoque criado ainda pode não estar na lista (a transação não passa pelo cache): a troca espera.
+  const [abrirQuandoChegar, setAbrirQuandoChegar] = useState<string | null>(null);
 
-  const editando = form?.id != null;
+  const editando = form !== null && !form.novo;
 
   const recarregarHashes = useCallback(() => {
     lerHashesConfigurados()
@@ -54,6 +83,14 @@ export function TelaEstoques() {
   }, []);
 
   useEffect(recarregarHashes, [recarregarHashes]);
+
+  // `trocarEstoque` com o id fora da lista volta para o primeiro estoque e avisa de acesso perdido.
+  useEffect(() => {
+    if (abrirQuandoChegar && estoques.some((e) => e.id === abrirQuandoChegar)) {
+      trocarEstoque(abrirQuandoChegar);
+      setAbrirQuandoChegar(null);
+    }
+  }, [abrirQuandoChegar, estoques, trocarEstoque]);
 
   // Quem está digitando não perde o texto quando o listener entrega outro valor.
   useEffect(() => {
@@ -104,7 +141,7 @@ export function TelaEstoques() {
   }
 
   async function testar() {
-    if (!form?.id) return;
+    if (!form || form.novo) return;
     setTestando(true);
     try {
       // Sem texto no campo, a API testa o hash salvo.
@@ -117,53 +154,75 @@ export function TelaEstoques() {
 
   async function salvar() {
     if (!form || !form.nome.trim()) return;
+    const nome = form.nome.trim();
+    const descricao = form.descricao.trim();
+    if (nomeEstoqueRepetido(nome, todosEstoques, form.id)) {
+      mostrar('Já existe um estoque com este nome.', 'error');
+      return;
+    }
     setOcupado(editando ? 'Salvando…' : 'Criando…');
     try {
-      if (form.id) {
+      if (form.novo) {
+        const r = await criarEstoque(form.id, nome, descricao);
+        if (r === 'CONFLITO') {
+          // O id é de outro estoque: o formulário segue aberto, com id novo.
+          mostrar(TEXTO_FALHA, 'error');
+          setForm((f) => (f ? { ...f, id: novoIdDeEstoque() } : f));
+          return;
+        }
+        // CRIADO ou JA_EXISTIA (um reenvio depois de "Sem confirmação" que gravou): o histórico sai uma vez.
+        if (autorLog) {
+          void registrar('CRIAR_ESTOQUE', { ...autorLog, inventoryId: form.id, inventoryName: nome }, {
+            estoque: nome,
+            descricao,
+          });
+        }
+        if (podeAcessarEstoque(perfil, papel, form.id)) {
+          mostrar('Estoque criado. Importe a planilha para começar.', 'success');
+          setAbrirQuandoChegar(form.id);
+        } else {
+          mostrar('Estoque criado. Peça a um master para liberar este estoque para você.', 'info');
+        }
+      } else {
         const id = form.id;
-        const antes = estoques.find((e) => e.id === id);
         const novoHash = form.hashLoja.trim();
-        await renomearEstoque(id, form.nome, form.descricao);
+        const r = await renomearEstoque(id, { nome, descricao }, form.abertura);
 
         // Vazio mantém o hash atual. Para a API, `''` apagaria.
         const hash = ehMaster && novoHash !== '' ? await salvarHashDaLoja(id, novoHash) : null;
         if (hash?.ok) setConfigurados((s) => new Set(s).add(id));
 
-        if (contextoLog) {
-          void registrar('EDITAR_ESTOQUE', contextoLog, {
-            estoque: antes?.nome ?? form.nome,
-            nomeDe: antes?.nome ?? '',
-            nomePara: form.nome.trim(),
-            descricaoDe: antes?.descricao ?? '',
-            descricaoPara: form.descricao.trim(),
+        if ((r.resultado !== 'NADA_MUDOU' || hash?.ok) && autorLog) {
+          void registrar('EDITAR_ESTOQUE', { ...autorLog, inventoryId: id, inventoryName: nome }, {
+            estoque: r.de.nome,
+            nomeDe: r.de.nome,
+            nomePara: nome,
+            descricaoDe: r.de.descricao,
+            descricaoPara: descricao,
             hashAlterado: hash?.ok === true,
           });
         }
+        // O servidor aceitou: um segundo "Salvar" (hash que falhou) não renomeia nem registra o nome de novo.
+        setForm((f) => (f ? { ...f, abertura: { nome, descricao } } : f));
         if (hash && !hash.ok) {
           // O nome já mudou. O modal fica aberto, com o hash digitado, para tentar de novo.
           mostrar(`Estoque salvo, mas o HashLoja não: ${hash.erro}`, 'error');
           return;
         }
-        mostrar('Estoque atualizado.', 'success');
-      } else {
-        const id = await criarEstoque(form.nome, form.descricao);
-
-        if (contextoLog) {
-          void registrar('CRIAR_ESTOQUE', contextoLog, {
-            estoque: form.nome.trim(),
-            descricao: form.descricao.trim(),
-          });
+        if (r.resultado === 'NADA_MUDOU' && !hash) {
+          mostrar(TEXTO_NADA_MUDOU, 'info');
+          return;
         }
-        mostrar('Estoque criado. Importe a planilha para começar.', 'success');
-        trocarEstoque(id);
+        mostrar('Estoque atualizado.', 'success');
       }
       setForm(null);
     } catch (erro) {
       console.error('[estoques] Falha ao salvar:', erro);
       mostrar(
-        isPermissaoNegada(erro)
-          ? 'Sem permissão. Alterar estoque exige admin.'
-          : 'Não foi possível salvar. Verifique a conexão e tente de novo.',
+        mensagemDeFalha(
+          erro,
+          editando ? { recusa: 'Sem permissão. Renomear exige admin com acesso a este estoque.' } : {},
+        ),
         'error',
       );
     } finally {
@@ -204,7 +263,7 @@ export function TelaEstoques() {
       <div>
         <h1 className="titulo-tela">Estoques</h1>
         <p className="subtitulo">
-          {estoques.length} {estoques.length === 1 ? 'estoque' : 'estoques'} cadastrados
+          {estoques.length} {estoques.length === 1 ? 'estoque cadastrado' : 'estoques cadastrados'}
         </p>
       </div>
 
@@ -274,7 +333,16 @@ export function TelaEstoques() {
       <button
         className="botao botao--primario botao--largo"
         type="button"
-        onClick={() => setForm(VAZIO)}
+        onClick={() =>
+          setForm({
+            id: novoIdDeEstoque(),
+            novo: true,
+            nome: '',
+            descricao: '',
+            hashLoja: '',
+            abertura: { nome: '', descricao: '' },
+          })
+        }
         disabled={Boolean(ocupado)}
       >
         Novo estoque
@@ -316,9 +384,11 @@ export function TelaEstoques() {
                   onClick={() =>
                     setForm({
                       id: e.id,
+                      novo: false,
                       nome: e.nome ?? '',
                       descricao: e.descricao ?? '',
                       hashLoja: '',
+                      abertura: { nome: e.nome ?? '', descricao: e.descricao ?? '' },
                     })
                   }
                   disabled={Boolean(ocupado)}
@@ -387,8 +457,8 @@ export function TelaEstoques() {
             <span className="campo__ajuda">Opcional. Ex.: endereço ou responsável.</span>
           </label>
 
-          {/* `form?.id != null` é o `editando`, com o tipo estreitado. */}
-          {form?.id != null && ehMaster && (
+          {/* `form && !form.novo` é o `editando`, com o tipo estreitado. */}
+          {form && !form.novo && ehMaster && (
             <label className="campo">
               <span className="campo__rotulo">Novo HashLoja (ERP)</span>
               {/* O Chrome ignora `off` em campo de senha e ofereceria salvar o hash como senha. */}
@@ -412,7 +482,7 @@ export function TelaEstoques() {
           )}
 
           {/* Sem hash salvo, a API responde 409. Com a leitura falha, a tela não sabe. */}
-          {form?.id != null &&
+          {form && !form.novo &&
             (form.hashLoja.trim() !== '' || configurados.has(form.id) || erroHashes) && (
               <button
                 className="botao botao--secundario botao--largo"

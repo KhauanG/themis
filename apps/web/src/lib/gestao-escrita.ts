@@ -15,6 +15,9 @@ import {
 import { isPermissaoNegada } from './fila-offline.js';
 import { isWriteTimeout, runTransactionWithTimeout } from './firestore-write.js';
 
+/** Criar com id estável: criou; o documento já estava lá com o mesmo nome (reenvio); ou está lá com outro nome. */
+export type ResultadoCriacao = 'CRIADO' | 'JA_EXISTIA' | 'CONFLITO';
+
 /** O documento que a gravação exigia não existe no servidor. */
 export class DocumentoAusenteError extends Error {
   constructor() {

@@ -252,7 +252,6 @@ export function descreverEvento(acao: AcaoHistorico, detalhes: Detalhes = {}): D
 
     case 'CRIAR_ESTOQUE': {
       if (d['descricao']) fatos.push(texto(d['descricao']));
-      if (d['comHash'] === true) fatos.push('Com HashLoja configurado');
       return { alvo: d['estoque'] ? String(d['estoque']) : undefined, mudancas, fatos };
     }
 

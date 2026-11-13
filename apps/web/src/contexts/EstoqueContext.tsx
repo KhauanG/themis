@@ -50,6 +50,8 @@ import { useToast } from './ToastContext.js';
 
 interface EstoqueAPI {
   estoques: Inventory[];
+  /** A lista inteira de estoques, sem o filtro de permissão. Para conferir nome repetido e nomes no histórico. */
+  todosEstoques: Inventory[];
   /** A lista de estoques ainda está sendo carregada — a abertura do app depende dela. */
   carregandoEstoques: boolean;
   estoqueAtual: Inventory | null;
@@ -624,6 +626,7 @@ export function EstoqueProvider({ children }: { children: ReactNode }) {
   const valor = useMemo<EstoqueAPI>(
     () => ({
       estoques,
+      todosEstoques: estoquesBrutos,
       carregandoEstoques,
       estoqueAtual,
       trocarEstoque,
@@ -648,6 +651,7 @@ export function EstoqueProvider({ children }: { children: ReactNode }) {
     }),
     [
       estoques,
+      estoquesBrutos,
       carregandoEstoques,
       estoqueAtual,
       trocarEstoque,

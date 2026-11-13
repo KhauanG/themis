@@ -267,6 +267,15 @@ describe('descreverEvento — configuração', () => {
   });
 });
 
+describe('descreverEvento — estoques', () => {
+  // Ninguém nunca gravou comHash. O leitor deixa de olhar.
+  it('criar estoque mostra a descrição e ignora comHash', () => {
+    const r = descreverEvento('CRIAR_ESTOQUE', { estoque: 'Loja Sul', descricao: 'Rua 1', comHash: true });
+    expect(r.alvo).toBe('Loja Sul');
+    expect(r.fatos).toEqual(['Rua 1']);
+  });
+});
+
 describe('descreverEvento — usuários', () => {
   it('troca de estoques tem rótulo próprio e mudança Estoques', () => {
     const r = descreverEvento('ALTERAR_PAPEL', {

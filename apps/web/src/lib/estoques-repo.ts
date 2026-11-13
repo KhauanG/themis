@@ -24,9 +24,10 @@ import {
   type DocumentData,
   type QueryDocumentSnapshot,
 } from 'firebase/firestore';
-import { normalizarLote, type Inventory } from '@themis/shared';
+import { decidirEdicao, normalizarLote, type Inventory, type Repeticao } from '@themis/shared';
 import { db } from './firebase.js';
-import { exigirGravacao, withWriteTimeout } from './firestore-write.js';
+import { exigirGravacao, runTransactionWithTimeout, withWriteTimeout } from './firestore-write.js';
+import { DocumentoAusenteError, type ResultadoCriacao } from './gestao-escrita.js';
 import { colecaoProdutos } from './produtos-repo.js';
 import { assinaturaResiliente } from './assinatura.js';
 
@@ -123,39 +124,75 @@ export async function encerrarLote(inventoryId: string): Promise<void> {
   );
 }
 
-/** Cria um estoque. Só admin/master — a regra nega para os demais. */
-export async function criarEstoque(nome: string, descricao = ''): Promise<string> {
-  const ref = doc(collection(db, COLECAO));
-  await withWriteTimeout(
-    setDoc(ref, {
-      name: nome.trim(),
-      description: descricao.trim(),
-      contagemCycle: 1,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    }),
-    { label: 'criar estoque' },
-  );
-  return ref.id;
+/** `type`, não `interface`: precisa caber em `Record<string, ValorGestao>` do `decidirEdicao`. */
+export type CamposEstoque = { nome: string; descricao: string };
+
+/** Id novo, gerado no aparelho. Chamado quando o formulário abre, nunca a cada clique. */
+export function novoIdDeEstoque(): string {
+  return doc(collection(db, COLECAO)).id;
 }
 
 /**
- * Renomeia o estoque.
+ * Cria o estoque com o id que o formulário já tinha, numa transação. Só admin/master — a regra
+ * nega para os demais.
  *
- * `merge: true` com apenas estes três campos: enviar o documento inteiro regeneraria o
- * `createdAt` e a regra negaria a escrita.
+ * Reenvio depois de um "Sem confirmação" que gravou: o documento já está lá com o mesmo nome e
+ * não é regravado, senão o lote aberto no meio sumiria. Com outro nome, o id é de outro estoque.
+ */
+export function criarEstoque(id: string, nome: string, descricao: string): Promise<ResultadoCriacao> {
+  const nomeAparado = nome.trim();
+  return runTransactionWithTimeout<ResultadoCriacao>(
+    async (tx) => {
+      const ref = doc(db, COLECAO, id);
+      const snap = await tx.get(ref);
+      if (snap.exists()) return snap.data()['name'] === nomeAparado ? 'JA_EXISTIA' : 'CONFLITO';
+      tx.set(ref, {
+        name: nomeAparado,
+        description: descricao.trim(),
+        contagemCycle: 1,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+      return 'CRIADO';
+    },
+    { label: 'criar estoque' },
+  );
+}
+
+/**
+ * Renomeia o estoque, numa transação que grava só os campos que mudaram.
+ *
+ * `merge: true`, sem `createdAt`: enviar o documento inteiro regeneraria o `createdAt` e a regra
+ * negaria a escrita. `abertura` é o que a tela abriu; `de` é o valor que o servidor tinha.
  */
 export async function renomearEstoque(
-  inventoryId: string,
-  nome: string,
-  descricao = '',
-): Promise<void> {
-  await withWriteTimeout(
-    setDoc(
-      doc(db, COLECAO, inventoryId),
-      { name: nome.trim(), description: descricao.trim(), updatedAt: new Date() },
-      { merge: true },
-    ),
+  id: string,
+  pedido: CamposEstoque,
+  abertura: CamposEstoque,
+): Promise<{ resultado: Repeticao; de: CamposEstoque }> {
+  const aparado: CamposEstoque = { nome: pedido.nome.trim(), descricao: pedido.descricao.trim() };
+  if (decidirEdicao(abertura, aparado, abertura).resultado === 'NADA_MUDOU') {
+    return { resultado: 'NADA_MUDOU', de: abertura };
+  }
+  return runTransactionWithTimeout(
+    async (tx) => {
+      const ref = doc(db, COLECAO, id);
+      const snap = await tx.get(ref);
+      if (!snap.exists()) throw new DocumentoAusenteError();
+      const d = snap.data();
+      const servidor: CamposEstoque = {
+        nome: (d['name'] as string | undefined) ?? '',
+        descricao: (d['description'] as string | undefined) ?? '',
+      };
+      const { resultado, campos, de } = decidirEdicao(abertura, aparado, servidor);
+      if (resultado === 'GRAVAR') {
+        const dados: Record<string, unknown> = { updatedAt: new Date() };
+        if (campos.nome === 'GRAVAR') dados['name'] = aparado.nome;
+        if (campos.descricao === 'GRAVAR') dados['description'] = aparado.descricao;
+        tx.set(ref, dados, { merge: true });
+      }
+      return { resultado, de };
+    },
     { label: 'renomear estoque' },
   );
 }
