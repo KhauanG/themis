@@ -7,7 +7,6 @@ import {
   filtrosVisiveis,
   mensagemVazio,
   type FiltroContagem,
-  type Produto,
 } from '@themis/shared';
 import { useEstoque } from '../../contexts/EstoqueContext.js';
 import { useAuth } from '../../contexts/AuthContext.js';
@@ -39,7 +38,7 @@ export function TelaContagem() {
   const [expandido, setExpandido] = useState<string | null>(null);
   const [visiveis, setVisiveis] = useState(PAGINA);
   const [lendoCodigo, setLendoCodigo] = useState(false);
-  const [editando, setEditando] = useState<Produto | null>(null);
+  const [editando, setEditando] = useState<string | null>(null);
   const [pedindoLote, setPedindoLote] = useState(false);
 
   /**
@@ -282,7 +281,7 @@ export function TelaContagem() {
                 expandido={expandido === p.id}
                 onAlternar={alternar}
                 onSalvar={salvarContagem}
-                onEditar={permissoes.gerenciarProdutos ? setEditando : undefined}
+                onEditar={permissoes.gerenciarProdutos ? (produto) => setEditando(produto.id) : undefined}
                 verSistema={verSistema}
                 podeReabrirConferido={podeReabrirConferido}
                 contagemFechada={contagemFechada}
@@ -306,7 +305,7 @@ export function TelaContagem() {
 
       <CardLote aberto={pedindoLote} onFechar={() => setPedindoLote(false)} />
 
-      <ModalEditarProduto produto={editando} onFechar={() => setEditando(null)} />
+      <ModalEditarProduto produtoId={editando} onFechar={() => setEditando(null)} />
     </section>
   );
 }

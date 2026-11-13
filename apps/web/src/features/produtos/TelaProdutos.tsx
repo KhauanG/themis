@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { rotuloDaRodada, travaAntesDeGravar } from '@themis/shared';
+import { TEXTO_FALHA, rotuloDaRodada, travaAntesDeGravar, validarCadastroProduto } from '@themis/shared';
 import { useEstoque } from '../../contexts/EstoqueContext.js';
 import { useAuth } from '../../contexts/AuthContext.js';
 import { useToast } from '../../contexts/ToastContext.js';
@@ -8,17 +8,21 @@ import { Modal } from '../../components/Modal.js';
 import { Esqueleto } from '../../components/Esqueleto.js';
 import {
   atualizarEstoqueSistema,
-  criarProduto,
+  cadastrarProduto,
   excluirTodosProdutos,
   importarProdutos,
   limparContagem,
+  novoIdDeProduto,
 } from '../../lib/produtos-repo.js';
 import { encerrarLote } from '../../lib/estoques-repo.js';
 import { buscarEstoqueDoErp } from '../../lib/erp.js';
 import { lerPlanilha } from '../../lib/planilha.js';
 import { registrar } from '../../lib/historico.js';
 import { isWriteTimeout } from '../../lib/firestore-write.js';
+import { mensagemDeFalha } from '../../lib/gestao-escrita.js';
+import { ListaProdutos } from './ListaProdutos.js';
 import { ModalCorrigirEstoque } from './ModalCorrigirEstoque.js';
+import { ModalEditarProduto } from './ModalEditarProduto.js';
 
 /**
  * Mensagem de teto de tempo em operação de lote.
@@ -33,6 +37,8 @@ const AVISO_NAO_CONFIRMADO =
 
 /** Palavra da confirmação. Evita apagar 1600 produtos com um toque errado. */
 const PALAVRA_APAGAR = 'APAGAR';
+
+const RECUSA_CADASTRO = 'Sem permissão. Só admin ou master com acesso a este estoque edita o cadastro.';
 
 interface Ocupado {
   texto: string;
@@ -61,7 +67,9 @@ export function TelaProdutos() {
   const [textoApagar, setTextoApagar] = useState('');
   const [corrigindo, setCorrigindo] = useState(false);
   const [cadastrando, setCadastrando] = useState(false);
-  const [novo, setNovo] = useState({ nome: '', codigoBarras: '', estoqueSistema: '' });
+  // O id nasce quando o formulário abre: reenviar depois de um "Sem confirmação" não duplica o produto.
+  const [novo, setNovo] = useState({ id: '', nome: '', codigoBarras: '', idErp: '' });
+  const [editando, setEditando] = useState<string | null>(null);
 
   const bloqueado = ocupado !== null;
 
@@ -117,32 +125,36 @@ export function TelaProdutos() {
   }
 
   async function cadastrar() {
-    if (!estoqueAtual || !novo.nome.trim()) return;
+    if (!estoqueAtual) return;
+    const v = validarCadastroProduto(novo, null, produtos);
+    if (!v.ok) {
+      mostrar(v.mensagem, 'error');
+      return;
+    }
     setOcupado({ texto: 'Cadastrando' });
     try {
-      const codigo = novo.codigoBarras.trim();
-      await criarProduto(estoqueAtual.id, {
-        nome: novo.nome.trim(),
-        NomeProduto: novo.nome.trim(),
-        codigoBarras: codigo,
-        quantidade: 0,
-        estoqueSistema: Number(novo.estoqueSistema) || 0,
-        temCodigoBarras: Boolean(codigo),
-      });
+      const r = await cadastrarProduto(estoqueAtual.id, novo.id, v.campos);
+      if (r === 'CONFLITO') {
+        // O id é de outro produto: o formulário segue aberto, agora com um id novo.
+        mostrar(TEXTO_FALHA, 'error');
+        setNovo({ ...novo, id: novoIdDeProduto(estoqueAtual.id) });
+        return;
+      }
+      // Só depois do aceite do servidor.
       if (contextoLog) {
         void registrar('CRIAR_PRODUTO', contextoLog, {
-          produto: novo.nome.trim(),
-          codigoBarras: codigo,
-          estoqueSistema: Number(novo.estoqueSistema) || 0,
+          produto: v.campos.nome,
+          productId: novo.id,
+          codigoBarras: v.campos.codigoBarras,
+          idErp: v.campos.idErp,
           origem: 'Cadastro avulso',
         });
       }
       mostrar('Produto cadastrado.', 'success');
-      setNovo({ nome: '', codigoBarras: '', estoqueSistema: '' });
       setCadastrando(false);
     } catch (erro) {
       console.error('[produtos] Cadastro falhou:', erro);
-      mostrar('Não foi possível cadastrar.', 'error');
+      mostrar(mensagemDeFalha(erro, { recusa: RECUSA_CADASTRO }), 'error');
     } finally {
       setOcupado(null);
     }
@@ -343,7 +355,16 @@ export function TelaProdutos() {
           Cadastro
         </p>
         <div className="acoes-lista">
-          <button className="acao" type="button" onClick={() => setCadastrando(true)} disabled={bloqueado}>
+          <button
+            className="acao"
+            type="button"
+            onClick={() => {
+              if (!estoqueAtual) return;
+              setNovo({ id: novoIdDeProduto(estoqueAtual.id), nome: '', codigoBarras: '', idErp: '' });
+              setCadastrando(true);
+            }}
+            disabled={bloqueado}
+          >
             <span className="acao__icone">
               <Icone nome="produtos" />
             </span>
@@ -378,6 +399,8 @@ export function TelaProdutos() {
             }}
           />
         </div>
+
+        <ListaProdutos produtos={produtos} onEditar={setEditando} />
       </div>
 
       <div>
@@ -498,13 +521,15 @@ export function TelaProdutos() {
             <span className="campo__ajuda">Opcional</span>
           </label>
           <label className="campo">
-            <span className="campo__rotulo">Estoque do sistema</span>
+            <span className="campo__rotulo">Código no ERP</span>
             <input
               className="campo__entrada"
-              type="number"
-              value={novo.estoqueSistema}
-              onChange={(e) => setNovo({ ...novo, estoqueSistema: e.target.value })}
+              inputMode="numeric"
+              value={novo.idErp}
+              onChange={(e) => setNovo({ ...novo, idErp: e.target.value })}
+              autoComplete="off"
             />
+            <span className="campo__ajuda">É o código do produto no Nuvem3. Só números.</span>
           </label>
         </div>
       </Modal>
@@ -592,6 +617,8 @@ export function TelaProdutos() {
           </label>
         </div>
       </Modal>
+
+      <ModalEditarProduto produtoId={editando} onFechar={() => setEditando(null)} />
     </section>
   );
 }

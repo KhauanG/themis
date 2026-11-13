@@ -12,7 +12,6 @@ import {
   doc,
   getDocs,
   onSnapshot,
-  setDoc,
   updateDoc,
   writeBatch,
   type DocumentData,
@@ -20,18 +19,25 @@ import {
 } from 'firebase/firestore';
 import {
   LIMITE_CRITICO,
+  camposDoProduto,
   chavesDeIdProduto,
+  dadosDeCadastro,
+  dadosDeEdicao,
+  decidirEdicao,
   fisicoDe,
   idProdutoDe,
   nomeDe,
   saldoDoErpPara,
   saldoNoErp,
   sistemaDe,
+  type CamposCadastro,
   type Produto,
+  type Repeticao,
 } from '@themis/shared';
 import { db } from './firebase.js';
 import { assinaturaResiliente } from './assinatura.js';
 import { deviceId } from './dispositivo.js';
+import type { ResultadoCriacao } from './gestao-escrita.js';
 import {
   exigirGravacao,
   runTransactionWithTimeout,
@@ -300,17 +306,39 @@ async function aplicarPendente(item: AlteracaoPendente): Promise<void> {
   );
 }
 
-/** Cria produto. `doc()` gera o ID localmente — disponível mesmo sem ack do servidor. */
-export async function criarProduto(
+/** Id novo, gerado no aparelho quando o formulário de cadastro abre. */
+export function novoIdDeProduto(inventoryId: string): string {
+  return doc(colecaoProdutos(inventoryId)).id;
+}
+
+/**
+ * Cadastra o produto com o id que o formulário já tinha, numa transação.
+ *
+ * Reenvio depois de um "Sem confirmação" que gravou: o documento já está lá com o mesmo nome e
+ * não é regravado, senão a contagem que alguém fez no meio sumiria. Com outro nome, o id é de
+ * outro produto.
+ */
+export function cadastrarProduto(
   inventoryId: string,
-  dados: Omit<Produto, 'id'>,
-): Promise<string> {
-  const ref = doc(colecaoProdutos(inventoryId));
-  await withWriteTimeout(
-    setDoc(ref, { ...dados, lastModified: new Date(), modifiedBy: deviceId() }),
+  id: string,
+  campos: CamposCadastro,
+): Promise<ResultadoCriacao> {
+  return runTransactionWithTimeout<ResultadoCriacao>(
+    async (tx) => {
+      const ref = doc(colecaoProdutos(inventoryId), id);
+      const snap = await tx.get(ref);
+      if (snap.exists()) return snap.data()['nome'] === campos.nome ? 'JA_EXISTIA' : 'CONFLITO';
+      const agora = new Date();
+      tx.set(ref, {
+        ...dadosDeCadastro(campos, inventoryId),
+        createdAt: agora,
+        lastModified: agora,
+        modifiedBy: deviceId(),
+      });
+      return 'CRIADO';
+    },
     { label: 'cadastrar produto' },
   );
-  return ref.id;
 }
 
 /**
@@ -684,48 +712,47 @@ export async function desfazerConferido(inventoryId: string, produtoId: string):
   );
 }
 
-export interface CadastroProduto {
-  nome: string;
-  codigoBarras: string;
-  estoqueSistema: number;
-  idProduto: string;
-}
-
 /**
- * Altera o cadastro do produto — nome, código de barras, saldo do sistema e código do ERP.
+ * Altera o cadastro do produto (nome, código de barras, código no ERP), numa transação que grava
+ * só os campos que mudaram.
  *
- * Não toca em `quantidade` nem em `productStatus`: cadastro e contagem são coisas
- * diferentes, e misturá-las faria uma correção de nome apagar o trabalho do funcionário.
- *
- * `NomeProduto` acompanha `nome` porque o acervo tem documentos nas duas grafias e
- * `nomeDe` lê ambas. Só para de ser gravada junto de uma normalização do banco — ver
- * docs/pendencias.md §3.
- *
- * `IdProduto` vazio é **removido**, não gravado como string vazia: a regra aceita string,
- * mas um identificador vazio faria o produto casar errado com a listagem do ERP.
+ * Nunca toca em `quantidade`, `productStatus`, validade, saldo nem `apiNotFound`: cadastro e
+ * contagem são coisas diferentes, e corrigir um nome não pode apagar o trabalho do funcionário.
+ * `abertura` é o que a tela abriu; `de` é o valor que o servidor tinha (ou a abertura, nos campos
+ * que não gravaram). ID novo leva junto a remoção das grafias antigas que o documento tem.
  */
-export async function atualizarCadastroProduto(
+export async function editarCadastroProduto(
   inventoryId: string,
   produtoId: string,
-  cadastro: CadastroProduto,
-): Promise<void> {
-  const codigo = cadastro.codigoBarras.trim();
-  const idErp = cadastro.idProduto.trim();
-
-  const dados: Record<string, unknown> = {
-    nome: cadastro.nome.trim(),
-    NomeProduto: cadastro.nome.trim(),
-    codigoBarras: codigo,
-    temCodigoBarras: codigo !== '',
-    estoqueSistema: cadastro.estoqueSistema,
-    IdProduto: idErp === '' ? deleteField() : idErp,
-    lastModified: new Date(),
-    modifiedBy: deviceId(),
-  };
-
-  await withWriteTimeout(updateDoc(doc(colecaoProdutos(inventoryId), produtoId), dados), {
-    label: 'editar produto',
-  });
+  pedido: CamposCadastro,
+  abertura: CamposCadastro,
+): Promise<{ resultado: Repeticao; campos: Record<keyof CamposCadastro, Repeticao>; de: CamposCadastro }> {
+  // Sem mudança em relação ao que a tela abriu: nem vale falar com o servidor.
+  const semServidor = decidirEdicao(abertura, pedido, abertura);
+  if (semServidor.resultado === 'NADA_MUDOU') return semServidor;
+  return runTransactionWithTimeout(
+    async (tx) => {
+      const ref = doc(colecaoProdutos(inventoryId), produtoId);
+      const snap = await tx.get(ref);
+      if (!snap.exists()) throw new ProdutoAusenteError();
+      const dados = snap.data();
+      const d = decidirEdicao(abertura, pedido, camposDoProduto({ id: produtoId, ...dados } as Produto));
+      if (d.resultado === 'GRAVAR') {
+        const { gravar, remover } = dadosDeEdicao(pedido, d.campos, {
+          idProduto: 'idProduto' in dados,
+          idProdut: 'idProdut' in dados,
+        });
+        tx.update(ref, {
+          ...gravar,
+          ...Object.fromEntries(remover.map((chave) => [chave, deleteField()])),
+          lastModified: new Date(),
+          modifiedBy: deviceId(),
+        });
+      }
+      return d;
+    },
+    { label: 'editar produto' },
+  );
 }
 
 /**
@@ -772,10 +799,15 @@ export async function excluirTodosProdutos(
   return apagados;
 }
 
-export async function excluirProduto(inventoryId: string, produtoId: string): Promise<void> {
-  await withWriteTimeout(deleteDoc(doc(colecaoProdutos(inventoryId), produtoId)), {
-    label: 'excluir produto',
-  });
+/** Apaga o produto numa transação. Produto que já não existe conta como excluído (repetir a exclusão é seguro). */
+export function excluirProduto(inventoryId: string, produtoId: string): Promise<void> {
+  return runTransactionWithTimeout(
+    async (tx) => {
+      const ref = doc(colecaoProdutos(inventoryId), produtoId);
+      if ((await tx.get(ref)).exists()) tx.delete(ref);
+    },
+    { label: 'excluir produto' },
+  );
 }
 
 /** O Firestore limita um batch a 500 operações. */

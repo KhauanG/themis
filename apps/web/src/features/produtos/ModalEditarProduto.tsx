@@ -1,93 +1,103 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
-  codigoBarrasDe,
-  idProdutoDe,
+  TEXTO_NADA_MUDOU,
+  camposDoProduto,
   isItemContado,
   nomeDe,
-  sistemaDe,
-  type Produto,
+  validarCadastroProduto,
+  type CamposCadastro,
 } from '@themis/shared';
 import { useAuth } from '../../contexts/AuthContext.js';
 import { useEstoque } from '../../contexts/EstoqueContext.js';
 import { useToast } from '../../contexts/ToastContext.js';
 import { Modal } from '../../components/Modal.js';
-import { atualizarCadastroProduto, excluirProduto } from '../../lib/produtos-repo.js';
+import { editarCadastroProduto, excluirProduto } from '../../lib/produtos-repo.js';
+import { mensagemDeFalha } from '../../lib/gestao-escrita.js';
 import { registrar } from '../../lib/historico.js';
 
+const RECUSA_CADASTRO = 'Sem permissão. Só admin ou master com acesso a este estoque edita o cadastro.';
+const AVISO_ID_MUDOU = 'Produto atualizado. Busque o estoque de novo para atualizar o saldo.';
+
+const VAZIO: CamposCadastro = { nome: '', codigoBarras: '', idErp: '' };
+
 interface Props {
-  produto: Produto | null;
+  produtoId: string | null;
   onFechar: () => void;
 }
 
 /**
- * Edição de cadastro do produto.
+ * Edição de cadastro do produto: nome, código de barras e código no ERP.
  *
- * Cadastro e contagem são coisas separadas: aqui se altera nome, código de barras, saldo
- * do sistema e código do ERP. A quantidade contada não aparece — corrigir um nome não pode
- * apagar o trabalho do funcionário.
+ * Cadastro e contagem são coisas separadas: a quantidade contada e o saldo do sistema não
+ * aparecem aqui — corrigir um nome não pode apagar o trabalho do funcionário.
+ *
+ * O produto é o **vivo** da lista, achado pelo id. A abertura (o que o formulário mostrou)
+ * é guardada uma vez por abertura do modal, e o listener nunca reescreve o formulário nem ela.
  */
-export function ModalEditarProduto({ produto, onFechar }: Props) {
+export function ModalEditarProduto({ produtoId, onFechar }: Props) {
   const { permissoes } = useAuth();
-  const { estoqueAtual, contextoLog } = useEstoque();
+  const { estoqueAtual, contextoLog, produtos } = useEstoque();
   const { mostrar } = useToast();
 
-  const [form, setForm] = useState({ nome: '', codigoBarras: '', estoqueSistema: '', idProduto: '' });
+  const produto = produtoId === null ? undefined : produtos.find((p) => p.id === produtoId);
+
+  const [form, setForm] = useState<CamposCadastro>(VAZIO);
+  const [abertura, setAbertura] = useState<CamposCadastro>(VAZIO);
   const [iniciado, setIniciado] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
   const [confirmandoExclusao, setConfirmandoExclusao] = useState(false);
 
-  // Preenche uma vez por produto, sem `useEffect`: assim o formulário não é reescrito
+  // Preenche uma vez por abertura, sem `useEffect`: assim o formulário não é reescrito
   // quando o listener do Firestore entrega um objeto novo enquanto o usuário digita.
+  // Fechar zera `iniciado`, senão reabrir o mesmo produto mostraria o formulário velho.
+  if (produtoId === null && iniciado !== null) setIniciado(null);
   if (produto && iniciado !== produto.id) {
+    const campos = camposDoProduto(produto);
     setIniciado(produto.id);
     setConfirmandoExclusao(false);
-    setForm({
-      nome: nomeDe(produto),
-      codigoBarras: codigoBarrasDe(produto) ?? '',
-      estoqueSistema: String(sistemaDe(produto)),
-      idProduto: String(idProdutoDe(produto) ?? ''),
-    });
+    setAbertura(campos);
+    setForm(campos);
   }
 
+  // Outro aparelho excluiu o produto com o modal aberto: não há mais o que editar.
+  useEffect(() => {
+    if (produtoId !== null && produto === undefined) onFechar();
+  }, [produtoId, produto, onFechar]);
+
   async function salvar() {
-    if (!produto || !estoqueAtual || !form.nome.trim() || salvando) return;
+    if (!produto || !estoqueAtual || salvando) return;
+    const v = validarCadastroProduto(form, abertura, produtos.filter((p) => p.id !== produto.id));
+    if (!v.ok) {
+      mostrar(v.mensagem, 'error');
+      return;
+    }
     setSalvando(true);
     try {
-      // Capturado antes da gravação: depois dela o objeto já é o novo, e o histórico
-      // perderia o "de".
-      const antes = {
-        nome: nomeDe(produto),
-        codigo: codigoBarrasDe(produto) ?? '',
-        sistema: sistemaDe(produto),
-        idErp: String(idProdutoDe(produto) ?? ''),
-      };
+      const r = await editarCadastroProduto(estoqueAtual.id, produto.id, v.campos, abertura);
+      if (r.resultado === 'NADA_MUDOU') {
+        mostrar(TEXTO_NADA_MUDOU, 'info');
+        return;
+      }
 
-      await atualizarCadastroProduto(estoqueAtual.id, produto.id, {
-        nome: form.nome,
-        codigoBarras: form.codigoBarras,
-        estoqueSistema: Number(form.estoqueSistema) || 0,
-        idProduto: form.idProduto,
-      });
-
+      // Só depois do aceite do servidor, e só os campos que não são "nada mudou".
       if (contextoLog) {
         void registrar('EDITAR_PRODUTO', contextoLog, {
-          produto: antes.nome,
-          nomeDe: antes.nome,
-          nomePara: form.nome.trim(),
-          codigoDe: antes.codigo,
-          codigoPara: form.codigoBarras.trim(),
-          sistemaDe: antes.sistema,
-          sistemaPara: Number(form.estoqueSistema) || 0,
-          idErpDe: antes.idErp,
-          idErpPara: form.idProduto.trim(),
+          produto: r.de.nome,
+          productId: produto.id,
+          ...(r.campos.nome !== 'NADA_MUDOU' && { nomeDe: r.de.nome, nomePara: v.campos.nome }),
+          ...(r.campos.codigoBarras !== 'NADA_MUDOU' && {
+            codigoDe: r.de.codigoBarras,
+            codigoPara: v.campos.codigoBarras,
+          }),
+          ...(r.campos.idErp !== 'NADA_MUDOU' && { idErpDe: r.de.idErp, idErpPara: v.campos.idErp }),
         });
       }
 
-      mostrar('Produto atualizado.', 'success');
+      mostrar(r.campos.idErp !== 'NADA_MUDOU' ? AVISO_ID_MUDOU : 'Produto atualizado.', 'success');
       onFechar();
     } catch (erro) {
       console.error('[produto] Edição falhou:', erro);
-      mostrar('Não foi possível salvar. Só admin ou master pode editar o cadastro.', 'error');
+      mostrar(mensagemDeFalha(erro, { recusa: RECUSA_CADASTRO }), 'error');
     } finally {
       setSalvando(false);
     }
@@ -102,6 +112,7 @@ export function ModalEditarProduto({ produto, onFechar }: Props) {
       if (contextoLog) {
         void registrar('EXCLUIR_PRODUTO', contextoLog, {
           produto: nomeDe(produto),
+          productId: produto.id,
           tinhaContagem: isItemContado(produto),
         });
       }
@@ -110,7 +121,7 @@ export function ModalEditarProduto({ produto, onFechar }: Props) {
       onFechar();
     } catch (erro) {
       console.error('[produto] Exclusão falhou:', erro);
-      mostrar('Não foi possível excluir. Só master pode apagar produto.', 'error');
+      mostrar(mensagemDeFalha(erro), 'error');
     } finally {
       setSalvando(false);
     }
@@ -120,7 +131,7 @@ export function ModalEditarProduto({ produto, onFechar }: Props) {
 
   return (
     <Modal
-      aberto={produto !== null}
+      aberto={produto !== undefined}
       titulo="Editar produto"
       onFechar={onFechar}
       rodape={
@@ -162,7 +173,7 @@ export function ModalEditarProduto({ produto, onFechar }: Props) {
       {confirmandoExclusao ? (
         <div className="pilha">
           <p>
-            Apagar <strong>{nomeDe(produto!)}</strong> deste estoque?
+            Apagar <strong>{produto ? nomeDe(produto) : ''}</strong> deste estoque?
           </p>
           {contado && (
             <p className="aviso">
@@ -198,29 +209,15 @@ export function ModalEditarProduto({ produto, onFechar }: Props) {
           </label>
 
           <label className="campo">
-            <span className="campo__rotulo">Estoque do sistema</span>
-            <input
-              className="campo__entrada"
-              type="number"
-              value={form.estoqueSistema}
-              onChange={(e) => setForm({ ...form, estoqueSistema: e.target.value })}
-            />
-            <span className="campo__ajuda">
-              O saldo do ERP. Buscar estoque sobrescreve este valor.
-            </span>
-          </label>
-
-          <label className="campo">
             <span className="campo__rotulo">Código no ERP</span>
             <input
               className="campo__entrada"
-              value={form.idProduto}
-              onChange={(e) => setForm({ ...form, idProduto: e.target.value })}
+              inputMode="numeric"
+              value={form.idErp}
+              onChange={(e) => setForm({ ...form, idErp: e.target.value })}
               autoComplete="off"
             />
-            <span className="campo__ajuda">
-              Sem ele o produto não pode ser corrigido no ERP.
-            </span>
+            <span className="campo__ajuda">É o código do produto no Nuvem3. Só números.</span>
           </label>
 
           {permissoes.gerenciarUsuarios && (
