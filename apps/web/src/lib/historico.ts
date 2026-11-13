@@ -97,32 +97,43 @@ function guardarLocal(entrada: EntradaHistorico): void {
 /**
  * Reenvia o histórico guardado. A fila é do aparelho: só sobem as entradas de `userId` (a regra
  * recusaria as de quem usou antes). Uma falha não para o laço; recusa da regra descarta a entrada;
- * o resto fica na fila, na ordem original.
+ * o resto fica na fila, na ordem original. No fim a fila é relida e só saem dela as entradas
+ * enviadas ou descartadas: o `registrar` pode ter guardado outra enquanto esperávamos o servidor.
  */
 export async function drenarHistorico(userId: string): Promise<number> {
   const pendentes = ler<EntradaHistorico[]>(CHAVES.historicoPendente, []);
   if (pendentes.length === 0) return 0;
 
-  const restantes: EntradaHistorico[] = [];
+  // Quantas vezes cada entrada (pelo conteúdo) saiu da fila; a releitura gera objetos novos.
+  const saiu = new Map<string, number>();
+  const sair = (entrada: EntradaHistorico) => {
+    const chave = JSON.stringify(entrada);
+    saiu.set(chave, (saiu.get(chave) ?? 0) + 1);
+  };
   let enviados = 0;
 
   for (const entrada of pendentes) {
-    if (entrada.userId !== userId || !navigator.onLine) {
-      restantes.push(entrada);
-      continue;
-    }
+    if (entrada.userId !== userId || !navigator.onLine) continue;
     try {
       await withWriteTimeout(
         addDoc(collection(db, COLECAO), { ...entrada, timestamp: serverTimestamp() }),
         { ms: TETO_LOG_MS, label: 'histórico pendente' },
       );
       enviados++;
+      sair(entrada);
     } catch (erro) {
-      if (isPermissaoNegada(erro)) console.warn('[histórico] Recusado pela regra, descartado:', erro);
-      else restantes.push(entrada);
+      if (!isPermissaoNegada(erro)) continue;
+      console.warn('[histórico] Recusado pela regra, descartado:', erro);
+      sair(entrada);
     }
   }
 
+  const restantes = ler<EntradaHistorico[]>(CHAVES.historicoPendente, []).filter((entrada) => {
+    const chave = JSON.stringify(entrada);
+    const n = saiu.get(chave) ?? 0;
+    if (n > 0) saiu.set(chave, n - 1);
+    return n === 0;
+  });
   if (restantes.length === 0) remover(CHAVES.historicoPendente);
   else gravar(CHAVES.historicoPendente, restantes);
 

@@ -150,7 +150,7 @@ const entrada = (userId: string, produto: string) => ({
   action: 'MODIFICAR_PRODUTO', userId, userEmail: `${userId}@x.com`, userName: userId, inventoryId: 'E1', inventoryName: 'Loja',
   localTimestamp: '2026-11-13T10:00:00.000Z', details: { produto }, deviceId: 'aparelho', deviceLabel: 'Teste',
 });
-const fila = () => JSON.parse(guardado.get(CHAVES.historicoPendente) ?? '[]') as { userId: string; details: { produto: string } }[];
+const fila = () => JSON.parse(guardado.get(CHAVES.historicoPendente) ?? '[]') as { action: string; userId: string; details: { produto: string } }[];
 const negado = () => Object.assign(new Error('x'), { code: 'permission-denied' });
 const semRede = () => Object.assign(new Error('x'), { code: 'unavailable' });
 const contexto = { userId: 'u1', userEmail: 'u1@x.com', userName: 'u1', inventoryId: 'E1', inventoryName: 'Loja' };
@@ -216,5 +216,33 @@ describe('fila local do histórico', () => {
     await registrar('LOGIN', contexto);
     expect(addDoc).not.toHaveBeenCalled();
     expect(fila()).toHaveLength(1);
+  });
+  // O LOGIN do app aberto cai na fila enquanto a drenagem ainda espera o servidor: a drenagem
+  // não pode regravar a fila por cima e apagar o que entrou nesse meio tempo.
+  it('entrada guardada durante a drenagem não é apagada quando ela termina', async () => {
+    guardado.set(CHAVES.historicoPendente, JSON.stringify([entrada('u1', 'A'), entrada('u1', 'B')]));
+    let enviarA!: () => void;
+    vi.mocked(addDoc)
+      .mockImplementationOnce(() => new Promise((ok) => (enviarA = () => ok({ id: 'a' } as never))))
+      .mockRejectedValueOnce(semRede()) // o LOGIN
+      .mockRejectedValueOnce(semRede()); // o B da drenagem
+    const drenagem = drenarHistorico('u1');
+    await registrar('LOGIN', contexto);
+    enviarA();
+    expect(await drenagem).toBe(1);
+    expect(fila().map((e) => e.action)).toEqual(['MODIFICAR_PRODUTO', 'LOGIN']);
+    expect(fila()[0]!.details.produto).toBe('B');
+  });
+  it('entrada guardada durante a drenagem fica mesmo quando a drenagem esvazia o resto', async () => {
+    guardado.set(CHAVES.historicoPendente, JSON.stringify([entrada('u1', 'A')]));
+    let enviarA!: () => void;
+    vi.mocked(addDoc)
+      .mockImplementationOnce(() => new Promise((ok) => (enviarA = () => ok({ id: 'a' } as never))))
+      .mockRejectedValueOnce(semRede()); // o LOGIN
+    const drenagem = drenarHistorico('u1');
+    await registrar('LOGIN', contexto);
+    enviarA();
+    expect(await drenagem).toBe(1);
+    expect(fila().map((e) => e.action)).toEqual(['LOGIN']);
   });
 });
