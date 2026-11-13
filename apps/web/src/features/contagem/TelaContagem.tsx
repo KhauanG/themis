@@ -5,6 +5,7 @@ import {
   statusContagemDe,
   filtrarProdutos,
   filtrosVisiveis,
+  gestaoDeCadastroBloqueada,
   mensagemVazio,
   type FiltroContagem,
 } from '@themis/shared';
@@ -30,6 +31,7 @@ export function TelaContagem() {
     salvarContagem,
     progresso,
     contagemFechada,
+    configuracoes,
   } = useEstoque();
   const { permissoes } = useAuth();
 
@@ -281,7 +283,11 @@ export function TelaContagem() {
                 expandido={expandido === p.id}
                 onAlternar={alternar}
                 onSalvar={salvarContagem}
-                onEditar={permissoes.gerenciarProdutos ? (produto) => setEditando(produto.id) : undefined}
+                onEditar={
+                  permissoes.gerenciarProdutos && !gestaoDeCadastroBloqueada(configuracoes)
+                    ? (produto) => setEditando(produto.id)
+                    : undefined
+                }
                 verSistema={verSistema}
                 podeReabrirConferido={podeReabrirConferido}
                 contagemFechada={contagemFechada}

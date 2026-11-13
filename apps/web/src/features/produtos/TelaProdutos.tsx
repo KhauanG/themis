@@ -1,5 +1,11 @@
 import { useRef, useState } from 'react';
-import { TEXTO_FALHA, rotuloDaRodada, travaAntesDeGravar, validarCadastroProduto } from '@themis/shared';
+import {
+  TEXTO_FALHA,
+  gestaoDeCadastroBloqueada,
+  rotuloDaRodada,
+  travaAntesDeGravar,
+  validarCadastroProduto,
+} from '@themis/shared';
 import { useEstoque } from '../../contexts/EstoqueContext.js';
 import { useAuth } from '../../contexts/AuthContext.js';
 import { useToast } from '../../contexts/ToastContext.js';
@@ -34,6 +40,9 @@ import { ModalEditarProduto } from './ModalEditarProduto.js';
 const AVISO_NAO_CONFIRMADO =
   'Gravado neste aparelho, mas o servidor não confirmou. Os outros celulares só vão ver ' +
   'quando a conexão voltar — não repita a operação.';
+
+/** Limpar a contagem é repetível: reaplicar zera de novo o que já está zerado, sem perder nada. */
+const AVISO_LIMPEZA_NAO_TERMINOU = 'A limpeza não terminou. Pode repetir: nada se perde.';
 
 /** Palavra da confirmação. Evita apagar 1600 produtos com um toque errado. */
 const PALAVRA_APAGAR = 'APAGAR';
@@ -72,6 +81,7 @@ export function TelaProdutos() {
   const [editando, setEditando] = useState<string | null>(null);
 
   const bloqueado = ocupado !== null;
+  const cadastroBloqueado = gestaoDeCadastroBloqueada(configuracoes);
 
   async function importar(arquivo: File) {
     if (!estoqueAtual) return;
@@ -177,7 +187,7 @@ export function TelaProdutos() {
     } catch (erro) {
       console.error('[produtos] Limpeza falhou:', erro);
       mostrar(
-        isWriteTimeout(erro) ? AVISO_NAO_CONFIRMADO : 'Não foi possível limpar a contagem.',
+        isWriteTimeout(erro) ? AVISO_LIMPEZA_NAO_TERMINOU : 'Não foi possível limpar a contagem.',
         isWriteTimeout(erro) ? 'warning' : 'error',
       );
     } finally {
@@ -343,14 +353,14 @@ export function TelaProdutos() {
         </div>
       )}
 
-      {configuracoes.modoContagem && (
+      {cadastroBloqueado && (
         <p className="aviso">
-          Modo contagem ligado. Importar planilha e limpar contagem ficam bloqueados até
-          alguém desligar em Estoques — é o que impede apagar a contagem no meio da operação.
+          Modo contagem ligado. Cadastrar, importar,
+          editar cadastro, limpar contagem e apagar produtos ficam bloqueados até alguém desligar em Estoques.
         </p>
       )}
 
-      <div hidden={configuracoes.modoContagem}>
+      <div hidden={cadastroBloqueado}>
         <p className="rotulo-secao" style={{ marginBottom: 'var(--e2)' }}>
           Cadastro
         </p>
@@ -434,7 +444,7 @@ export function TelaProdutos() {
         </div>
       </div>
 
-      <div hidden={configuracoes.modoContagem}>
+      <div hidden={cadastroBloqueado}>
         <p className="rotulo-secao" style={{ marginBottom: 'var(--e2)' }}>
           Zona de risco
         </p>

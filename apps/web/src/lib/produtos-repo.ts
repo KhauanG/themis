@@ -839,6 +839,7 @@ export async function limparContagem(inventoryId: string, produtos: readonly Pro
       // regra à toa e pode derrubar a validação.
       if (p.productStatus != null) limpeza['productStatus'] = deleteField();
       if (p.corrigidoIncorreto != null) limpeza['corrigidoIncorreto'] = deleteField();
+      if (p.corrigidoCritico != null) limpeza['corrigidoCritico'] = deleteField();
       if (p.dataValidade != null) limpeza['dataValidade'] = deleteField();
 
       lote.update(doc(colecaoProdutos(inventoryId), p.id), limpeza);

@@ -66,6 +66,9 @@ export interface Produto {
   /** Marcado pelo admin quando a correção confirmou divergência. */
   corrigidoIncorreto?: boolean | null;
 
+  /** Marcado na conferência quando a divergência era crítica. Sai junto ao limpar a contagem. */
+  corrigidoCritico?: boolean | null;
+
   /** Data de validade mais curta, formato `YYYY-MM-DD`. Sem quantidade associada. */
   dataValidade?: string | null;
 

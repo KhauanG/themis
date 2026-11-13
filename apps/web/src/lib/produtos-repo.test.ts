@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { writeBatch } from 'firebase/firestore';
 import { runTransactionWithTimeout } from './firestore-write.js';
 import { transacaoFalsa } from './transacao-falsa.js';
-import { cadastrarProduto, editarCadastroProduto, excluirProduto } from './produtos-repo.js';
+import { cadastrarProduto, editarCadastroProduto, excluirProduto, limparContagem } from './produtos-repo.js';
 
 vi.mock('./firebase.js', () => ({ db: {} }));
 vi.mock('./assinatura.js', () => ({ assinaturaResiliente: vi.fn() }));
@@ -14,6 +15,7 @@ vi.mock('firebase/firestore', async (original) => ({
   ...(await original<typeof import('firebase/firestore')>()),
   collection: (base: { path?: string }, ...p: string[]) => ({ path: [base.path, ...p].filter(Boolean).join('/') }),
   doc: (base: { path?: string }, ...p: string[]) => ({ path: [base.path, ...p].filter(Boolean).join('/') }),
+  writeBatch: vi.fn(),
 }));
 
 // `docs` é o que o servidor tem. Devolve a lista do que a função gravou.
@@ -110,5 +112,27 @@ describe('excluirProduto', () => {
     const gravacoes = servidor({});
     await expect(excluirProduto('E1', 'p1')).resolves.toBeUndefined();
     expect(gravacoes).toEqual([]);
+  });
+});
+
+describe('limparContagem', () => {
+  it('remove também corrigidoCritico, e só o que o produto tem', async () => {
+    const atualizacoes: Array<{ path: string; dados: Record<string, unknown> }> = [];
+    vi.mocked(writeBatch).mockReturnValue({
+      update: (ref: { path: string }, dados: Record<string, unknown>) => void atualizacoes.push({ path: ref.path, dados }),
+      commit: async () => undefined,
+    } as never);
+
+    await limparContagem('E1', [
+      { id: 'p1', quantidade: 5, productStatus: 'CONFERIDO', corrigidoIncorreto: true, corrigidoCritico: true, dataValidade: '2026-12-31' },
+      { id: 'p2', quantidade: 0 },
+    ]);
+
+    expect(atualizacoes.map((a) => a.path)).toEqual(['estoques/E1/produtos/p1', 'estoques/E1/produtos/p2']);
+    expect(Object.keys(atualizacoes[0]!.dados).sort()).toEqual([
+      'corrigidoCritico', 'corrigidoIncorreto', 'dataValidade', 'lastModified', 'modifiedBy', 'productStatus', 'quantidade',
+    ]);
+    expect(Object.keys(atualizacoes[1]!.dados).sort()).toEqual(['lastModified', 'modifiedBy', 'quantidade']);
+    expect(atualizacoes[0]!.dados['quantidade']).toBe(0);
   });
 });
