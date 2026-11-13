@@ -22,11 +22,13 @@ The following indexes are defined in your project but are not present in your fi
 
 | Índice | Usado por |
 |---|---|
-| `historico_geral`: userId, timestamp↓ | 1.x — histórico por usuário |
-| `historico_geral`: action, timestamp↓ | 1.x — histórico por ação |
-| `historico_geral`: inventoryId, timestamp↓ | 2.0 — `TelaHistorico` sem filtro |
-| `historico_geral`: inventoryId, action, timestamp↓ | 2.0 — `TelaHistorico` com filtro |
+| `historico_geral`: userId, timestamp↓ | ninguém hoje (era do 1.x) |
+| `historico_geral`: action, timestamp↓ | ninguém hoje (era do 1.x) |
+| `historico_geral`: inventoryId, timestamp↓ | 2.0 — Histórico filtrado por um estoque |
+| `historico_geral`: inventoryId, action, timestamp↓ | 2.0 — Histórico filtrado por estoque e ação |
 | `auditorias`: inventoryId, data↓ | 2.0 — `PainelAuditoria` |
+
+O Histórico em "Todos" usa só o índice automático de `timestamp`. Usuário e, em "Todos", ação são filtrados no navegador.
 
 ## `firestore.rules`: a partir da 2.25.0 é a regra nova
 

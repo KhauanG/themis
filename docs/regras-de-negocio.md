@@ -244,6 +244,8 @@ Em lotes de 500 — o limite do Firestore.
 - **Não use Limpar contagem com celular offline.** A contagem offline feita antes do Limpar
   entra na rodada nova sem aviso; só a Etapa 2 resolve.
 
+Remove também `corrigidoCritico`. Se o servidor não confirmar a tempo, pode repetir: nada se perde.
+
 ---
 
 ## Data de validade
@@ -327,6 +329,8 @@ Casos em que a regra é mais restrita que o papel sugere:
 
 Função: `permissoesDe(papel)` em `papeis.ts`.
 
+Lista de estoques permitidos com ids e nenhum estoque existente vale **nenhum estoque** (lista vazia continua valendo todos). Com o modo contagem ligado, cadastrar, importar, editar cadastro, limpar contagem e apagar produtos somem da tela, mesmo para admin.
+
 ---
 
 ## Contagem às cegas
@@ -402,6 +406,8 @@ tela obedecer.
 ⚠️ Contagem feita **antes** de o produto ser marcado permanece gravada. Apagá-la seria
 destruir trabalho real — alguém contou aquela prateleira — a partir de uma operação de
 leitura. Ela aparece no relatório com status `FORA DO ERP`, sem diferença calculada.
+
+O cadastro à mão exige o código do produto no Nuvem3 (só números, maior que zero). O estoque do sistema não é digitado: vem do Nuvem3 (Buscar estoque) ou da planilha. Produto com código no ERP que não é um inteiro não é enviado no Corrigir e aparece como "(ID do ERP inválido)".
 
 ---
 

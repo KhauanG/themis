@@ -18,7 +18,7 @@ Definidos por flags booleanas em `users/{uid}`:
 
 | Papel | Flag |
 |---|---|
-| master | `isMaster: true` |
+| master | `isMaster: true` e `isAdmin: true` (os gravados antes da 2.25.0 têm só `isMaster`) |
 | admin | `isAdmin: true` |
 | auditor | `isAuditor: true` |
 | comum | nenhuma flag |
@@ -119,8 +119,8 @@ a verdadeira.
 | `inventories` | autenticado | admin+ | admin+ ou ciclo² | master |
 | `auditorias` | autenticado | autenticado | master | master |
 | `hashConfigs` | ninguém⁴ | ninguém⁴ | ninguém⁴ | ninguém⁴ |
-| `historico_geral` | admin+ | autenticado | — | — |
-| `users` | próprio ou master | próprio³ | próprio³ ou master | master |
+| `historico_geral` | master | autenticado (só em nome próprio) | — | — |
+| `users` | próprio, admin ou master | próprio³ | próprio³ ou master | ninguém |
 
 ¹ com `validProductData` e `podeAlterarStatusProduto`
 ² usuário comum só os campos da rodada: os quatro do ciclo mais `lote` e `loteCiclo`

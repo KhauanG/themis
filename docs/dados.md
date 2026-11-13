@@ -162,7 +162,7 @@ Auditorias do 1.x e do site até a 2.19 têm id aleatório e seguem legíveis do
 
 | Campo | Tipo |
 |---|---|
-| `action` | uma de 11 ações — ver `AcaoHistorico` |
+| `action` | uma de 19 ações — ver `AcaoHistorico` |
 | `userId` / `userEmail` / `userName` | string |
 | `inventoryId` / `inventoryName` | string |
 | `timestamp` | timestamp do servidor |
@@ -173,7 +173,7 @@ Auditorias do 1.x e do site até a 2.19 têm id aleatório e seguem legíveis do
 `localTimestamp` existe porque `timestamp` só é preenchido pelo servidor: entrada
 enfileirada offline tem a hora local certa e o `timestamp` só quando sobe.
 
-Log **nunca segura o fluxo do usuário**: teto de 5s e, se falhar, vai para o localStorage.
+Log **nunca segura o fluxo do usuário**: teto de 5s. Sem internet ou com erro de rede, a entrada vai para o localStorage e sobe depois, só pelo usuário que a criou. No estouro do teto ela fica no cache do SDK e sobe sozinha. Recusa da regra é descartada.
 
 ---
 

@@ -392,10 +392,9 @@ entre lojas. Só o alerta de saldos pode chamar a atenção.
 
 ## Histórico
 
-`features/historico/TelaHistorico.tsx` — auditor, admin, master.
+`features/historico/TelaHistorico.tsx` — **só master.** Filtros: estoque (ou todos), ação, usuário e data. "Carregar mais" busca até 50 linhas ou 2.000 registros por toque.
 
-Trilha de auditoria. Últimas 200 ações do estoque, agrupadas por dia (Hoje, Ontem, data),
-com filtro por tipo.
+Trilha de auditoria. Ações agrupadas por dia (Hoje, Ontem, data).
 
 Cada evento mostra **o que exatamente mudou**, não um despejo de campos:
 
@@ -429,8 +428,8 @@ desenha o que sai de lá.
 | Limpou contagem | total zerado, ciclo |
 | Criou/editou/excluiu estoque | nome, descrição, se o HashLoja mudou, produtos apagados |
 | Alterou papel | usuário, papel de → para |
-| Alterou configuração | modo contagem de → para, estoque travado ou liberado |
-| Entrou no sistema | uma vez por sessão, quando o estoque já está escolhido |
+| Alterou configuração | modo contagem e versão do app, de → para. Entradas antigas: estoque travado ou liberado |
+| Entrou no sistema | uma vez por carga da página, quando o estoque já está escolhido |
 
 O ciclo continua gravado nos detalhes, mas não aparece na tela.
 
@@ -449,7 +448,7 @@ de erro diz isso.
 
 `features/usuarios/TelaUsuarios.tsx` — **só master.**
 
-Lista os usuários e permite trocar o papel de cada um. Um papel por vez — sem combinação.
+Lista os usuários e permite trocar o papel de cada um. Um papel por vez — sem combinação. O master é gravado com `isMaster` e `isAdmin`. Quem lê continua somando as duas flags.
 
 ⚠️ **Não permite alterar o próprio papel.** Rebaixar a si mesmo tiraria o acesso a esta
 tela sem volta pelo app.
