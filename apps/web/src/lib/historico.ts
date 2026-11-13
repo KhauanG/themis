@@ -14,11 +14,19 @@ import {
   orderBy,
   query,
   serverTimestamp,
+  startAfter,
   where,
   type DocumentData,
   type QueryDocumentSnapshot,
 } from 'firebase/firestore';
-import type { AcaoHistorico, EntradaHistorico } from '@themis/shared';
+import {
+  filtrarEventos,
+  restricoesDoHistorico,
+  type AcaoHistorico,
+  type EntradaHistorico,
+  type FiltroHistorico,
+  type FiltroNoNavegador,
+} from '@themis/shared';
 // Rótulos e cores vivem em `@themis/shared` junto do formatador — assim tela e testes
 // leem a mesma tabela, e uma ação nova não fica sem nome.
 export { COR_ACAO, ROTULO_ACAO } from '@themis/shared';
@@ -125,22 +133,66 @@ function paraEntrada(snap: QueryDocumentSnapshot<DocumentData>): EntradaHistoric
   return { ...(d as EntradaHistorico), id: snap.id, quando };
 }
 
-export async function consultarHistorico(opcoes: {
-  inventoryId?: string;
-  acao?: AcaoHistorico;
-  maximo?: number;
-}): Promise<EntradaHistoricoLida[]> {
-  const restricoes = [];
-  if (opcoes.inventoryId) restricoes.push(where('inventoryId', '==', opcoes.inventoryId));
-  if (opcoes.acao) restricoes.push(where('action', '==', opcoes.acao));
+export const PAGINA_HISTORICO = 200;
+export const LINHAS_POR_CARGA = 50;
+export const TETO_VARREDURA = 2_000;
 
-  const consulta = query(
-    collection(db, COLECAO),
-    ...restricoes,
-    orderBy('timestamp', 'desc'),
-    limit(opcoes.maximo ?? 200),
+export type CursorHistorico = QueryDocumentSnapshot<DocumentData>;
+
+export interface PaginaHistorico {
+  eventos: EntradaHistoricoLida[];
+  /** Último documento devolvido; `null` quando a página veio vazia. */
+  ultimo: CursorHistorico | null;
+  temMais: boolean;
+}
+
+/**
+ * Uma página do histórico, mais recentes primeiro. Pede um a mais para saber se há outra. Estoque,
+ * ação (com estoque) e datas vão ao servidor, só com os índices de hoje (`firestore.indexes.json`).
+ * Molde: `listarAuditorias`.
+ */
+export async function consultarHistorico(
+  filtro: FiltroHistorico,
+  tamanho = PAGINA_HISTORICO,
+  depois?: CursorHistorico | null,
+): Promise<PaginaHistorico> {
+  const restricoes = restricoesDoHistorico(filtro).map((r) =>
+    where(r.campo, r.op, r.valor instanceof Date ? Timestamp.fromDate(r.valor) : r.valor),
   );
+  const snap = await getDocs(
+    query(
+      collection(db, COLECAO),
+      ...restricoes,
+      orderBy('timestamp', 'desc'),
+      ...(depois ? [startAfter(depois)] : []),
+      limit(tamanho + 1),
+    ),
+  );
+  const docs = snap.docs.slice(0, tamanho);
+  return { eventos: docs.map(paraEntrada), ultimo: docs.at(-1) ?? null, temMais: snap.docs.length > tamanho };
+}
 
-  const snap = await getDocs(consulta);
-  return snap.docs.map(paraEntrada);
+export interface VarreduraHistorico extends PaginaHistorico {
+  varridos: number;
+}
+
+/** Busca páginas até juntar LINHAS_POR_CARGA que passam no filtro do navegador, varrer TETO_VARREDURA ou o servidor acabar. */
+export async function varrerHistorico(
+  servidor: FiltroHistorico,
+  navegador: FiltroNoNavegador,
+  depois: CursorHistorico | null,
+  consultar: typeof consultarHistorico = consultarHistorico,
+): Promise<VarreduraHistorico> {
+  const eventos: EntradaHistoricoLida[] = [];
+  let cursor = depois;
+  let temMais = true;
+  let varridos = 0;
+  do {
+    const pagina = await consultar(servidor, PAGINA_HISTORICO, cursor);
+    varridos += pagina.eventos.length;
+    eventos.push(...filtrarEventos(pagina.eventos, navegador));
+    cursor = pagina.ultimo ?? cursor;
+    temMais = pagina.temMais;
+  } while (temMais && eventos.length < LINHAS_POR_CARGA && varridos < TETO_VARREDURA);
+  return { eventos, ultimo: cursor, temMais, varridos };
 }

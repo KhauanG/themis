@@ -1,30 +1,19 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { COR_ACAO, ROTULO_ACAO, descreverEvento, type AcaoHistorico } from '@themis/shared';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  COR_ACAO,
+  ORDEM_ACOES,
+  ROTULO_ACAO,
+  descreverEvento,
+  dividirFiltro,
+  subtituloDoHistorico,
+  type AcaoHistorico,
+  type FiltroDaTela,
+  type UserProfile,
+} from '@themis/shared';
 import { useEstoque } from '../../contexts/EstoqueContext.js';
-import { useToast } from '../../contexts/ToastContext.js';
 import { Esqueleto } from '../../components/Esqueleto.js';
-import { consultarHistorico, type EntradaHistoricoLida } from '../../lib/historico.js';
-
-/** Ações na ordem em que fazem sentido no seletor: rotina primeiro, gestão depois. */
-const ORDEM_ACOES: AcaoHistorico[] = [
-  'MODIFICAR_PRODUTO',
-  'CONFERIR_ITEM',
-  'FINALIZAR_CONTAGEM',
-  'BUSCAR_ESTOQUE',
-  'CORRIGIR_ESTOQUE',
-  'IMPORTAR_PLANILHA',
-  'EXPORTAR_PLANILHA',
-  'LIMPAR_CONTAGEM',
-  'CRIAR_PRODUTO',
-  'EDITAR_PRODUTO',
-  'EXCLUIR_PRODUTO',
-  'CRIAR_ESTOQUE',
-  'EDITAR_ESTOQUE',
-  'EXCLUIR_ESTOQUE',
-  'ALTERAR_PAPEL',
-  'ALTERAR_CONFIGURACAO',
-  'LOGIN',
-];
+import { varrerHistorico, type CursorHistorico, type EntradaHistoricoLida } from '../../lib/historico.js';
+import { listarUsuarios, nomeExibivel } from '../../lib/usuarios-repo.js';
 
 /** Hoje, ontem, ou a data — reduz ruído numa lista longa. */
 function agrupamento(quando: Date): string {
@@ -39,98 +28,188 @@ function agrupamento(quando: Date): string {
 }
 
 export function TelaHistorico() {
-  const { estoqueAtual } = useEstoque();
-  const { mostrar } = useToast();
+  const { estoqueAtual, todosEstoques } = useEstoque();
 
-  const [entradas, setEntradas] = useState<EntradaHistoricoLida[]>([]);
+  const [filtro, setFiltro] = useState<FiltroDaTela>(() => ({
+    inventoryId: estoqueAtual?.id ?? 'TODOS',
+    action: 'TODAS',
+    userId: 'TODOS',
+    de: '',
+    ate: '',
+  }));
+  const [eventos, setEventos] = useState<EntradaHistoricoLida[]>([]);
+  const [ultimo, setUltimo] = useState<CursorHistorico | null>(null);
+  const [temMais, setTemMais] = useState(false);
+  const [varridos, setVarridos] = useState(0);
   const [carregando, setCarregando] = useState(true);
-  const [acao, setAcao] = useState<AcaoHistorico | 'TODAS'>('TODAS');
+  const [carregandoMais, setCarregandoMais] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+  const [usuarios, setUsuarios] = useState<UserProfile[]>([]);
 
-  /**
-   * Depende do **id**, não do objeto `estoqueAtual`.
-   *
-   * O objeto ganha identidade nova toda vez que o listener de `inventories` re-emite — o
-   * que acontece quando a conexão se restabelece. Com o objeto na dependência, a consulta
-   * era refeita e o esqueleto piscava sem nada ter mudado.
-   */
-  const estoqueId = estoqueAtual?.id;
+  /** Cada primeira carga abre uma geração nova; a resposta de um filtro que já mudou é descartada. */
+  const geracao = useRef(0);
 
-  /** Último recorte já carregado. Distingue primeira carga de reconsulta. */
-  const carregado = useRef<string | null>(null);
+  const { filtraNoNavegador } = dividirFiltro(filtro);
+
+  const carregar = useCallback(
+    async (depois: CursorHistorico | null) => {
+      const { servidor, navegador } = dividirFiltro(filtro);
+      const minha = depois === null ? ++geracao.current : geracao.current;
+      if (depois === null) {
+        setCarregando(true);
+        setCarregandoMais(false);
+        setErro(null);
+        setEventos([]);
+        setVarridos(0);
+        setTemMais(false);
+      } else {
+        setCarregandoMais(true);
+      }
+      try {
+        const r = await varrerHistorico(servidor, navegador, depois);
+        if (minha !== geracao.current) return;
+        setEventos((atual) => (depois === null ? r.eventos : [...atual, ...r.eventos]));
+        setVarridos((v) => v + r.varridos);
+        setUltimo(r.ultimo);
+        setTemMais(r.temMais);
+      } catch (e) {
+        if (minha !== geracao.current) return;
+        console.warn('[histórico] Consulta falhou:', e);
+        setErro(e instanceof Error ? e.message : String(e));
+      } finally {
+        if (minha === geracao.current) {
+          setCarregando(false);
+          setCarregandoMais(false);
+        }
+      }
+    },
+    [filtro],
+  );
 
   useEffect(() => {
-    if (!estoqueId) return;
+    void carregar(null);
+  }, [carregar]);
+
+  useEffect(() => {
     let vivo = true;
-    const chave = `${estoqueId}:${acao}`;
-
-    // Esqueleto só quando o recorte muda. Reconsulta mantém o que está na tela.
-    if (carregado.current !== chave) {
-      setCarregando(true);
-      setEntradas([]);
-    }
-
-    consultarHistorico({
-      inventoryId: estoqueId,
-      ...(acao === 'TODAS' ? {} : { acao }),
-      maximo: 200,
-    })
-      .then((lista) => {
-        if (!vivo) return;
-        setEntradas(lista);
-        carregado.current = chave;
-      })
-      .catch((erro) => {
-        console.warn('[histórico] Consulta falhou:', erro);
-        // Consulta com filtro composto exige índice no Firestore. A mensagem diz o que fazer.
-        mostrar('Não foi possível carregar o histórico. Pode faltar índice no Firestore.', 'error');
-      })
-      .finally(() => {
-        if (vivo) setCarregando(false);
-      });
-
+    listarUsuarios()
+      .then((lista) => vivo && setUsuarios(lista))
+      .catch((e) => console.warn('[histórico] Não foi possível listar os usuários:', e));
     return () => {
       vivo = false;
     };
-  }, [estoqueId, acao, mostrar]);
+  }, []);
+
+  const mudar = <K extends keyof FiltroDaTela>(campo: K, valor: FiltroDaTela[K]) =>
+    setFiltro((f) => ({ ...f, [campo]: valor }));
 
   // Agrupa por dia mantendo a ordem que veio do Firestore (mais recente primeiro).
   const grupos = useMemo(() => {
     const mapa = new Map<string, EntradaHistoricoLida[]>();
-    for (const e of entradas) {
+    for (const e of eventos) {
       const chave = agrupamento(e.quando);
       const lista = mapa.get(chave);
       if (lista) lista.push(e);
       else mapa.set(chave, [e]);
     }
     return [...mapa.entries()];
-  }, [entradas]);
+  }, [eventos]);
+
+  const mostrandoLista = !carregando && !erro;
 
   return (
     <section className="pilha-g">
       <div>
         <h1 className="titulo-tela">Histórico</h1>
-        <p className="subtitulo">Últimas 200 ações em {estoqueAtual?.nome ?? '—'}</p>
+        <p className="subtitulo">
+          {carregando ? 'Carregando…' : subtituloDoHistorico(eventos.length, varridos, filtraNoNavegador)}
+        </p>
       </div>
 
-      <label className="campo">
-        <span className="campo__rotulo">Ação</span>
-        <select
-          className="campo__entrada"
-          value={acao}
-          onChange={(e) => setAcao(e.target.value as AcaoHistorico | 'TODAS')}
-        >
-          <option value="TODAS">Todas</option>
-          {ORDEM_ACOES.map((a) => (
-            <option key={a} value={a}>
-              {ROTULO_ACAO[a]}
-            </option>
-          ))}
-        </select>
-      </label>
+      <div className="pilha">
+        <label className="campo">
+          <span className="campo__rotulo">Estoque</span>
+          <select
+            className="campo__entrada"
+            value={filtro.inventoryId}
+            onChange={(e) => mudar('inventoryId', e.target.value)}
+          >
+            <option value="TODOS">Todos</option>
+            {todosEstoques.map((x) => (
+              <option key={x.id} value={x.id}>
+                {x.nome || x.id}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="campo">
+          <span className="campo__rotulo">Ação</span>
+          <select
+            className="campo__entrada"
+            value={filtro.action}
+            onChange={(e) => mudar('action', e.target.value as AcaoHistorico | 'TODAS')}
+          >
+            <option value="TODAS">Todas</option>
+            {ORDEM_ACOES.map((a) => (
+              <option key={a} value={a}>
+                {ROTULO_ACAO[a]}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="campo">
+          <span className="campo__rotulo">Usuário</span>
+          <select
+            className="campo__entrada"
+            value={filtro.userId}
+            onChange={(e) => mudar('userId', e.target.value)}
+          >
+            <option value="TODOS">Todos</option>
+            {usuarios.map((u) => (
+              <option key={u.uid} value={u.uid}>
+                {nomeExibivel(u)}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="campo">
+          <span className="campo__rotulo">De</span>
+          <input
+            type="date"
+            className="campo__entrada"
+            value={filtro.de}
+            onChange={(e) => mudar('de', e.target.value)}
+          />
+        </label>
+
+        <label className="campo">
+          <span className="campo__rotulo">Até</span>
+          <input
+            type="date"
+            className="campo__entrada"
+            value={filtro.ate}
+            onChange={(e) => mudar('ate', e.target.value)}
+          />
+        </label>
+      </div>
 
       {carregando ? (
         <Esqueleto linhas={5} />
-      ) : entradas.length === 0 ? (
+      ) : erro ? (
+        <div className="pilha">
+          <p className="aviso aviso--perigo" role="alert">
+            Não foi possível carregar o histórico.
+            <br />
+            {erro}
+          </p>
+          <button type="button" className="botao botao--secundario" onClick={() => void carregar(null)}>
+            Tentar de novo
+          </button>
+        </div>
+      ) : eventos.length === 0 && !temMais ? (
         <div className="vazio">
           <p className="vazio__titulo">Nenhum registro</p>
           <p>Nada foi registrado para este filtro.</p>
@@ -185,6 +264,7 @@ export function TelaHistorico() {
 
                       <p className="evento__quem">
                         {e.userName || e.userEmail}
+                        {filtro.inventoryId === 'TODOS' && e.inventoryName ? ` · ${e.inventoryName}` : ''}
                         {e.deviceLabel && <span className="evento__aparelho"> · {e.deviceLabel}</span>}
                       </p>
                     </div>
@@ -195,6 +275,18 @@ export function TelaHistorico() {
           </div>
         ))
       )}
+
+      {mostrandoLista && temMais && (
+        <button
+          type="button"
+          className="botao botao--secundario botao--largo"
+          disabled={carregandoMais}
+          onClick={() => void carregar(ultimo)}
+        >
+          {carregandoMais ? 'Carregando…' : 'Carregar mais'}
+        </button>
+      )}
+      {mostrandoLista && !temMais && eventos.length > 0 && <p className="campo__ajuda">Fim do histórico.</p>}
     </section>
   );
 }
