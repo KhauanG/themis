@@ -29,6 +29,7 @@
     "testar-regras": "npx firebase-tools emulators:exec --only firestore \"npx vitest run --config vitest.regras.config.ts\"",
     "testar-regras-anterior": "npx firebase-tools emulators:exec --only firestore \"npx vitest run --config vitest.regras-anterior.config.ts\"",
     "deploy-rules": "npx firebase-tools deploy --only firestore:rules",
+    "deploy-rules-anterior": "npx firebase-tools deploy --only firestore:rules --config firebase.regra-anterior.json",
     "deploy-indexes": "npx firebase-tools deploy --only firestore:indexes"
   },
   "devDependencies": {

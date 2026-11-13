@@ -41,13 +41,16 @@ import {
   initializeTestEnvironment,
   type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing';
-import { deleteDoc, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { deleteDoc, deleteField, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 let ambiente: RulesTestEnvironment;
 
 /** Sem a variável, a regra do arquivo principal. Com ela, a regra guardada (ver vitest.regras-anterior.config.ts). */
 const ARQUIVO_DA_REGRA = process.env['REGRAS_ARQUIVO'] ?? 'firestore/firestore.rules';
+const REGRA_NOVA = process.env['REGRAS_ARQUIVO'] === undefined;
+/** Caso de reforço: a regra nova nega; a velha deixa. Rodar nas duas prova que o teste enxerga a diferença. */
+const soNaNova = REGRA_NOVA ? assertFails : assertSucceeds;
 
 /** Produto mínimo que passa em `validProductData`. Faltar campo aqui mascara o teste. */
 const PRODUTO_VALIDO = { nome: 'Cerveja Lata', quantidade: 0, codigoBarras: '789' };
@@ -100,6 +103,9 @@ beforeEach(async () => {
     });
     await setDoc(doc(db, 'users/adminX'), { firstName: 'A', lastName: 'X', isAdmin: true, allowedInventories: ['X'] });
     await setDoc(doc(db, 'users/auditor'), { firstName: 'U', lastName: 'U', isAuditor: true });
+    // Admin com as três flags, como o site grava ao promover. `admin` não tem `isMaster`, e aí o `!isMaster()`
+    // do ramo velho "admin atualiza outro" dá erro e nega: o caso de reforço não enxergaria a regra velha.
+    await setDoc(doc(db, 'users/adminCompleto'), { firstName: 'A', lastName: 'C', isAdmin: true, isAuditor: false, isMaster: false });
     await setDoc(doc(db, 'appSettings/global'), { modoContagem: false });
     await setDoc(doc(db, 'estoques/X/updatedItems/u1'), { productId: 'p1', updatedAt: new Date() });
 
@@ -593,5 +599,94 @@ describe('compatibilidade — historico_geral', () => {
   it('ninguém altera nem apaga, nem master', async () => {
     await assertFails(updateDoc(doc(como('master'), 'historico_geral/e1'), { userName: 'Outro' }));
     await assertFails(deleteDoc(doc(como('master'), 'historico_geral/e1')));
+  });
+});
+
+/**
+ * Só a regra nova nega (desenho 7.3). Contra a regra da 2.24.0, `soNaNova` espera sucesso:
+ * é a prova de que o teste enxerga a diferença entre as duas.
+ */
+describe('reforço — cadastro do produto só por cargo alto', () => {
+  const p1 = (uid: string) => doc(como(uid), 'estoques/X/produtos/p1');
+
+  it('quem só conta não muda o nome', async () => {
+    await soNaNova(updateDoc(p1('semLista'), { nome: 'Nome Roubado' }));
+  });
+  it('quem só conta não muda o código de barras', async () => {
+    await soNaNova(updateDoc(p1('semLista'), { codigoBarras: '000' }));
+  });
+  it.each(['NomeProduto', 'CodigoBarras', 'IdProduto', 'idProduto', 'idProdut'])('quem só conta não muda %s', async (chave) => {
+    await soNaNova(updateDoc(p1('semLista'), { [chave]: 'x' }));
+  });
+  it.each(['estoqueSistema', 'EstoqueAtual', 'PrecoVenda', 'precoVenda', 'EstoqueMinimo', 'estoqueMinimo'])(
+    'quem só conta não muda %s', async (chave) => {
+      await soNaNova(updateDoc(p1('semLista'), { [chave]: 5 }));
+    },
+  );
+  it('quem só conta não muda temCodigoBarras nem apiNotFound', async () => {
+    await soNaNova(updateDoc(p1('semLista'), { temCodigoBarras: true }));
+    await soNaNova(updateDoc(p1('semLista'), { apiNotFound: true }));
+  });
+  it('quem só conta continua contando', async () => {
+    await assertSucceeds(updateDoc(p1('semLista'), { quantidade: 4, dataValidade: '2027-01-31', productStatus: 'ATUALIZADO' }));
+  });
+  it('chave que a regra não conhece continua passando', async () => {
+    await assertSucceeds(updateDoc(p1('semLista'), { campoDeClienteVelho: 'x' }));
+  });
+  it('admin muda o nome', async () => {
+    await assertSucceeds(updateDoc(p1('admin'), { nome: 'Nome Certo', NomeProduto: 'Nome Certo' }));
+  });
+});
+
+describe('reforço — users', () => {
+  it('o próprio não apaga allowedInventories', async () => {
+    await soNaNova(updateDoc(doc(como('soLojaX'), 'users/soLojaX'), { allowedInventories: deleteField() }));
+  });
+  it('o próprio não apaga isAdmin', async () => {
+    await soNaNova(updateDoc(doc(como('admin'), 'users/admin'), { isAdmin: deleteField() }));
+  });
+  it('quem não tinha lista não ganha uma', async () => {
+    await assertFails(updateDoc(doc(como('semLista'), 'users/semLista'), { allowedInventories: ['X'] }));
+  });
+  it('admin não apaga isMaster de outro', async () => {
+    await soNaNova(updateDoc(doc(como('adminCompleto'), 'users/master'), { isMaster: deleteField() }));
+  });
+  it('admin não muda o nome de outro', async () => {
+    await soNaNova(updateDoc(doc(como('adminCompleto'), 'users/semLista'), { firstName: 'Trocado' }));
+  });
+  it('admin muda o próprio lastEstoque', async () => {
+    await assertSucceeds(updateDoc(doc(como('admin'), 'users/admin'), { lastEstoque: 'X', updatedAt: new Date() }));
+  });
+  it('perfil sem allowedInventories grava lastEstoque', async () => {
+    await assertSucceeds(updateDoc(doc(como('semLista'), 'users/semLista'), { lastEstoque: 'X', updatedAt: new Date() }));
+  });
+  it('perfil com allowedInventories grava lastEstoque', async () => {
+    await assertSucceeds(updateDoc(doc(como('soLojaX'), 'users/soLojaX'), { lastEstoque: 'X', updatedAt: new Date() }));
+  });
+});
+
+describe('reforço — appSettings', () => {
+  const ref = (uid: string) => doc(como(uid), 'appSettings/global');
+
+  it('versão do app como número nega', async () => {
+    await soNaNova(setDoc(ref('admin'), { latestNativeAppVersion: 5.4, lastUpdated: new Date() }, { merge: true }));
+  });
+  it('lista de travas com item nega; vazia passa', async () => {
+    await soNaNova(setDoc(ref('admin'), { readonlyInventories: ['X'], lastUpdated: new Date() }, { merge: true }));
+    await assertSucceeds(setDoc(ref('admin'), { readonlyInventories: [], lastUpdated: new Date() }, { merge: true }));
+  });
+  // A condição 1 de 7.4: com loja travada no documento, nem o modo contagem passa.
+  it('documento com loja travada: gravar só o modo contagem nega', async () => {
+    await ambiente.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'appSettings/global'), { modoContagem: false, readonlyInventories: ['X'] });
+    });
+    await soNaNova(setDoc(ref('admin'), { modoContagem: true, lastUpdated: new Date() }, { merge: true }));
+  });
+  // A condição 2 de 7.4: com a versão gravada como número, nem o modo contagem passa.
+  it('documento com a versão em número: gravar só o modo contagem nega', async () => {
+    await ambiente.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'appSettings/global'), { modoContagem: false, latestNativeAppVersion: 5.3 });
+    });
+    await soNaNova(setDoc(ref('admin'), { modoContagem: true, lastUpdated: new Date() }, { merge: true }));
   });
 });

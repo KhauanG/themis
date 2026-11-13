@@ -128,8 +128,9 @@ Acompanhe em Firestore → Índices. Só teste o Histórico quando ficarem **Ati
 npx firebase-tools deploy --only firestore:rules
 ```
 
-> Publicar regra afeta os usuários do app 1.x **na hora**. O Console tem histórico de
-> versões com rollback.
+> Publicar regra vale **na hora**, para todos os aparelhos. Desde a 2.25.0, leia antes a
+> seção "Regra do Firestore a partir da 2.25.0". O Console tem histórico de versões com
+> rollback.
 
 **2.5 Varredura de produtos legados — faça antes de liberar para a equipe**
 
@@ -350,6 +351,33 @@ Os dois apps leem o mesmo banco e podem conviver.
 **Não desative o app antigo antes de um ciclo de contagem inteiro fechado pelo PWA.**
 
 ---
+
+## Regra do Firestore a partir da 2.25.0
+
+A partir do 2.25.0, `firestore/firestore.rules` é a regra **nova**. `npm run deploy-rules` publica ela. Só rode com as condições da seção 7.4 do desenho da Etapa 4 e o OK do dono.
+
+Condições, as três na mesma noite, depois das 21:00:
+
+1. O script das travas mostra "Nenhuma loja travada.". Quem roda é o dono, com o token, numa linha só:
+   `$env:GCLOUD_TOKEN = (gcloud auth print-access-token); node scripts/travas-estoque.mjs; Remove-Item Env:GCLOUD_TOKEN`
+2. O mesmo script mostra a versão do app como "ausente" ou "(texto)".
+3. `npm run testar-regras` e `npm run testar-regras-anterior` verdes.
+
+Publicar, na raiz deste repositório, numa pasta que esteja na 2.25.0 ou depois. Nunca na raiz do app nativo.
+
+```powershell
+npm run deploy-rules
+```
+
+Voltar para a regra da 2.24.0, sem editar arquivo à mão:
+
+```powershell
+npm run deploy-rules-anterior
+```
+
+Sintomas que pedem a volta: contagem de quem só conta recusada, ou admin sem conseguir mexer no modo contagem.
+
+O site 2.25.0 funciona com a regra velha e com a nova. Se o dono não publicar, nada para.
 
 ## Deploys seguintes
 

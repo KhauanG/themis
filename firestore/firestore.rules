@@ -86,11 +86,15 @@ service cloud.firestore {
         (!('isMaster' in data) || data.isMaster == false);
     }
 
+    // Ler um campo ausente de resource.data da erro e nega. Por isso o `in` dos dois lados.
+    function campoIgual(data, campo) {
+      return (!(campo in data) && !(campo in resource.data))
+        || ((campo in data) && (campo in resource.data) && data[campo] == resource.data[campo]);
+    }
+
     function ownRoleFieldsUnchanged(data) {
-      return (!('isAdmin' in data) || data.isAdmin == resource.data.isAdmin) &&
-        (!('isAuditor' in data) || data.isAuditor == resource.data.isAuditor) &&
-        (!('isMaster' in data) || data.isMaster == resource.data.isMaster) &&
-        (!('allowedInventories' in data) || data.allowedInventories == resource.data.allowedInventories);
+      return campoIgual(data, 'isAdmin') && campoIgual(data, 'isAuditor')
+        && campoIgual(data, 'isMaster') && campoIgual(data, 'allowedInventories');
     }
 
     function validInventoryData(data) {
@@ -110,10 +114,14 @@ service cloud.firestore {
 
     // Usuário comum só pode marcar productStatus 'ATUALIZADO' e não pode tocar nos
     // campos de correção (CONFERIDO / corrigido* são exclusivos do fluxo admin/master).
+    // E o cadastro (nome, codigos, saldo do sistema, precos, minimo) so muda por admin ou master.
     function podeAlterarStatusProduto() {
       let mudancas = request.resource.data.diff(resource.data).affectedKeys();
       return isAdminOrMaster() || (
-        !mudancas.hasAny(['corrigidoIncorreto', 'corrigidoCritico']) &&
+        !mudancas.hasAny(['corrigidoIncorreto', 'corrigidoCritico',
+          'nome', 'NomeProduto', 'codigoBarras', 'CodigoBarras', 'temCodigoBarras',
+          'IdProduto', 'idProduto', 'idProdut', 'estoqueSistema', 'EstoqueAtual', 'apiNotFound',
+          'PrecoVenda', 'precoVenda', 'PrecoCusto', 'PrecoPJ', 'EstoqueMinimo', 'estoqueMinimo']) &&
         (!mudancas.hasAny(['productStatus']) || (
           request.resource.data.get('productStatus', '') == 'ATUALIZADO' &&
           resource.data.get('productStatus', '') != 'CONFERIDO'
@@ -229,7 +237,11 @@ service cloud.firestore {
       allow read: if signedIn();
       allow create, update: if isAdminOrMaster() &&
         (!('modoContagem' in request.resource.data) || request.resource.data.modoContagem is bool) &&
-        (!('readonlyInventories' in request.resource.data) || request.resource.data.readonlyInventories is list) &&
+        (!('readonlyInventories' in request.resource.data)
+          || (request.resource.data.readonlyInventories is list
+              && request.resource.data.readonlyInventories.size() == 0)) &&
+        (!('latestNativeAppVersion' in request.resource.data)
+          || request.resource.data.latestNativeAppVersion is string) &&
         (!('mostrarCiclo' in request.resource.data) || request.resource.data.mostrarCiclo is bool) &&
         (!('lastUpdated' in request.resource.data) || request.resource.data.lastUpdated is timestamp);
       allow delete: if isMaster();
@@ -267,14 +279,6 @@ service cloud.firestore {
         request.auth.uid == userId &&
         validOptionalUserFields(request.resource.data) &&
         ownRoleFieldsUnchanged(request.resource.data);
-      allow update: if signedIn() &&
-        isAdmin() &&
-        !isMaster() &&
-        validOptionalUserFields(request.resource.data) &&
-        (!('isAdmin' in request.resource.data) || request.resource.data.isAdmin == resource.data.isAdmin) &&
-        (!('isAuditor' in request.resource.data) || request.resource.data.isAuditor == resource.data.isAuditor) &&
-        (!('isMaster' in request.resource.data) || request.resource.data.isMaster == resource.data.isMaster) &&
-        (!('allowedInventories' in request.resource.data) || request.resource.data.allowedInventories == resource.data.allowedInventories);
       allow update: if signedIn() && isMaster() && validOptionalUserFields(request.resource.data);
       allow delete: if false;
     }
