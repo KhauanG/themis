@@ -24,6 +24,7 @@
  */
 import {
   fisicoDe,
+  idErpParaEnvio,
   idProdutoDe,
   montarEnvio,
   nomeDe,
@@ -77,13 +78,15 @@ export interface PendenciaErp {
 
 /** Marca, em `falhasNoEnvio`, o divergente que não foi enviado por não ter `IdProduto`. */
 export const SUFIXO_SEM_ID = ' (sem ID do ERP)';
+/** Marca, em `falhasNoEnvio`, o divergente cujo `IdProduto` não é um inteiro de 1 para cima (ex.: "12abc"). */
+export const SUFIXO_ID_INVALIDO = ' (ID do ERP inválido)';
 
 export interface ResultadoCorrecao {
   /** Aceitos pelo ERP, mais os recusados que a releitura mostrou aplicados. */
   enviados: number;
   /**
    * Divergentes que o ERP recusou (e a releitura não mostrou aplicados), pelo nome, e os sem
-   * `IdProduto` como `"<nome> (sem ID do ERP)"`. Nenhum deles é conferido: continuam ATUALIZADO.
+   * `IdProduto` como `"<nome> (sem ID do ERP)"` ou `"<nome> (ID do ERP inválido)"`. Nenhum deles é conferido: continuam ATUALIZADO.
    */
   falhasNoEnvio: string[];
   /**
@@ -180,7 +183,8 @@ export async function executarCorrecao(
    */
   const desconhecidos = new Set(foraDoErp.map((p) => p.id));
   const enviaveis = divergentes.filter((p) => !desconhecidos.has(p.id));
-  const paraOErp = enviaveis.filter((p) => idProdutoDe(p) != null);
+  const semIdValido = enviaveis.filter((p) => idErpParaEnvio(idProdutoDe(p)) === null);
+  const paraOErp = enviaveis.filter((p) => idErpParaEnvio(idProdutoDe(p)) !== null);
 
   const naoEnviadosForaDoErp = divergentes.filter((p) => desconhecidos.has(p.id)).map(nomeDe);
 
@@ -268,8 +272,9 @@ export async function executarCorrecao(
   // Depois da fase 3, que pode ter achado aplicado um recusado.
   const falhasNoEnvio = [
     ...paraOErp.slice(0, tentados).filter((p) => !aceitos.has(p.id)).map(nomeDe),
-    // Sem `IdProduto` não há o que enviar, mas a divergência existe: avisa em vez de conferir.
-    ...enviaveis.filter((p) => idProdutoDe(p) == null).map((p) => `${nomeDe(p)}${SUFIXO_SEM_ID}`),
+    // Sem `IdProduto` válido não há o que enviar, mas a divergência existe: avisa em vez de conferir.
+    ...semIdValido.map((p) =>
+      `${nomeDe(p)}${String(idProdutoDe(p) ?? '').trim() === '' ? SUFIXO_SEM_ID : SUFIXO_ID_INVALIDO}`),
   ];
 
   // ---------- Fechamento da conferência ----------

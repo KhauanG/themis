@@ -8,6 +8,7 @@ import {
   diagnosticar,
   executarCorrecao,
   reenviarPendentes,
+  SUFIXO_ID_INVALIDO,
   SUFIXO_SEM_ID,
   type Diagnostico,
   type ResultadoCorrecao,
@@ -186,8 +187,9 @@ export function ModalCorrigirEstoque({ aberto, onFechar }: Props) {
   const minutosEstimados = Math.ceil(enviaveis / 60);
 
   const falhas = resultado?.falhasNoEnvio ?? [];
-  const semId = falhas.filter((nome) => nome.endsWith(SUFIXO_SEM_ID));
-  const recusados = falhas.filter((nome) => !nome.endsWith(SUFIXO_SEM_ID));
+  const semIdValido = (nome: string) => nome.endsWith(SUFIXO_SEM_ID) || nome.endsWith(SUFIXO_ID_INVALIDO);
+  const semId = falhas.filter(semIdValido);
+  const recusados = falhas.filter((nome) => !semIdValido(nome));
 
   return (
     <Modal
@@ -408,8 +410,8 @@ export function ModalCorrigirEstoque({ aberto, onFechar }: Props) {
             <>
               <p className="aviso aviso--perigo">
                 {semId.length === 1
-                  ? '1 item não tem o ID do ERP e continua como contado.'
-                  : `${semId.length} itens não têm o ID do ERP e continuam como contados.`}{' '}
+                  ? '1 item está sem ID do ERP válido e continua como contado.'
+                  : `${semId.length} itens estão sem ID do ERP válido e continuam como contados.`}{' '}
                 Corrija o ID do ERP no cadastro.
               </p>
               <ListaDeNomes nomes={semId} />

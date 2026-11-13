@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   chavesDeIdProduto,
   fisicoDe,
+  idProdutoDe,
   saldoDoErpPara,
   saldoNoErp,
   sistemaDe,
@@ -117,6 +118,20 @@ describe('saldoNoErp', () => {
   it('produto sem IdProduto não casa com nada', () => {
     const erp = new Map([['5', 9]]);
     expect(saldoNoErp(erp, { id: 'a' })).toBeUndefined();
+  });
+
+  // A terceira grafia também casa com o ERP: o Buscar estoque deixa de marcar o produto como "fora do ERP".
+  it('produto que só tem idProdut casa com a listagem', () => {
+    expect(saldoNoErp(new Map([['33', 5]]), { id: 'a', idProdut: '33' })).toBe(5);
+  });
+});
+
+describe('idProdutoDe', () => {
+  it('lê as três grafias, nesta ordem', () => {
+    expect(idProdutoDe({ id: 'p', idProdut: '33' })).toBe('33');
+    expect(idProdutoDe({ id: 'p', idProduto: 12, idProdut: '33' })).toBe(12);
+    expect(idProdutoDe({ id: 'p', IdProduto: '7', idProduto: 12, idProdut: '33' })).toBe('7');
+    expect(idProdutoDe({ id: 'p' })).toBeNull();
   });
 });
 

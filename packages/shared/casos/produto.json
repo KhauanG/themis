@@ -1,0 +1,47 @@
+{
+  "outros": [
+    { "id": "p1", "nome": "Cerveja Lata", "codigoBarras": "789", "IdProduto": "7" },
+    { "id": "p2", "NomeProduto": "Agua", "CodigoBarras": "790", "idProduto": 12 },
+    { "id": "p3", "nome": "Suco", "codigoBarras": "", "idProdut": "0033" }
+  ],
+  "temCodigoBarras": [
+    { "codigo": "", "esperado": false },
+    { "codigo": "INTERNO_123", "esperado": false },
+    { "codigo": "7891234567890", "esperado": true }
+  ],
+  "validacao": [
+    { "caso": "cadastro válido, aparando", "digitado": { "nome": " Guarana 2L ", "codigoBarras": " 791 ", "idErp": " 45 " }, "abertura": null, "esperado": { "ok": true, "campos": { "nome": "Guarana 2L", "codigoBarras": "791", "idErp": "45" } } },
+    { "caso": "cadastro sem código de barras", "digitado": { "nome": "Guarana", "codigoBarras": "", "idErp": "45" }, "abertura": null, "esperado": { "ok": true, "campos": { "nome": "Guarana", "codigoBarras": "", "idErp": "45" } } },
+    { "caso": "nome com 300 letras", "nomeVezes": 300, "digitado": { "nome": "", "codigoBarras": "", "idErp": "45" }, "abertura": null, "esperado": { "ok": true, "campos": { "nome": "", "codigoBarras": "", "idErp": "45" } } },
+    { "caso": "nome com 301 letras", "nomeVezes": 301, "digitado": { "nome": "", "codigoBarras": "", "idErp": "45" }, "abertura": null, "esperado": { "ok": false, "mensagem": "Nome do produto com no máximo 300 letras!" } },
+    { "caso": "nome vazio", "digitado": { "nome": "   ", "codigoBarras": "", "idErp": "45" }, "abertura": null, "esperado": { "ok": false, "mensagem": "Nome do produto é obrigatório!" } },
+    { "caso": "código de barras repetido", "digitado": { "nome": "Guarana", "codigoBarras": "789", "idErp": "45" }, "abertura": null, "esperado": { "ok": false, "mensagem": "Este código de barras já existe em outro produto!" } },
+    { "caso": "código de barras repetido na grafia antiga", "digitado": { "nome": "Guarana", "codigoBarras": "790", "idErp": "45" }, "abertura": null, "esperado": { "ok": false, "mensagem": "Este código de barras já existe em outro produto!" } },
+    { "caso": "código INTERNO_ é aceito como código", "digitado": { "nome": "Guarana", "codigoBarras": "INTERNO_9", "idErp": "45" }, "abertura": null, "esperado": { "ok": true, "campos": { "nome": "Guarana", "codigoBarras": "INTERNO_9", "idErp": "45" } } },
+    { "caso": "edição: código que existia não pode ser apagado", "digitado": { "nome": "Guarana", "codigoBarras": "", "idErp": "45" }, "abertura": { "nome": "Guarana", "codigoBarras": "555", "idErp": "45" }, "esperado": { "ok": false, "mensagem": "Código de barras é obrigatório!" } },
+    { "caso": "edição: código que era vazio continua vazio", "digitado": { "nome": "Guarana 2", "codigoBarras": "", "idErp": "45" }, "abertura": { "nome": "Guarana", "codigoBarras": "", "idErp": "45" }, "esperado": { "ok": true, "campos": { "nome": "Guarana 2", "codigoBarras": "", "idErp": "45" } } },
+    { "caso": "edição: código que não mudou não é comparado com os outros", "digitado": { "nome": "Guarana 2", "codigoBarras": "789", "idErp": "45" }, "abertura": { "nome": "Guarana", "codigoBarras": "789", "idErp": "45" }, "esperado": { "ok": true, "campos": { "nome": "Guarana 2", "codigoBarras": "789", "idErp": "45" } } },
+    { "caso": "ID abc", "digitado": { "nome": "Guarana", "codigoBarras": "", "idErp": "abc" }, "abertura": null, "esperado": { "ok": false, "mensagem": "Código no ERP: só números, maior que zero." } },
+    { "caso": "ID 12abc", "digitado": { "nome": "Guarana", "codigoBarras": "", "idErp": "12abc" }, "abertura": null, "esperado": { "ok": false, "mensagem": "Código no ERP: só números, maior que zero." } },
+    { "caso": "ID 0", "digitado": { "nome": "Guarana", "codigoBarras": "", "idErp": "0" }, "abertura": null, "esperado": { "ok": false, "mensagem": "Código no ERP: só números, maior que zero." } },
+    { "caso": "ID 007 digitado", "digitado": { "nome": "Guarana", "codigoBarras": "", "idErp": "007" }, "abertura": null, "esperado": { "ok": false, "mensagem": "Código no ERP: só números, maior que zero." } },
+    { "caso": "ID 1.5", "digitado": { "nome": "Guarana", "codigoBarras": "", "idErp": "1.5" }, "abertura": null, "esperado": { "ok": false, "mensagem": "Código no ERP: só números, maior que zero." } },
+    { "caso": "cadastro sem ID", "digitado": { "nome": "Guarana", "codigoBarras": "", "idErp": "" }, "abertura": null, "esperado": { "ok": false, "mensagem": "Código no ERP: só números, maior que zero." } },
+    { "caso": "ID repetido", "digitado": { "nome": "Guarana", "codigoBarras": "", "idErp": "7" }, "abertura": null, "esperado": { "ok": false, "mensagem": "Este código no ERP já existe em outro produto!" } },
+    { "caso": "ID repetido, o outro gravado como número", "digitado": { "nome": "Guarana", "codigoBarras": "", "idErp": "12" }, "abertura": null, "esperado": { "ok": false, "mensagem": "Este código no ERP já existe em outro produto!" } },
+    { "caso": "ID repetido, o outro com zeros à esquerda", "digitado": { "nome": "Guarana", "codigoBarras": "", "idErp": "33" }, "abertura": null, "esperado": { "ok": false, "mensagem": "Este código no ERP já existe em outro produto!" } },
+    { "caso": "edição só do nome com ID antigo \"007\"", "digitado": { "nome": "Novo Nome", "codigoBarras": "", "idErp": "007" }, "abertura": { "nome": "Velho Nome", "codigoBarras": "", "idErp": "007" }, "esperado": { "ok": true, "campos": { "nome": "Novo Nome", "codigoBarras": "", "idErp": "007" } } },
+    { "caso": "edição só do nome com ID antigo \"12abc\"", "digitado": { "nome": "Novo Nome", "codigoBarras": "", "idErp": "12abc" }, "abertura": { "nome": "Velho Nome", "codigoBarras": "", "idErp": "12abc" }, "esperado": { "ok": true, "campos": { "nome": "Novo Nome", "codigoBarras": "", "idErp": "12abc" } } },
+    { "caso": "edição: ID que era vazio continua vazio", "digitado": { "nome": "Novo Nome", "codigoBarras": "", "idErp": "" }, "abertura": { "nome": "Velho Nome", "codigoBarras": "", "idErp": "" }, "esperado": { "ok": true, "campos": { "nome": "Novo Nome", "codigoBarras": "", "idErp": "" } } },
+    { "caso": "edição: ID que existia não pode ser apagado", "digitado": { "nome": "Guarana", "codigoBarras": "", "idErp": "" }, "abertura": { "nome": "Guarana", "codigoBarras": "", "idErp": "45" }, "esperado": { "ok": false, "mensagem": "Código no ERP: só números, maior que zero." } }
+  ],
+  "edicao": [
+    { "caso": "edição sem mudança", "abertura": { "nome": "A", "codigoBarras": "789", "idErp": "7" }, "pedido": { "nome": "A", "codigoBarras": "789", "idErp": "7" }, "servidor": { "nome": "A", "codigoBarras": "789", "idErp": "7" }, "grafias": { "idProduto": false, "idProdut": false }, "esperado": { "resultado": "NADA_MUDOU", "gravar": {}, "remover": [] } },
+    { "caso": "só o nome", "abertura": { "nome": "A", "codigoBarras": "789", "idErp": "7" }, "pedido": { "nome": "B", "codigoBarras": "789", "idErp": "7" }, "servidor": { "nome": "A", "codigoBarras": "789", "idErp": "7" }, "grafias": { "idProduto": false, "idProdut": false }, "esperado": { "resultado": "GRAVAR", "gravar": { "nome": "B", "NomeProduto": "B" }, "remover": [] } },
+    { "caso": "só o código, para um INTERNO_", "abertura": { "nome": "A", "codigoBarras": "789", "idErp": "7" }, "pedido": { "nome": "A", "codigoBarras": "INTERNO_1", "idErp": "7" }, "servidor": { "nome": "A", "codigoBarras": "789", "idErp": "7" }, "grafias": { "idProduto": false, "idProdut": false }, "esperado": { "resultado": "GRAVAR", "gravar": { "codigoBarras": "INTERNO_1", "CodigoBarras": "INTERNO_1", "temCodigoBarras": false }, "remover": [] } },
+    { "caso": "ID novo, com as grafias antigas no documento", "abertura": { "nome": "A", "codigoBarras": "789", "idErp": "7" }, "pedido": { "nome": "A", "codigoBarras": "789", "idErp": "8" }, "servidor": { "nome": "A", "codigoBarras": "789", "idErp": "7" }, "grafias": { "idProduto": true, "idProdut": true }, "esperado": { "resultado": "GRAVAR", "gravar": { "IdProduto": "8" }, "remover": ["idProduto", "idProdut"] } },
+    { "caso": "ID novo, sem grafias antigas", "abertura": { "nome": "A", "codigoBarras": "789", "idErp": "7" }, "pedido": { "nome": "A", "codigoBarras": "789", "idErp": "8" }, "servidor": { "nome": "A", "codigoBarras": "789", "idErp": "7" }, "grafias": { "idProduto": false, "idProdut": false }, "esperado": { "resultado": "GRAVAR", "gravar": { "IdProduto": "8" }, "remover": [] } },
+    { "caso": "nome já gravado pela tentativa anterior", "abertura": { "nome": "A", "codigoBarras": "789", "idErp": "7" }, "pedido": { "nome": "B", "codigoBarras": "789", "idErp": "7" }, "servidor": { "nome": "B", "codigoBarras": "789", "idErp": "7" }, "grafias": { "idProduto": false, "idProdut": false }, "esperado": { "resultado": "JA_GRAVADO", "gravar": {}, "remover": [] } },
+    { "caso": "os três campos de uma vez", "abertura": { "nome": "A", "codigoBarras": "", "idErp": "" }, "pedido": { "nome": "B", "codigoBarras": "791", "idErp": "9" }, "servidor": { "nome": "A", "codigoBarras": "", "idErp": "" }, "grafias": { "idProduto": false, "idProdut": false }, "esperado": { "resultado": "GRAVAR", "gravar": { "nome": "B", "NomeProduto": "B", "codigoBarras": "791", "CodigoBarras": "791", "temCodigoBarras": true, "IdProduto": "9" }, "remover": [] } }
+  ]
+}

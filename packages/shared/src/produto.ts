@@ -12,9 +12,9 @@ export function nomeDe(p: Produto): string {
   return p.nome || p.NomeProduto || 'Sem nome';
 }
 
-/** Identificador do produto no ERP. */
+/** Identificador do produto no ERP, nas três grafias do banco. */
 export function idProdutoDe(p: Produto): string | number | null {
-  return p.IdProduto ?? p.idProduto ?? null;
+  return p.IdProduto ?? p.idProduto ?? p.idProdut ?? null;
 }
 
 export function codigoBarrasDe(p: Produto): string | null {

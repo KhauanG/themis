@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { montarEnvio } from './erp-payload.js';
+import { idErpParaEnvio, montarEnvio } from './erp-payload.js';
 import type { Produto } from './types.js';
 
 const base: Produto = {
@@ -82,5 +82,27 @@ describe('montarEnvio', () => {
 
   it('usa a grafia legada do nome quando é a única', () => {
     expect(montarEnvio({ id: 'x', NomeProduto: 'Legado' }).NomeProduto).toBe('Legado');
+  });
+});
+
+describe('idErpParaEnvio', () => {
+  it('só dígitos com valor de 1 para cima', () => {
+    expect(idErpParaEnvio('4321')).toBe(4321);
+    expect(idErpParaEnvio(4321)).toBe(4321);
+    expect(idErpParaEnvio(' 45 ')).toBe(45);
+    expect(idErpParaEnvio('007')).toBe(7);
+  });
+  // O parseInt antigo lia "12abc" como 12 e corrigia o produto errado no ERP.
+  it.each(['12abc', '1.5', 'abc', '0', '', '-3', null, undefined, 1.5])('recusa %s', (valor) => {
+    expect(idErpParaEnvio(valor)).toBeNull();
+  });
+});
+
+describe('montarEnvio — ID inválido', () => {
+  it('"12abc" não vira 12', () => {
+    expect(montarEnvio({ ...base, IdProduto: '12abc' }).IdProduto).toBe(0);
+  });
+  it('lê a terceira grafia', () => {
+    expect(montarEnvio({ id: 'x', idProdut: '0033' }).IdProduto).toBe(33);
   });
 });

@@ -38,6 +38,17 @@ function preco(valor: unknown): number {
 }
 
 /**
+ * Inteiro para o ERP, ou `null`: só dígitos (aparado) e valor ≥ 1. "007" → 7.
+ * "12abc", "1.5", "abc", "0" e "" → `null`: a leitura antiga lia "12abc" como 12 e corrigia o produto errado.
+ */
+export function idErpParaEnvio(valor: unknown): number | null {
+  const texto = String(valor ?? '').trim();
+  if (!/^\d+$/.test(texto)) return null;
+  const n = Number(texto);
+  return n >= 1 ? n : null;
+}
+
+/**
  * Monta o payload a partir do produto.
  *
  * `quantidade` sobrescreve o físico do produto: o reenvio de pendências manda **o valor
@@ -48,7 +59,7 @@ function preco(valor: unknown): number {
  */
 export function montarEnvio(produto: Produto, quantidade: number = fisicoDe(produto)): EnvioEstoque {
   return {
-    IdProduto: Number.parseInt(String(idProdutoDe(produto) ?? 0), 10) || 0,
+    IdProduto: idErpParaEnvio(idProdutoDe(produto)) ?? 0,
     // Fracionário o ERP recusa; negativo o 1.x grampeava em zero.
     Quantidade: Math.max(0, Math.round(Number(quantidade) || 0)),
     CodigoBarras: String(produto.codigoBarras ?? produto.CodigoBarras ?? '').trim(),

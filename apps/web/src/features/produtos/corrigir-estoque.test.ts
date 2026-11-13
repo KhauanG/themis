@@ -154,6 +154,25 @@ describe('executarCorrecao — fechamento da conferência', () => {
     expect(r.enviados).toBe(1);
     expect(r.verificacaoIndisponivel).toBe(true);
   });
+
+  it('ID do ERP inválido não é enviado e aparece com o sufixo próprio', async () => {
+    vi.useFakeTimers();
+    const a = item('a', 'Aceito', 1, 5, 3);
+    const ruim = { ...item('r', 'IdRuim', 0, 9, 2), IdProduto: '12abc' };
+    vi.mocked(enviarAoErp).mockResolvedValue({ ok: true });
+    vi.mocked(buscarEstoqueDoErp).mockResolvedValue(leitura([['1', 5]]));
+
+    const promessa = executarCorrecao('E1', {
+      inventoryId: 'E1', contados: [a, ruim], divergentes: [a, ruim], foraDoErp: [], semCorrespondencia: 0, saldosAtualizados: 0,
+    }, () => {});
+    await vi.runAllTimersAsync();
+    const r = await promessa;
+
+    expect(enviarAoErp).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(enviarAoErp).mock.calls[0]![1].IdProduto).toBe(1);
+    expect(r.falhasNoEnvio).toEqual(['IdRuim (ID do ERP inválido)']);
+    expect(vi.mocked(fecharConferencia).mock.calls[0]![1].map((p) => p.id)).toEqual(['a']);
+  });
 });
 
 describe('reenviarPendentes', () => {
