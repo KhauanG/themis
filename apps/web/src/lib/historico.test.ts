@@ -1,7 +1,15 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { Timestamp, getDocs } from 'firebase/firestore';
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { Timestamp, addDoc, getDocs } from 'firebase/firestore';
 import type { FiltroHistorico } from '@themis/shared';
-import { consultarHistorico, varrerHistorico, type CursorHistorico, type PaginaHistorico } from './historico.js';
+import { CHAVES } from './armazenamento.js';
+import {
+  consultarHistorico,
+  drenarHistorico,
+  registrar,
+  varrerHistorico,
+  type CursorHistorico,
+  type PaginaHistorico,
+} from './historico.js';
 
 vi.mock('./firebase.js', () => ({ db: {} }));
 vi.mock('./dispositivo.js', () => ({ deviceId: () => 'aparelho', deviceLabel: () => 'Teste' }));
@@ -120,5 +128,93 @@ describe('varrerHistorico', () => {
     const r = await varrerHistorico({}, {}, null, consultar);
     expect(consultar).toHaveBeenCalledTimes(1);
     expect(r.eventos).toHaveLength(200);
+  });
+});
+
+/** localStorage mínimo (o teste roda em Node), no molde de `fila-offline.test.ts`. */
+const guardado = new Map<string, string>();
+function instalarLocalStorage() {
+  globalThis.localStorage = {
+    getItem: (k: string) => guardado.get(k) ?? null,
+    setItem: (k: string, v: string) => void guardado.set(k, v),
+    removeItem: (k: string) => void guardado.delete(k),
+    clear: () => guardado.clear(),
+    key: (i: number) => [...guardado.keys()][i] ?? null,
+    get length() {
+      return guardado.size;
+    },
+  } as Storage;
+}
+
+const entrada = (userId: string, produto: string) => ({
+  action: 'MODIFICAR_PRODUTO', userId, userEmail: `${userId}@x.com`, userName: userId, inventoryId: 'E1', inventoryName: 'Loja',
+  localTimestamp: '2026-11-13T10:00:00.000Z', details: { produto }, deviceId: 'aparelho', deviceLabel: 'Teste',
+});
+const fila = () => JSON.parse(guardado.get(CHAVES.historicoPendente) ?? '[]') as { userId: string; details: { produto: string } }[];
+const negado = () => Object.assign(new Error('x'), { code: 'permission-denied' });
+const semRede = () => Object.assign(new Error('x'), { code: 'unavailable' });
+const contexto = { userId: 'u1', userEmail: 'u1@x.com', userName: 'u1', inventoryId: 'E1', inventoryName: 'Loja' };
+
+describe('fila local do histórico', () => {
+  // O global é do worker, não do arquivo: sem isto o próximo arquivo herdaria este localStorage.
+  afterAll(() => {
+    delete (globalThis as { localStorage?: unknown }).localStorage;
+  });
+  beforeEach(() => {
+    instalarLocalStorage();
+    guardado.clear();
+    vi.stubGlobal('navigator', { onLine: true, userAgent: 'teste' });
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.mocked(addDoc).mockResolvedValue({ id: 'novo' } as never);
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  // T1: a entrada de quem usou o aparelho antes era recusada pela regra e travava todas as outras.
+  it('envia só as entradas do usuário atual; as dos outros ficam intactas', async () => {
+    guardado.set(CHAVES.historicoPendente, JSON.stringify([entrada('u1', 'A'), entrada('u2', 'B'), entrada('u1', 'C')]));
+    expect(await drenarHistorico('u1')).toBe(2);
+    expect(addDoc).toHaveBeenCalledTimes(2);
+    expect(fila().map((e) => e.details.produto)).toEqual(['B']);
+  });
+  it('uma falha de rede não para o resto, e a entrada que falhou fica', async () => {
+    guardado.set(CHAVES.historicoPendente, JSON.stringify([entrada('u1', 'A'), entrada('u1', 'C')]));
+    vi.mocked(addDoc).mockRejectedValueOnce(semRede());
+    expect(await drenarHistorico('u1')).toBe(1);
+    expect(fila().map((e) => e.details.produto)).toEqual(['A']);
+  });
+  // T2: entrada própria que a regra recusa nunca vai passar. Sai da fila.
+  it('entrada própria recusada pela regra é descartada, com aviso no console', async () => {
+    guardado.set(CHAVES.historicoPendente, JSON.stringify([entrada('u1', 'A'), entrada('u1', 'C')]));
+    vi.mocked(addDoc).mockRejectedValueOnce(negado());
+    expect(await drenarHistorico('u1')).toBe(1);
+    expect(fila()).toEqual([]);
+    expect(console.warn).toHaveBeenCalled();
+  });
+  it('sem internet não envia nada e não perde nada', async () => {
+    vi.stubGlobal('navigator', { onLine: false, userAgent: 'teste' });
+    guardado.set(CHAVES.historicoPendente, JSON.stringify([entrada('u1', 'A')]));
+    expect(await drenarHistorico('u1')).toBe(0);
+    expect(addDoc).not.toHaveBeenCalled();
+    expect(fila()).toHaveLength(1);
+  });
+  it('fila vazia: zero, sem tocar no servidor', async () => {
+    expect(await drenarHistorico('u1')).toBe(0);
+    expect(addDoc).not.toHaveBeenCalled();
+  });
+  it('registrar: recusa da regra não vai para a fila', async () => {
+    vi.mocked(addDoc).mockRejectedValueOnce(negado());
+    await registrar('LOGIN', contexto);
+    expect(fila()).toEqual([]);
+  });
+  it('registrar: erro de rede vai para a fila', async () => {
+    vi.mocked(addDoc).mockRejectedValueOnce(semRede());
+    await registrar('LOGIN', contexto);
+    expect(fila()).toHaveLength(1);
+  });
+  it('registrar: sem internet vai direto para a fila', async () => {
+    vi.stubGlobal('navigator', { onLine: false, userAgent: 'teste' });
+    await registrar('LOGIN', contexto);
+    expect(addDoc).not.toHaveBeenCalled();
+    expect(fila()).toHaveLength(1);
   });
 });

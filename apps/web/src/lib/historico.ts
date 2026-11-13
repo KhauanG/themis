@@ -34,6 +34,7 @@ import { db } from './firebase.js';
 import { withWriteTimeout } from './firestore-write.js';
 import { CHAVES, gravar, ler, remover } from './armazenamento.js';
 import { deviceId, deviceLabel } from './dispositivo.js';
+import { isPermissaoNegada } from './fila-offline.js';
 
 const COLECAO = 'historico_geral';
 const TETO_LOG_MS = 5_000;
@@ -77,6 +78,11 @@ export async function registrar(
       { ms: TETO_LOG_MS, label: 'histórico' },
     );
   } catch (erro) {
+    // Recusa da regra nunca vai passar: guardar só travaria a fila.
+    if (isPermissaoNegada(erro)) {
+      console.warn('[histórico] Recusado pela regra, descartado:', erro);
+      return;
+    }
     console.warn('[histórico] Falhou, guardando local:', erro);
     guardarLocal(entrada);
   }
@@ -88,17 +94,20 @@ function guardarLocal(entrada: EntradaHistorico): void {
   gravar(CHAVES.historicoPendente, pendentes);
 }
 
-/** Reenvia o histórico guardado. Para na primeira falha e mantém o resto na fila. */
-export async function drenarHistorico(): Promise<number> {
+/**
+ * Reenvia o histórico guardado. A fila é do aparelho: só sobem as entradas de `userId` (a regra
+ * recusaria as de quem usou antes). Uma falha não para o laço; recusa da regra descarta a entrada;
+ * o resto fica na fila, na ordem original.
+ */
+export async function drenarHistorico(userId: string): Promise<number> {
   const pendentes = ler<EntradaHistorico[]>(CHAVES.historicoPendente, []);
   if (pendentes.length === 0) return 0;
 
   const restantes: EntradaHistorico[] = [];
   let enviados = 0;
-  let parou = false;
 
   for (const entrada of pendentes) {
-    if (parou || !navigator.onLine) {
+    if (entrada.userId !== userId || !navigator.onLine) {
       restantes.push(entrada);
       continue;
     }
@@ -108,9 +117,9 @@ export async function drenarHistorico(): Promise<number> {
         { ms: TETO_LOG_MS, label: 'histórico pendente' },
       );
       enviados++;
-    } catch {
-      restantes.push(entrada);
-      parou = true;
+    } catch (erro) {
+      if (isPermissaoNegada(erro)) console.warn('[histórico] Recusado pela regra, descartado:', erro);
+      else restantes.push(entrada);
     }
   }
 

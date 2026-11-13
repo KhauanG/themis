@@ -436,7 +436,7 @@ export function EstoqueProvider({ children }: { children: ReactNode }) {
 
     try {
       const resultado = await drenarFila();
-      await drenarHistorico();
+      if (usuario) await drenarHistorico(usuario.uid);
       setFila(carregarFila());
 
       const { enviados, motivos, restantes } = resultado;
@@ -485,7 +485,7 @@ export function EstoqueProvider({ children }: { children: ReactNode }) {
     } finally {
       sincronizando.current = false;
     }
-  }, [mostrar]);
+  }, [mostrar, usuario]);
 
   useEffect(() => {
     return monitorarConexao((agoraOnline) => {
@@ -493,6 +493,11 @@ export function EstoqueProvider({ children }: { children: ReactNode }) {
       if (agoraOnline) void sincronizar();
     });
   }, [sincronizar]);
+
+  // Esvazia a fila de histórico ao abrir o app, não só na volta da rede.
+  useEffect(() => {
+    if (usuario && navigator.onLine) void drenarHistorico(usuario.uid);
+  }, [usuario]);
 
   const trocarEstoque = useCallback(
     (id: string) => {
