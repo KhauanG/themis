@@ -1,20 +1,13 @@
 /**
  * Quais estoques cada usuário enxerga.
  *
- * ⚠️ **Isto é escopo de interface, não barreira de segurança.** As Security Rules liberam
- * leitura e escrita de `estoques/{qualquer}/produtos` para qualquer usuário autenticado —
- * era assim no Themis 1.x e continua sendo, porque as regras são compartilhadas entre os
- * dois apps. Quem souber montar a requisição alcança qualquer estoque.
- *
- * Serve para **organizar**: o funcionário da Loja Centro não precisa rolar por seis
- * depósitos para achar o dele, nem contar no lugar errado por engano. Isso tem valor real
- * e evita erro humano — só não é proteção.
- *
- * Para virar barreira de verdade seria preciso mudar `firestore.rules`, o que afeta o 1.x
- * na hora. Registrado em `docs/pendencias.md`.
+ * Desde a 2.14 a regra do Firestore barra a **gravação** fora da lista (`podeAcessarEstoque`
+ * em `firestore/firestore.rules`). A leitura continua aberta de propósito, para o seletor.
+ * Aqui fica o filtro da interface, que não pode ser mais permissivo que a regra.
  *
  * Semântica herdada do 1.x, mantida:
  *  - **lista vazia = acesso a todos**. É o padrão de quem nunca foi configurado.
+ *  - **lista com ids e nenhum existente = nenhum estoque**.
  *  - **master enxerga tudo**, independente da lista.
  *  - sem documento de perfil, libera — não trancar ninguém para fora por falha de leitura.
  */
@@ -47,9 +40,8 @@ export function podeAcessarEstoque(
  * Filtra a lista de estoques pelo que o usuário pode ver.
  *
  * Se a restrição não deixar nenhum estoque de pé — porque os permitidos foram apagados,
- * por exemplo — devolve a lista inteira. Melhor mostrar tudo que deixar o app sem estoque
- * nenhum e o funcionário sem conseguir trabalhar; e o caso é raro o bastante para não
- * valer uma tela de erro.
+ * por exemplo — devolve vazio. A tela "Nenhum estoque" cobre o caso; mostrar tudo seria
+ * mais permissivo que a regra.
  */
 export function filtrarEstoquesPermitidos(
   estoques: readonly Inventory[],
@@ -59,9 +51,29 @@ export function filtrarEstoquesPermitidos(
   if (semRestricaoDeEstoque(perfil, papel)) return [...estoques];
 
   const permitidos = new Set(estoquesPermitidos(perfil));
-  const filtrados = estoques.filter((e) => permitidos.has(e.id));
+  return estoques.filter((e) => permitidos.has(e.id));
+}
 
-  return filtrados.length > 0 ? filtrados : [...estoques];
+/** A lista tem ids e nenhum deles existe em `estoques`. Lista vazia devolve `false` (vale "todos"). */
+export function semNenhumEstoque(lista: readonly string[], estoques: readonly { id: string }[]): boolean {
+  return lista.length > 0 && estoquesExistentes(lista, estoques).length === 0;
+}
+
+/** Os ids de `lista` que existem em `estoques`, na ordem de `lista`. */
+export function estoquesExistentes(lista: readonly string[], estoques: readonly { id: string }[]): string[] {
+  const vivos = new Set(estoques.map((e) => e.id));
+  return lista.filter((id) => vivos.has(id));
+}
+
+/** Desenho 5.3 (F7): lista vazia → "todos os estoques"; nenhum existente → "nenhum estoque"; senão os nomes dos que existem, na ordem da lista, com ", ". */
+export function textoEstoquesPermitidos(
+  lista: readonly string[],
+  estoques: readonly { id: string; nome?: string }[],
+): string {
+  if (lista.length === 0) return 'todos os estoques';
+  const porId = new Map(estoques.map((e) => [e.id, e.nome || e.id]));
+  const nomes = estoquesExistentes(lista, estoques).map((id) => porId.get(id)!);
+  return nomes.length > 0 ? nomes.join(', ') : 'nenhum estoque';
 }
 
 /**

@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
+  estoquesExistentes,
   estoquesPermitidos,
   filtrarEstoquesPermitidos,
   podeAcessarEstoque,
+  semNenhumEstoque,
   semRestricaoDeEstoque,
+  textoEstoquesPermitidos,
 } from './acesso-estoque.js';
 import type { Inventory } from './types.js';
 
@@ -85,13 +88,14 @@ describe('filtrarEstoquesPermitidos', () => {
     expect(r).toHaveLength(3);
   });
 
-  /**
-   * Estoque permitido pode ter sido excluído. Devolver lista vazia deixaria o app sem
-   * contexto e o funcionário sem conseguir trabalhar — pior que mostrar demais.
-   */
-  it('devolve tudo quando a restrição não casa com nada', () => {
-    const r = filtrarEstoquesPermitidos(estoques, { allowedInventories: ['apagado'] }, 'comum');
-    expect(r).toHaveLength(3);
+  // Lista só com ids mortos é "nenhum estoque", como no app e como a regra trata na gravação.
+  it('não devolve nada quando a restrição não casa com nada', () => {
+    expect(filtrarEstoquesPermitidos(estoques, { allowedInventories: ['apagado'] }, 'comum')).toEqual([]);
+  });
+
+  it('id morto ao lado de um vivo: mostra só o vivo', () => {
+    const r = filtrarEstoquesPermitidos(estoques, { allowedInventories: ['apagado', 'centro'] }, 'comum');
+    expect(r.map((e) => e.id)).toEqual(['centro']);
   });
 
   it('não muta a lista recebida', () => {
@@ -107,5 +111,28 @@ describe('filtrarEstoquesPermitidos', () => {
       'comum',
     );
     expect(r.map((e) => e.id)).toEqual(['deposito', 'norte']);
+  });
+});
+
+describe('semNenhumEstoque', () => {
+  it('lista vazia vale todos, não nenhum', () => expect(semNenhumEstoque([], estoques)).toBe(false));
+  it('só ids mortos', () => expect(semNenhumEstoque(['apagado', 'outro'], estoques)).toBe(true));
+  it('um vivo basta', () => expect(semNenhumEstoque(['apagado', 'centro'], estoques)).toBe(false));
+});
+
+describe('estoquesExistentes', () => {
+  it('descarta os mortos e mantém a ordem da lista', () => {
+    expect(estoquesExistentes(['norte', 'apagado', 'centro'], estoques)).toEqual(['norte', 'centro']);
+  });
+});
+
+describe('textoEstoquesPermitidos', () => {
+  it('lista vazia', () => expect(textoEstoquesPermitidos([], estoques)).toBe('todos os estoques'));
+  it('nomes dos que existem, na ordem da lista', () => {
+    expect(textoEstoquesPermitidos(['norte', 'apagado', 'centro'], estoques)).toBe('Loja Norte, Loja Centro');
+  });
+  it('nenhum existente', () => expect(textoEstoquesPermitidos(['apagado'], estoques)).toBe('nenhum estoque'));
+  it('estoque sem nome usa o id', () => {
+    expect(textoEstoquesPermitidos(['x'], [{ id: 'x' }])).toBe('x');
   });
 });

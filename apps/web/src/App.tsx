@@ -51,8 +51,8 @@ function AguardaEstoques({ children }: { children: React.ReactNode }) {
             <h1 className="login__titulo">Nenhum estoque</h1>
           </div>
           <p className="aviso" role="status">
-            Seu usuário não tem nenhum estoque liberado. Peça a um administrador para liberar
-            o acesso em <strong>Usuários</strong>.
+            Seu usuário não tem nenhum estoque liberado. Peça a um master para liberar o
+            acesso em <strong>Usuários</strong>.
           </p>
         </div>
       </main>
