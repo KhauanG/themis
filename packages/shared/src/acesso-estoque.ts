@@ -63,3 +63,16 @@ export function filtrarEstoquesPermitidos(
 
   return filtrados.length > 0 ? filtrados : [...estoques];
 }
+
+/**
+ * Desenho 5.8. A lista de permitidos de quem perde um estoque excluído: tira `idExcluido` e os ids em
+ * branco. `null` = não gravar: o id não está na lista, ou a lista ficaria vazia (vazia = "todos").
+ */
+export function novaListaSemEstoque(
+  listaAtual: readonly unknown[] | null | undefined,
+  idExcluido: string,
+): string[] | null {
+  const lista = estoquesPermitidos({ allowedInventories: (listaAtual ?? undefined) as string[] | undefined });
+  const nova = lista.filter((id) => id !== idExcluido);
+  return nova.length === lista.length || nova.length === 0 ? null : nova;
+}

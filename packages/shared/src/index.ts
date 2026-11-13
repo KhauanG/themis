@@ -15,3 +15,4 @@ export * from './consolidado.js';
 export * from './lote.js';
 export * from './quantidade.js';
 export * from './datas.js';
+export * from './gestao.js';

@@ -1,0 +1,45 @@
+{
+  "versao": [
+    { "texto": "5.4", "aceita": true },
+    { "texto": "5.4.0", "aceita": true },
+    { "texto": "", "aceita": true },
+    { "texto": "  5.4.0  ", "aceita": true },
+    { "texto": "10.20.30", "aceita": true },
+    { "texto": "v5.4.0", "aceita": false },
+    { "texto": "5", "aceita": false },
+    { "texto": "5.4.0.1", "aceita": false },
+    { "texto": "5,4", "aceita": false },
+    { "texto": "5.", "aceita": false },
+    { "texto": "5.4.x", "aceita": false }
+  ],
+  "nomeEstoque": [
+    { "a": "Loja Sul", "b": "loja súl", "repetido": true },
+    { "a": " Loja Sul ", "b": "Loja Sul", "repetido": true },
+    { "a": "Loja Sul", "b": "Loja Sul 2", "repetido": false },
+    { "a": "AÇAÍ", "b": "acai", "repetido": true },
+    { "a": "Loja  Sul", "b": "Loja Sul", "repetido": false }
+  ],
+  "limpezaPermissoes": [
+    { "listaAtual": ["A", "B"], "idExcluido": "A", "esperado": ["B"] },
+    { "listaAtual": ["A"], "idExcluido": "A", "esperado": null },
+    { "listaAtual": ["A", "", "B"], "idExcluido": "A", "esperado": ["B"] },
+    { "listaAtual": ["B"], "idExcluido": "A", "esperado": null },
+    { "listaAtual": ["", "B"], "idExcluido": "A", "esperado": null },
+    { "listaAtual": [], "idExcluido": "A", "esperado": null },
+    { "listaAtual": ["", "A"], "idExcluido": "A", "esperado": null },
+    { "listaAtual": ["A", "B", "A"], "idExcluido": "A", "esperado": ["B"] },
+    { "listaAtual": ["A", "  ", "B", "C"], "idExcluido": "A", "esperado": ["B", "C"] }
+  ],
+  "repeticao": [
+    { "abertura": false, "pedido": false, "servidor": true, "esperado": "NADA_MUDOU" },
+    { "abertura": false, "pedido": true, "servidor": true, "esperado": "JA_GRAVADO" },
+    { "abertura": false, "pedido": true, "servidor": false, "esperado": "GRAVAR" },
+    { "abertura": "5.3.0", "pedido": "5.4.0", "servidor": "5.4.0", "esperado": "JA_GRAVADO" },
+    { "abertura": "5.3.0", "pedido": "5.4.0", "servidor": "5.2.0", "esperado": "GRAVAR" },
+    { "abertura": "", "pedido": "", "servidor": "5.4.0", "esperado": "NADA_MUDOU" },
+    { "abertura": ["A"], "pedido": ["A"], "servidor": ["B"], "esperado": "NADA_MUDOU" },
+    { "abertura": ["A"], "pedido": ["A", "B"], "servidor": ["A", "B"], "esperado": "JA_GRAVADO" },
+    { "abertura": ["A", "B"], "pedido": ["B", "A"], "servidor": ["A", "B"], "esperado": "GRAVAR" },
+    { "abertura": "admin", "pedido": "master", "servidor": "comum", "esperado": "GRAVAR" }
+  ]
+}
