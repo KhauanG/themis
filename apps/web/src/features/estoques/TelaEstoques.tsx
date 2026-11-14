@@ -22,7 +22,7 @@ import {
   type CamposEstoque,
 } from '../../lib/estoques-repo.js';
 import { lerHashesConfigurados, salvarHashDaLoja, testarHash, tomDoTeste } from '../../lib/erp.js';
-import { salvarVersaoApp } from '../../lib/configuracoes-repo.js';
+import { salvarVersaoApp, versaoAppAbertura } from '../../lib/configuracoes-repo.js';
 import { TEXTOS_EXCLUSAO, excluirEstoque, mensagemDaExclusao } from '../../lib/excluir-estoque.js';
 import { mensagemDeFalha } from '../../lib/gestao-escrita.js';
 import { CONTEXTO_GLOBAL, registrar } from '../../lib/historico.js';
@@ -102,8 +102,8 @@ export function TelaEstoques() {
   useEffect(() => {
     if (versaoSuja) return;
     setVersao(configuracoes.versaoApp);
-    setVersaoAberta(configuracoes.versaoApp);
-  }, [configuracoes.versaoApp, versaoSuja]);
+    setVersaoAberta(versaoAppAbertura(configuracoes));
+  }, [configuracoes, versaoSuja]);
 
   async function alternarModoContagem() {
     setSalvandoModo(true);

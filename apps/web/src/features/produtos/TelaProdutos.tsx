@@ -136,7 +136,8 @@ export function TelaProdutos() {
 
   async function cadastrar() {
     if (!estoqueAtual) return;
-    const v = validarCadastroProduto(novo, null, produtos);
+    // O próprio id fica fora: reenvio depois de um "Sem confirmação" que gravou não é duplicado.
+    const v = validarCadastroProduto(novo, null, produtos.filter((p) => p.id !== novo.id));
     if (!v.ok) {
       mostrar(v.mensagem, 'error');
       return;

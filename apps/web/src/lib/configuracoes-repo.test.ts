@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Timestamp } from 'firebase/firestore';
 import { runTransactionWithTimeout } from './firestore-write.js';
 import { transacaoFalsa } from './transacao-falsa.js';
-import { paraConfiguracoes, salvarModoContagem, salvarVersaoApp } from './configuracoes-repo.js';
+import { paraConfiguracoes, salvarModoContagem, salvarVersaoApp, versaoAppAbertura } from './configuracoes-repo.js';
 
 vi.mock('./firebase.js', () => ({ db: {} }));
 vi.mock('./firestore-write.js', async (original) => ({
@@ -26,7 +26,7 @@ beforeEach(() => vi.clearAllMocks());
 
 describe('paraConfiguracoes', () => {
   it('documento ausente: desligado e sem versão', () => {
-    expect(paraConfiguracoes(undefined)).toEqual({ modoContagem: false, versaoApp: '' });
+    expect(paraConfiguracoes(undefined)).toEqual({ modoContagem: false, versaoApp: '', versaoAppEmNumero: false });
   });
   it('versão em número vira texto; outro tipo vira vazio', () => {
     expect(paraConfiguracoes({ latestNativeAppVersion: 5.4 }).versaoApp).toBe('5.4');
@@ -70,6 +70,12 @@ describe('salvarVersaoApp', () => {
   it('campo ausente no servidor conta como vazio', async () => {
     servidor({ 'appSettings/global': { modoContagem: false } });
     expect(await salvarVersaoApp('', '5.3.0')).toEqual({ resultado: 'JA_GRAVADO', de: '5.3.0' });
+  });
+  it('número no servidor: salvar o mesmo valor regrava como texto', async () => {
+    const gravacoes = servidor({ 'appSettings/global': { latestNativeAppVersion: 5.4 } });
+    const abertura = versaoAppAbertura(paraConfiguracoes({ latestNativeAppVersion: 5.4 }));
+    expect(await salvarVersaoApp('5.4', abertura)).toEqual({ resultado: 'GRAVAR', de: '5.4 (número)' });
+    expect(gravacoes[0]!.dados!['latestNativeAppVersion']).toBe('5.4');
   });
   it('recusa da transação sobe para a tela', async () => {
     vi.mocked(runTransactionWithTimeout).mockRejectedValue(Object.assign(new Error('x'), { code: 'permission-denied' }));

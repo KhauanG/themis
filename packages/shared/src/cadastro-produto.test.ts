@@ -40,6 +40,16 @@ describe('produto.json', () => {
   });
 });
 
+describe('validarCadastroProduto', () => {
+  it('reenvio do cadastro: o próprio id, já gravado, fica fora de outros', () => {
+    const novo = { nome: 'Agua', codigoBarras: '7891', idErp: '45' };
+    const gravado: Produto = { id: 'p-novo', nome: 'Agua', codigoBarras: '7891', IdProduto: '45' };
+    expect(validarCadastroProduto(novo, null, [gravado]).ok).toBe(false);
+    expect(validarCadastroProduto(novo, null, [gravado].filter((p) => p.id !== 'p-novo')))
+      .toEqual({ ok: true, campos: novo });
+  });
+});
+
 describe('idErpValido', () => {
   it('só dígitos, sem zero à esquerda', () => {
     expect(['1', '45', ' 45 ', '100'].map(idErpValido)).toEqual([true, true, true, true]);

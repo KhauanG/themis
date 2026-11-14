@@ -25,11 +25,14 @@ export interface Configuracoes {
   modoContagem: boolean;
   /** Versão mais nova do app nativo (`latestNativeAppVersion`). Vazio desliga o aviso de app desatualizado. */
   versaoApp: string;
+  /** O servidor guarda a versão como número (o Console aceita), e a regra nova exige texto. */
+  versaoAppEmNumero: boolean;
 }
 
 export const CONFIGURACOES_PADRAO: Configuracoes = {
   modoContagem: false,
   versaoApp: '',
+  versaoAppEmNumero: false,
 };
 
 export function paraConfiguracoes(dados: DocumentData | undefined): Configuracoes {
@@ -39,7 +42,16 @@ export function paraConfiguracoes(dados: DocumentData | undefined): Configuracoe
     modoContagem: dados['modoContagem'] === true,
     // O Console aceita número (5.4); o app lê texto.
     versaoApp: typeof versao === 'string' ? versao : typeof versao === 'number' ? String(versao) : '',
+    versaoAppEmNumero: typeof versao === 'number',
   };
+}
+
+/**
+ * Valor de abertura da versão, para `salvarVersaoApp`. Número fica marcado: salvar o mesmo
+ * valor precisa regravar como texto (o script das travas manda o dono fazer isso).
+ */
+export function versaoAppAbertura(c: Configuracoes): string {
+  return c.versaoAppEmNumero ? `${c.versaoApp} (número)` : c.versaoApp;
 }
 
 export function ouvirConfiguracoes(aoMudar: (c: Configuracoes) => void): () => void {
@@ -78,7 +90,7 @@ export function salvarVersaoApp(versao: string, abertura: string): Promise<Resul
     rotulo: 'salvar versão do app',
     abertura,
     pedido: versao.trim(),
-    ler: (d) => paraConfiguracoes(d).versaoApp,
+    ler: (d) => versaoAppAbertura(paraConfiguracoes(d)),
     // A regra cobra `lastUpdated`; `updatedAt` seria negado.
     dados: (v) => ({ latestNativeAppVersion: v, lastUpdated: agora() }),
   });
