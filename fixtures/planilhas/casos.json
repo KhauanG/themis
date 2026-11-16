@@ -13,5 +13,11 @@
     { "cabecalhos": ["Produto", "Estoque sistema", "Contado", "Diferença", "Status", "Validade"], "mapa": { "NomeProduto": 0, "EstoqueAtual": 1 } },
     { "cabecalhos": ["Nome", null, "Estoque"], "mapa": { "NomeProduto": 0, "EstoqueAtual": 2 } },
     { "cabecalhos": ["Coisa", "Outra"], "mapa": {} }
+  ],
+  "ids": [
+    { "chave": "id:7", "id": "imp-cbf7819ddb9b767284c9a6a21461e9d5" },
+    { "chave": "id:1001", "id": "imp-c83292b66eb3d5713e2cba0004d41eff" },
+    { "chave": "nome:produto teste 1", "id": "imp-2e2da79beb624d513a09793cab634963" },
+    { "chave": "nome:açaí 500 ml", "id": "imp-5ec8c960019dd16a68d584465c01aecf" }
   ]
 }

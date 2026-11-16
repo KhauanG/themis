@@ -41,7 +41,19 @@ import {
   initializeTestEnvironment,
   type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing';
-import { deleteDoc, deleteField, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import {
+  collection,
+  deleteDoc,
+  deleteField,
+  doc,
+  documentId,
+  getDoc,
+  getDocs,
+  query,
+  setDoc,
+  updateDoc,
+  where,
+} from 'firebase/firestore';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 let ambiente: RulesTestEnvironment;
@@ -688,5 +700,54 @@ describe('reforço — appSettings', () => {
       await setDoc(doc(ctx.firestore(), 'appSettings/global'), { modoContagem: false, latestNativeAppVersion: 5.3 });
     });
     await soNaNova(setDoc(ref('admin'), { modoContagem: true, lastUpdated: new Date() }, { merge: true }));
+  });
+});
+
+// A importação relê os ids de cada lote de "criar" em grupos de 30 (desenho 9.4). O limite
+// é do servidor; o SDK não confere. Este teste é a prova que temos sem a documentação.
+describe('releitura da importação', () => {
+  it('uma consulta por documentId() in aceita 30 ids', async () => {
+    const ids = Array.from({ length: 30 }, (_, i) => `imp-${i}`);
+    await ambiente.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'estoques/E-importacao/produtos/imp-7'), PRODUTO_VALIDO);
+    });
+    const banco = ambiente.authenticatedContext('quem-importa').firestore();
+    const snap = await assertSucceeds(
+      getDocs(query(collection(banco, 'estoques/E-importacao/produtos'), where(documentId(), 'in', ids))),
+    );
+    expect(snap.docs.map((d) => d.id)).toEqual(['imp-7']);
+  });
+});
+
+// O plano confia em `problemasDeProduto` como espelho da regra. Estes três provam, no
+// emulador, que o que a importação grava passa, e que o legado inválido não passa.
+describe('o que a importação grava', () => {
+  const CARIMBOS = { lastImportDate: new Date(), lastModified: new Date(), modifiedBy: 'aparelho-teste' };
+  const produtoX = (id: string) => doc(como('master'), `estoques/X/produtos/${id}`);
+  const semear = (id: string, dados: Record<string, unknown>) =>
+    ambiente.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `estoques/X/produtos/${id}`), dados);
+    });
+
+  it('produto novo inteiro, com id imp-', async () => {
+    await assertSucceeds(
+      setDoc(produtoX('imp-cbf7819ddb9b767284c9a6a21461e9d5'), {
+        nome: 'PRODUTO TESTE 1', NomeProduto: 'PRODUTO TESTE 1',
+        codigoBarras: '7890000010016', CodigoBarras: '7890000010016', temCodigoBarras: true,
+        IdProduto: '007', PrecoVenda: 9.9, quantidade: 0, estoqueSistema: 4, EstoqueAtual: 4,
+        inventoryId: 'X', createdAt: new Date(), ...CARIMBOS,
+      }),
+    );
+  });
+
+  it('legado sem quantidade ganha a quantidade junto da mudança', async () => {
+    await semear('legado', { nome: 'ANTIGO', codigoBarras: '', estoqueFisico: 4 });
+    await assertSucceeds(updateDoc(produtoX('legado'), { NCM: '1', quantidade: 4, ...CARIMBOS }));
+  });
+
+  // Review Focus 1: é este documento que derrubaria o lote de 500.
+  it('legado com corrigidoIncorreto nulo recusa o update', async () => {
+    await semear('ruim', { ...PRODUTO_VALIDO, corrigidoIncorreto: null });
+    await assertFails(updateDoc(produtoX('ruim'), { NCM: '1', ...CARIMBOS }));
   });
 });

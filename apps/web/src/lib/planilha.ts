@@ -27,6 +27,13 @@ async function carregarExcelJS() {
   return (raiz.default ?? mod) as typeof mod;
 }
 
+/** Id do produto novo: `imp-` + os 32 primeiros hex do SHA-256 (UTF-8) da chave de casamento. */
+export async function idDeImportacao(chave: string): Promise<string> {
+  const resumo = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(chave));
+  const hex = Array.from(new Uint8Array(resumo), (b) => b.toString(16).padStart(2, '0')).join('');
+  return `imp-${hex.slice(0, 32)}`;
+}
+
 /**
  * Uma linha aproveitada da planilha.
  *
