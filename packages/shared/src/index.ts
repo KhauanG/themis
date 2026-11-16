@@ -20,3 +20,4 @@ export * from './primeiro-acesso.js';
 export * from './cadastro-produto.js';
 export * from './historico-filtro.js';
 export * from './planejar-importacao.js';
+export * from './importacao-textos.js';
