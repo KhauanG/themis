@@ -33,6 +33,11 @@ produtos-invalidos.json
 *.xlsx
 *.xls
 *.csv
+# Exceção: arquivos de teste sintéticos, iguais no site e no app (nunca o catálogo do cliente).
+!fixtures/planilhas/*.xlsx
+!fixtures/planilhas/*.xls
+# Gerado por `node scripts/gerar-fixtures-planilhas.mjs --grande`. 10 mil linhas: fica fora.
+fixtures/planilhas/19-grande.xlsx
 
 # Indice do CodeGraph. Gerado por `codegraph init`, ~4 MB, e reconstruido
 # a partir do codigo — nao versionar.

@@ -6,3 +6,7 @@
 *.jpg binary
 *.ico binary
 *.woff2 binary
+
+# Bytes exatos: o SHA256SUMS confere, e o app copia os mesmos arquivos.
+fixtures/planilhas/*.xlsx binary
+fixtures/planilhas/*.xls binary

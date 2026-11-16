@@ -1,0 +1,12 @@
+[
+  { "id": "e1", "nome": "PRODUTO TESTE 1", "NomeProduto": "PRODUTO TESTE 1", "IdProduto": "1001",
+    "codigoBarras": "7890000010016", "CodigoBarras": "7890000010016", "temCodigoBarras": true,
+    "NCM": "22030000", "PrecoCusto": 3.5, "PrecoVenda": 5.9, "EstoqueMinimo": 2,
+    "estoqueSistema": 10, "EstoqueAtual": 10, "quantidade": 8, "productStatus": "ATUALIZADO" },
+  { "id": "e2", "nome": "PRODUTO TESTE 2", "NomeProduto": "PRODUTO TESTE 2", "IdProduto": 7,
+    "codigoBarras": "", "CodigoBarras": "", "temCodigoBarras": false,
+    "estoqueSistema": 0, "EstoqueAtual": 0, "quantidade": 0 },
+  { "id": "e3", "nome": "PRODUTO SEM ID", "NomeProduto": "PRODUTO SEM ID",
+    "codigoBarras": "7890000030014", "estoqueSistema": 4, "quantidade": 2, "productStatus": "ATUALIZADO" },
+  { "id": "e4", "nome": "PRODUTO LEGADO", "codigoBarras": "", "idProdut": "1004", "estoqueFisico": 6 }
+]
