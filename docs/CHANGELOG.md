@@ -6,6 +6,48 @@ Categorias: **Adicionado**, **Alterado**, **Corrigido**, **Removido**, **Seguran
 
 ---
 
+## 2.26.0 — 2026-11-16
+
+Etapa 4 no site, segunda parte: a importação de planilha não perde mais dado, mostra uma prévia e pode ser repetida. É a versão que o app 5.7.0 vai copiar.
+
+### Adicionado
+
+- "Conferir a planilha": antes de gravar, a tela mostra o arquivo e a aba lida, qual coluna virou qual campo, as colunas sem uso, e quantas linhas são novas, atualizadas, sem mudança e recusadas.
+- Linhas recusadas aparecem com o número da linha e o motivo: nome com mais de 300 letras, código do produto inválido, número inválido, preço ou mínimo negativo, linha repetida, produto do banco com campo inválido.
+- Aviso de possíveis duplicados (mesmo nome, um deles sem código do produto). O site só avisa; não junta.
+- `fixtures/planilhas/`: 21 planilhas sintéticas, com o resultado esperado e um `SHA256SUMS`, iguais para o site e o app.
+
+### Alterado
+
+- A importação grava só o que mudou. Reimportar o mesmo arquivo não escreve nada e não acorda os celulares.
+- Código repetido em duas linhas: vale a primeira. Antes, criava dois produtos.
+- Produto novo ganha um id fixo, tirado do código ou do nome. Repetir a importação não duplica.
+- Só arquivo `.xlsx`, com internet, até 20.000 linhas.
+- O histórico da importação guarda o arquivo, os atualizados, os sem mudança e as recusadas. É gravado também quando a importação para no meio, desde que algum produto tenha entrado ou a parada tenha sido por falta de confirmação.
+- Ao tocar em "Importar", o site lê os produtos de novo e refaz a conta. Os números finais podem diferir dos da prévia.
+- Nomes de coluna parecidos só casam por palavra inteira. "Qtde" continua valendo como saldo.
+
+### Corrigido
+
+- Célula vazia ou coluna ausente apagava o código de barras e zerava o preço e o mínimo do produto. O preço zerado ia ao Nuvem3 no Corrigir. Agora vazio não mexe.
+- A importação regravava a quantidade lida antes, por cima de uma contagem feita no meio. Agora não toca na quantidade de quem já tem número.
+- Número em texto com ponto decimal ("12.5") virava 125. "R$ 12,50" virava 0.
+- Uma coluna em branco no cabeçalho derrubava a leitura.
+- "Validade" era lida como código do produto, e "Preço Unitário" como unidade.
+- Quando a importação parava no meio, a tela mandava não repetir e não dizia quanto entrou. Agora diz "Gravou X de Y" e manda importar o mesmo arquivo de novo.
+- Um produto antigo com campo inválido derrubava o lote de 500 inteiro.
+
+### Notas
+
+- Sem `deploy-rules` nem `deploy-indexes`: regra e índice não mudam.
+- Não dá mais para limpar um campo pela planilha. É de propósito.
+- Não importe a mesma planilha em dois aparelhos ao mesmo tempo. Se um deles ficar sem confirmação, o lote dele pode subir depois e zerar a quantidade de um produto novo que alguém já contou.
+- `docs/mapa.md` não foi regenerado nesta versão.
+- O arquivo `01-erp-dialeto.xlsx` é a nossa suposição do formato do Nuvem3, até o dono mandar a amostra anônima.
+- Publicar depois das 21:00, com admins e masters avisados. Uma aba antiga segue na 2.25.0 até recarregar; nela, a importação ainda é a velha.
+
+---
+
 ## 2.25.0 — 2026-11-13
 
 Etapa 4 no site: a gestão (configurações, estoques, usuários, produtos e histórico) corrigida, para o app copiar o mesmo formato. Uma regra nova do Firestore fica pronta e testada; publicar é decisão do dono.
