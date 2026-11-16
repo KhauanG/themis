@@ -48,6 +48,9 @@ Caminho: `estoques/{inventoryId}/produtos/{produtoId}`
 | `lastModified` | timestamp | não | controle de concorrência |
 | `modifiedBy` | string | não | `deviceId` de quem gravou |
 
+Produto criado pela importação, a partir da 2.26.0, tem id `imp-…` (32 hex do SHA-256 da chave
+de casamento: o código do produto ou o nome). Os mais antigos têm id automático do Firestore.
+
 ### ⚠️ Regras de tipo — o erro mais caro do projeto
 
 As Security Rules validam o **documento resultante** de qualquer update. Um produto com um

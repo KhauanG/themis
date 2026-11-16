@@ -246,9 +246,24 @@ arquivo sintético no mesmo dialeto.
 
 **Causa.** Importação que só cria. O 1.x fazia upsert por `IdProduto`.
 
-**Evitar.** `importarProdutos()` atualiza quem já existe e **preserva a contagem em
-andamento**. Produto contado mantém `quantidade` e `productStatus`; a planilha atualiza o
-cadastro, não a contagem.
+**Evitar.** `planejarImportacao()` atualiza quem já existe e **preserva a contagem em
+andamento**: `quantidade` e `productStatus` não são escritos em produto que já existe. A
+planilha atualiza o cadastro, não a contagem.
+
+### Célula vazia apagava o cadastro
+
+**Causa.** A leitura devolvia célula vazia como `''` e `0`, e a importação gravava. Apagava o
+código de barras e zerava o preço, e o preço zerado ia ao Nuvem3 no Corrigir.
+
+**Evitar.** A leitura devolve campo **ausente** (sem a chave) para célula vazia e coluna que
+não existe, e o plano só inclui campo presente. Ausente não mexe no produto.
+
+### `"12.5"` virava 125
+
+**Causa.** A conversão tirava todo ponto do texto, pensando que era milhar.
+
+**Evitar.** `numeroDeCelula` (`packages/shared/src/planilha-colunas.ts`), com os casos de
+`fixtures/planilhas/casos.json`. O que não vira número volta `null` e a linha é recusada.
 
 ### A importação precisa trazer preço
 

@@ -139,15 +139,39 @@ export function mapearColunas(cabecalhos: readonly unknown[]): MapaColunas {
 /**
  * Número a partir de célula da planilha.
  *
- * Aceita vírgula decimal — a planilha do ERP às vezes vem com o número já formatado como
- * texto. Mesma conversão do `extractNumber` do 1.x.
+ * Regra do texto: com ponto e vírgula juntos, o último é o decimal; só vírgula é decimal;
+ * só ponto é milhar apenas no formato `1.234` (grupos de três). Vazio é `undefined` (a
+ * planilha não fala daquele campo); o que não vira número é `null`. Data, booleano e erro
+ * em coluna de número também são `null`.
  */
-export function numeroDeCelula(valor: unknown): number {
-  if (typeof valor === 'number') return Number.isFinite(valor) ? valor : 0;
-  const texto = String(valor ?? '').trim();
-  if (texto === '') return 0;
-  const n = Number.parseFloat(texto.replace(/\./g, '').replace(',', '.'));
-  return Number.isFinite(n) ? n : 0;
+export function numeroDeCelula(valor: unknown): number | null | undefined {
+  if (valor === null || valor === undefined) return undefined;
+  if (typeof valor === 'number') return Number.isFinite(valor) ? valor : null;
+  if (typeof valor === 'boolean' || valor instanceof Date) return null;
+  if (typeof valor === 'object') {
+    const cel = valor as { result?: unknown; text?: unknown; richText?: unknown };
+    if (cel.result !== undefined) return numeroDeCelula(cel.result);
+    if (typeof cel.text !== 'string' && !Array.isArray(cel.richText)) return null;
+  }
+
+  let texto = textoDeCelula(valor).replace(/R\$/gi, '').replace(/\s/g, '');
+  if (texto === '') return undefined;
+
+  const negativo = texto.startsWith('-');
+  if (negativo) texto = texto.slice(1);
+
+  const ponto = texto.lastIndexOf('.');
+  const virgula = texto.lastIndexOf(',');
+  if (ponto >= 0 && virgula >= 0) {
+    texto = ponto > virgula ? texto.replace(/,/g, '') : texto.replace(/\./g, '').replace(',', '.');
+  } else if (virgula >= 0) {
+    texto = texto.replace(',', '.');
+  } else if (/^\d{1,3}(\.\d{3})+$/.test(texto)) {
+    texto = texto.replace(/\./g, '');
+  }
+
+  if (!/^(\d+\.?\d*|\.\d+)$/.test(texto)) return null;
+  return negativo ? 0 - Number(texto) : Number(texto);
 }
 
 /** Texto a partir de célula. Célula com fórmula chega como objeto com `result`. */

@@ -177,7 +177,7 @@ O recorte no PDF diz a situação e as divergências juntas ("Somente não conta
 | Ação | O que faz |
 |---|---|
 | Cadastrar produto | Nome, código de barras, estoque do sistema |
-| Importar planilha | `.xlsx`, em lotes de 500, com barra de progresso |
+| Importar planilha | Só `.xlsx`, com internet. Grava só o que mudou, em lotes de 500, com barra de progresso |
 | Enviar contagem ao ERP | Só itens contados que tenham `IdProduto` |
 | Limpar contagem | Zera a rodada — inclusive as validades |
 
@@ -194,15 +194,25 @@ Aceita outras grafias (`nome`/`produto`/`descrição`, `codigo de barras`/`ean`/
 `quantidade`/`saldo`/`estoque`, ...) — a detecção casa primeiro por **igualdade exata** e só
 depois por aproximação, para que `CodigoInterno` não roube a coluna de `CodigoBarras`.
 
-**Só o nome é obrigatório.** Linha sem nome é ignorada e contabilizada. Sem coluna de saldo,
-o produto novo entra com `0` e o produto que já existe **mantém o saldo que tinha** — a
-planilha não falou sobre isso.
+**Só o nome é obrigatório.** Linha sem nome é contada e ignorada.
 
-**É upsert, não recriação.** Casa por `IdProduto` (por nome, quando a linha não tem id) e:
+**Célula vazia, ou coluna que não existe, não mexe** no produto que já existe. A leitura devolve
+o campo ausente, e o plano só inclui o que a planilha traz.
 
-- produto **novo** → criado com `quantidade: 0`;
-- produto **existente** → cadastro atualizado, e a **contagem em andamento é preservada**:
-  quem já foi contado mantém `quantidade` e `productStatus`.
+**Quem decide é o `planejarImportacao`** (`packages/shared`), função pura, sem banco. A leitura
+da planilha só diz o que está nas células.
+
+- Casa pelo código do produto (com e sem zeros à esquerda: `007` e `7` são o mesmo) ou, sem
+  código, pelo nome em minúsculas. Código repetido na planilha: vale a primeira linha.
+- Produto que **existe**: grava só os campos que mudaram. Sem diferença, nada é escrito.
+  `quantidade` nunca é escrita em quem já tem número, então a **contagem em andamento é
+  preservada**. Ver [armadilhas.md](armadilhas.md) §Planilha.
+- Produto **novo**: nasce com `quantidade: 0` e id `imp-` + SHA-256 da chave de casamento.
+  Importar o mesmo arquivo de novo não duplica.
+- **Recusa**, com linha e motivo: nome com mais de 300 letras; código do produto inválido;
+  número inválido em um campo; preço ou mínimo negativo; linha repetida (vale a primeira);
+  produto do banco com campo inválido. A recusa não derruba o lote.
+- Saldo negativo entra. Preço e mínimo negativos não.
 
 > Reimportar não pode dividir a contagem entre uma cópia velha e uma nova. Antes disto, a
 > importação só criava — e reimportar o catálogo duplicava 1600 produtos.
@@ -210,8 +220,17 @@ planilha não falou sobre isso.
 Preço e estoque mínimo são gravados mesmo sem aparecer em tela: fazem parte do payload que o
 ERP espera na correção de estoque (§O contrato com o ERP).
 
-⚠️ Em lotes de 500 (o limite do Firestore). Uma escrita por produto, com teto de 8s cada,
-tornava a importação de 2000 linhas inviável.
+**Ordem da gravação.** Lê os produtos **do servidor** (nunca do cache), atualiza, depois cria.
+Antes de cada lote de criar, relê os ids, para não recriar o que um lote anterior já gravou.
+Lotes de 500 (o limite do Firestore).
+
+**Parada no meio.** A tela diz "Gravou X de Y. Importe o mesmo arquivo de novo para terminar."
+Repetir é seguro: o que já entrou não muda, e o que faltou é criado.
+
+**Histórico.** O evento `IMPORTAR_PLANILHA` só é gravado quando o servidor aceitou algum
+produto, ou quando a gravação parou no teto de tempo (o lote ficou na fila e pode subir).
+
+**Limites.** Só `.xlsx`, e com internet. Teto de 20.000 linhas. `.xls` e `.csv` não entram.
 
 ⚠️ O arquivo do ERP vem num dialeto OOXML que o `exceljs` não abre sozinho; ele é
 normalizado antes da leitura. Ver [armadilhas.md](armadilhas.md) §Planilha.

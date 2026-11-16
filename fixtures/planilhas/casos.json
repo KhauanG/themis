@@ -19,5 +19,29 @@
     { "chave": "id:1001", "id": "imp-c83292b66eb3d5713e2cba0004d41eff" },
     { "chave": "nome:produto teste 1", "id": "imp-2e2da79beb624d513a09793cab634963" },
     { "chave": "nome:açaí 500 ml", "id": "imp-5ec8c960019dd16a68d584465c01aecf" }
+  ],
+  "numeros": [
+    { "texto": "12.5", "esperado": 12.5 },
+    { "texto": "0.5", "esperado": 0.5 },
+    { "texto": "12,5", "esperado": 12.5 },
+    { "texto": "29,99", "esperado": 29.99 },
+    { "texto": "1.234,56", "esperado": 1234.56 },
+    { "texto": "1.234,50", "esperado": 1234.5 },
+    { "texto": "1,234.56", "esperado": 1234.56 },
+    { "texto": "1.234", "esperado": 1234 },
+    { "texto": "12.500", "esperado": 12500 },
+    { "texto": "1.234.567", "esperado": 1234567 },
+    { "texto": "R$ 12,50", "esperado": 12.5 },
+    { "texto": " 7 ", "esperado": 7 },
+    { "texto": "-3", "esperado": -3 },
+    { "texto": "0", "esperado": 0 },
+    { "texto": "abc", "esperado": "invalido" },
+    { "texto": "7 un", "esperado": "invalido" },
+    { "texto": "1e3", "esperado": "invalido" },
+    { "texto": "1.2.3", "esperado": "invalido" },
+    { "texto": "1,234,567", "esperado": "invalido" },
+    { "texto": "-", "esperado": "invalido" },
+    { "texto": "", "esperado": "ausente" },
+    { "texto": "   ", "esperado": "ausente" }
   ]
 }

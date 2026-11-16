@@ -99,21 +99,34 @@ describe('mapearColunas', () => {
 });
 
 describe('numeroDeCelula', () => {
-  it('passa número adiante', () => {
+  const traduzir = (e: number | string) => (e === 'invalido' ? null : e === 'ausente' ? undefined : e);
+
+  it.each(casos.numeros)('casos compartilhados: "$texto"', ({ texto, esperado }) => {
+    expect(numeroDeCelula(texto)).toBe(traduzir(esperado));
+  });
+
+  it('passa número adiante; NaN e infinito são inválidos', () => {
     expect(numeroDeCelula(18.5)).toBe(18.5);
     expect(numeroDeCelula(0)).toBe(0);
+    expect(numeroDeCelula(Number.NaN)).toBeNull();
+    expect(numeroDeCelula(Number.POSITIVE_INFINITY)).toBeNull();
   });
 
-  it('aceita vírgula decimal e separador de milhar', () => {
-    expect(numeroDeCelula('29,99')).toBe(29.99);
-    expect(numeroDeCelula('1.234,50')).toBe(1234.5);
+  it('célula vazia é ausente, não zero', () => {
+    expect(numeroDeCelula(null)).toBeUndefined();
+    expect(numeroDeCelula(undefined)).toBeUndefined();
   });
 
-  it('vazio e lixo viram 0, nunca NaN', () => {
-    expect(numeroDeCelula('')).toBe(0);
-    expect(numeroDeCelula(null)).toBe(0);
-    expect(numeroDeCelula('abc')).toBe(0);
-    expect(numeroDeCelula(Number.NaN)).toBe(0);
+  it('lê o resultado da fórmula e o texto formatado', () => {
+    expect(numeroDeCelula({ formula: 'A1+1', result: 2 })).toBe(2);
+    expect(numeroDeCelula({ formula: 'A1', result: '' })).toBeUndefined();
+    expect(numeroDeCelula({ richText: [{ text: '12' }, { text: ',5' }] })).toBe(12.5);
+  });
+
+  it('data, booleano e erro em coluna de número são inválidos', () => {
+    expect(numeroDeCelula(new Date(2026, 0, 31))).toBeNull();
+    expect(numeroDeCelula(true)).toBeNull();
+    expect(numeroDeCelula({ error: '#N/A' })).toBeNull();
   });
 });
 
@@ -140,6 +153,12 @@ describe('textoDeCelula', () => {
   it('vazio e nulo viram string vazia', () => {
     expect(textoDeCelula(null)).toBe('');
     expect(textoDeCelula(undefined)).toBe('');
+  });
+
+  it('data e erro viram vazio; booleano vira texto', () => {
+    expect(textoDeCelula(new Date(2026, 0, 31))).toBe('');
+    expect(textoDeCelula({ error: '#N/A' })).toBe('');
+    expect(textoDeCelula(true)).toBe('true');
   });
 });
 

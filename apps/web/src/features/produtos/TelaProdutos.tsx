@@ -1,10 +1,17 @@
 import { useRef, useState } from 'react';
 import {
   TEXTO_FALHA,
+  detalhesDaImportacao,
+  deveRegistrarImportacao,
   gestaoDeCadastroBloqueada,
+  linhasComNome,
+  mensagemDaImportacao,
+  planejarImportacao,
   rotuloDaRodada,
   travaAntesDeGravar,
   validarCadastroProduto,
+  type PlanoImportacao,
+  type ProdutoDoBanco,
 } from '@themis/shared';
 import { useEstoque } from '../../contexts/EstoqueContext.js';
 import { useAuth } from '../../contexts/AuthContext.js';
@@ -16,13 +23,13 @@ import {
   atualizarEstoqueSistema,
   cadastrarProduto,
   excluirTodosProdutos,
-  importarProdutos,
   limparContagem,
   novoIdDeProduto,
 } from '../../lib/produtos-repo.js';
 import { encerrarLote } from '../../lib/estoques-repo.js';
 import { buscarEstoqueDoErp } from '../../lib/erp.js';
-import { lerPlanilha } from '../../lib/planilha.js';
+import { gravarImportacao, lerProdutosDoServidor } from '../../lib/importacao-repo.js';
+import { ErroDePlanilha, lerPlanilha } from '../../lib/planilha.js';
 import { registrar } from '../../lib/historico.js';
 import { isWriteTimeout } from '../../lib/firestore-write.js';
 import { mensagemDeFalha } from '../../lib/gestao-escrita.js';
@@ -85,52 +92,60 @@ export function TelaProdutos() {
 
   async function importar(arquivo: File) {
     if (!estoqueAtual) return;
+    if (!navigator.onLine) {
+      mostrar('Sem internet. A importação precisa de conexão.', 'error');
+      if (entradaArquivo.current) entradaArquivo.current.value = '';
+      return;
+    }
     setOcupado({ texto: 'Lendo planilha' });
     try {
-      const { linhas, ignoradas, colunasFaltando, temColunaEstoque } = await lerPlanilha(arquivo);
-
-      if (colunasFaltando.length > 0) {
-        mostrar(`A planilha não tem as colunas: ${colunasFaltando.join(', ')}.`, 'error');
+      const leitura = await lerPlanilha(arquivo);
+      if (leitura.colunasFaltando.length > 0) {
+        mostrar(`A planilha não tem as colunas: ${leitura.colunasFaltando.join(', ')}.`, 'error');
         return;
       }
-      if (linhas.length === 0) {
+
+      // Do servidor, nunca do cache: planejar em cima de lista velha recriaria produto.
+      let existentes: ProdutoDoBanco[];
+      try {
+        existentes = await lerProdutosDoServidor(estoqueAtual.id);
+      } catch (erro) {
+        console.error('[produtos] Leitura do servidor falhou:', erro);
+        mostrar('Não foi possível ler os produtos do servidor. Nada foi importado.', 'error');
+        return;
+      }
+
+      const plano = planejarImportacao(existentes, leitura.linhas);
+      if (linhasComNome(plano) === 0) {
         mostrar('Nenhuma linha válida encontrada na planilha.', 'warning');
         return;
       }
-
-      // Upsert por `IdProduto`, como no 1.x: reimportar atualiza o cadastro e **preserva a
-      // contagem em andamento**, em vez de criar uma segunda cópia de cada produto.
-      const { criados, atualizados } = await importarProdutos(
-        estoqueAtual.id,
-        linhas,
-        temColunaEstoque,
-        (feitos, total) => setOcupado({ texto: 'Importando', feitos, total }),
-      );
-
-      const partes = [
-        criados > 0 ? `${criados} ${criados === 1 ? 'novo' : 'novos'}` : null,
-        atualizados > 0 ? `${atualizados} atualizado${atualizados === 1 ? '' : 's'}` : null,
-        ignoradas > 0 ? `${ignoradas} linha${ignoradas === 1 ? '' : 's'} sem nome` : null,
-      ].filter(Boolean);
-      mostrar(`Importação concluída: ${partes.join(', ')}.`, 'success');
-
-      if (contextoLog) {
-        void registrar('IMPORTAR_PLANILHA', contextoLog, {
-          criados,
-          atualizados,
-          ignoradas,
-          linhas: linhas.length,
-        });
-      }
+      await gravarPlano(estoqueAtual.id, arquivo.name, plano);
     } catch (erro) {
-      console.error('[produtos] Importação falhou:', erro);
-      mostrar(
-        isWriteTimeout(erro) ? AVISO_NAO_CONFIRMADO : 'Não foi possível importar a planilha.',
-        isWriteTimeout(erro) ? 'warning' : 'error',
-      );
+      console.error('[produtos] Leitura da planilha falhou:', erro);
+      mostrar(erro instanceof ErroDePlanilha ? erro.message : 'Não foi possível importar a planilha.', 'error');
     } finally {
       setOcupado(null);
       if (entradaArquivo.current) entradaArquivo.current.value = '';
+    }
+  }
+
+  // O estoque vem de quem chama: a prévia (Task 8) guarda o estoque em que foi montada.
+  async function gravarPlano(inventoryId: string, arquivo: string, plano: PlanoImportacao) {
+    setOcupado({ texto: 'Importando' });
+    try {
+      const resultado = await gravarImportacao(inventoryId, plano, (feitos, total) =>
+        setOcupado({ texto: 'Importando', feitos, total }),
+      );
+      const { texto, tipo } = mensagemDaImportacao(plano, resultado);
+      mostrar(texto, tipo);
+      // Só o que o servidor aceitou, ou o lote que ficou na fila (teto). Recusa com zero
+      // gravado não vira "Importou planilha" no histórico (desenho 5.2).
+      if (contextoLog && deveRegistrarImportacao(resultado)) {
+        void registrar('IMPORTAR_PLANILHA', contextoLog, detalhesDaImportacao(arquivo, plano, resultado));
+      }
+    } finally {
+      setOcupado(null);
     }
   }
 
@@ -402,7 +417,7 @@ export function TelaProdutos() {
           <input
             ref={entradaArquivo}
             type="file"
-            accept=".xlsx,.xls"
+            accept=".xlsx"
             hidden
             onChange={(e) => {
               const arquivo = e.target.files?.[0];

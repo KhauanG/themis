@@ -4,13 +4,18 @@
  * Usa `exceljs`, mantido no npm, no lugar do `xlsx` que o 1.x carregava direto no HTML
  * (861 KB em toda abertura do app, versão do npm sem as correções publicadas só no CDN).
  * Entra por import dinâmico: só quem importa ou exporta paga o custo.
+ *
+ * A leitura não decide nada: devolve o que a planilha diz, com célula vazia e coluna ausente
+ * como campo ausente. Quem decide o que entra, o que muda e o que se recusa é
+ * `planejarImportacao`, em `@themis/shared`.
  */
 import {
   mapearColunas,
   numeroDeCelula,
   textoDeCelula,
-  type CampoPlanilha,
+  type LinhaPlanilha,
   type LinhaRelatorio,
+  type MapaColunas,
 } from '@themis/shared';
 import { entregarArquivo, nomeDeArquivo } from './arquivo.js';
 import { normalizarPacoteXlsx } from './planilha-formato.js';
@@ -34,107 +39,97 @@ export async function idDeImportacao(chave: string): Promise<string> {
   return `imp-${hex.slice(0, 32)}`;
 }
 
-/**
- * Uma linha aproveitada da planilha.
- *
- * Traz mais do que a contagem precisa de propósito: `PrecoCusto`, `PrecoVenda` e
- * `EstoqueMinimo` **fazem parte do payload que o ERP espera** na correção de estoque. Se a
- * importação os descartasse, toda correção mandaria `0` para produto que tem preço.
- */
-export interface LinhaImportada {
-  nome: string;
-  codigoBarras: string;
-  IdProduto: string | null;
-  estoqueSistema: number;
-  temCodigoBarras: boolean;
-  CodigoInterno: string;
-  NCM: string;
-  PrecoCusto: number;
-  PrecoPJ: number;
-  PrecoVenda: number;
-  EstoqueMinimo: number;
-  Categoria: string;
-  Unidade: string;
-}
+export const LIMITE_LINHAS_PLANILHA = 20_000;
 
-export interface ResultadoImportacao {
-  linhas: LinhaImportada[];
-  /** Linhas sem nome de produto. Não dá para importar produto sem nome. */
-  ignoradas: number;
-  /** Vazio quando a planilha serve. Só o nome é indispensável, como no 1.x. */
+/** Erro de leitura cuja mensagem é texto de tela. */
+export class ErroDePlanilha extends Error {}
+
+export interface LeituraPlanilha {
+  /** Nome da aba lida: a primeira, na ordem do arquivo. */
+  aba: string;
+  /** Texto de cada célula da linha 1. Coluna em branco é `''`. */
+  cabecalhos: string[];
+  mapa: MapaColunas;
+  /** `['nome do produto']` quando falta a coluna de nome; aí `linhas` vem vazia. */
   colunasFaltando: string[];
-  /**
-   * A planilha trazia coluna de saldo.
-   *
-   * Quando **não** trazia, o saldo do produto que já existe não pode ser sobrescrito com
-   * zero: a planilha simplesmente não fala sobre isso. É a mesma distinção que o 1.x fazia
-   * com `hasEstoqueAtualColumn`.
-   */
-  temColunaEstoque: boolean;
+  /** Toda linha com algum valor, menos a 1, na ordem. Inclui as sem nome. */
+  linhas: LinhaPlanilha[];
 }
 
-export async function lerPlanilha(arquivo: File): Promise<ResultadoImportacao> {
+const CAMPOS_DE_TEXTO = [
+  ['NomeProduto', 'nome'],
+  ['IdProduto', 'IdProduto'],
+  ['CodigoBarras', 'codigoBarras'],
+  ['CodigoInterno', 'CodigoInterno'],
+  ['NCM', 'NCM'],
+  ['Categoria', 'Categoria'],
+  ['Unidade', 'Unidade'],
+] as const;
+
+const CAMPOS_NUMERICOS = [
+  ['PrecoCusto', 'PrecoCusto'],
+  ['PrecoPJ', 'PrecoPJ'],
+  ['PrecoVenda', 'PrecoVenda'],
+  ['EstoqueMinimo', 'EstoqueMinimo'],
+  ['EstoqueAtual', 'estoqueSistema'],
+] as const;
+
+export async function lerPlanilha(arquivo: File): Promise<LeituraPlanilha> {
+  const dados = await arquivo.arrayBuffer();
+  // Todo .xlsx é um zip, e todo zip começa com "PK". Pega .csv e .xls renomeados.
+  const inicio = new Uint8Array(dados, 0, Math.min(2, dados.byteLength));
+  if (inicio.length < 2 || inicio[0] !== 0x50 || inicio[1] !== 0x4b) {
+    throw new ErroDePlanilha('Salve a planilha como .xlsx e tente de novo.');
+  }
+
   const ExcelJS = await carregarExcelJS();
   const pasta = new ExcelJS.Workbook();
 
   // O ERP gera OOXML num dialeto que o `exceljs` não abre. Ver `planilha-formato.ts`.
-  await pasta.xlsx.load(await normalizarPacoteXlsx(await arquivo.arrayBuffer()));
+  await pasta.xlsx.load(await normalizarPacoteXlsx(dados));
 
   const aba = pasta.worksheets[0];
-  if (!aba) throw new Error('A planilha está vazia.');
-
-  // `values` do exceljs é 1-based: a posição 0 nunca é usada.
-  const cabecalhos = ((aba.getRow(1).values as unknown[]) ?? []).slice(1);
-  const mapa = mapearColunas(cabecalhos);
-
-  // Só o nome é obrigatório — mesma regra do 1.x. Sem `EstoqueAtual` o produto entra com
-  // saldo 0, que é o certo: "Buscar estoque" preenche depois a partir do ERP.
-  const temColunaEstoque = mapa.EstoqueAtual !== undefined;
-
-  if (mapa.NomeProduto === undefined) {
-    return { linhas: [], ignoradas: 0, colunasFaltando: ['nome do produto'], temColunaEstoque };
+  if (!aba) throw new ErroDePlanilha('A planilha está vazia.');
+  // Antes do eachRow: não monta 20 mil objetos à toa. O 1 é o cabeçalho.
+  if (aba.actualRowCount > LIMITE_LINHAS_PLANILHA + 1) {
+    throw new ErroDePlanilha('A planilha tem mais de 20.000 linhas. Divida o arquivo.');
   }
 
-  const linhas: LinhaImportada[] = [];
-  let ignoradas = 0;
+  // `values` do exceljs é 1-based (a posição 0 nunca é usada) e vem com buraco onde a coluna
+  // está em branco; `Array.from` tapa os buracos.
+  const cabecalhos = Array.from((aba.getRow(1).values as unknown[]) ?? [])
+    .slice(1)
+    .map(textoDeCelula);
+  const mapa = mapearColunas(cabecalhos);
 
+  if (mapa.NomeProduto === undefined) {
+    return { aba: aba.name, cabecalhos, mapa, colunasFaltando: ['nome do produto'], linhas: [] };
+  }
+
+  // O `eachRow` já pula a linha sem nenhum valor. Aqui entra só a chave que tem valor: vazio
+  // e coluna ausente são a mesma coisa, "não mexa".
+  const linhas: LinhaPlanilha[] = [];
   aba.eachRow((linha, numero) => {
     if (numero === 1) return;
     const valores = ((linha.values as unknown[]) ?? []).slice(1);
-
-    const celula = (campo: CampoPlanilha): unknown => {
+    const celula = (campo: keyof MapaColunas): unknown => {
       const i = mapa[campo];
       return i === undefined ? undefined : valores[i];
     };
-    const texto = (campo: CampoPlanilha) => textoDeCelula(celula(campo));
-    const numero_ = (campo: CampoPlanilha) => numeroDeCelula(celula(campo));
 
-    const nome = texto('NomeProduto');
-    if (!nome) {
-      ignoradas++;
-      return;
+    const item: LinhaPlanilha = { linha: numero };
+    for (const [campo, chave] of CAMPOS_DE_TEXTO) {
+      const t = textoDeCelula(celula(campo));
+      if (t !== '') item[chave] = t;
     }
-
-    const codigo = texto('CodigoBarras');
-
-    linhas.push({
-      nome,
-      codigoBarras: codigo,
-      IdProduto: texto('IdProduto') || null,
-      estoqueSistema: numero_('EstoqueAtual'),
-      temCodigoBarras: codigo !== '',
-      CodigoInterno: texto('CodigoInterno'),
-      NCM: texto('NCM'),
-      PrecoCusto: numero_('PrecoCusto'),
-      PrecoPJ: numero_('PrecoPJ'),
-      PrecoVenda: numero_('PrecoVenda'),
-      EstoqueMinimo: numero_('EstoqueMinimo'),
-      Categoria: texto('Categoria'),
-      Unidade: texto('Unidade'),
-    });
+    for (const [campo, chave] of CAMPOS_NUMERICOS) {
+      const n = numeroDeCelula(celula(campo));
+      if (n !== undefined) item[chave] = n;
+    }
+    linhas.push(item);
   });
 
-  return { linhas, ignoradas, colunasFaltando: [], temColunaEstoque };
+  return { aba: aba.name, cabecalhos, mapa, colunasFaltando: [], linhas };
 }
 
 export async function exportarPlanilha(

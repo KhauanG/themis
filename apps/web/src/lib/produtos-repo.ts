@@ -20,13 +20,10 @@ import {
 import {
   LIMITE_CRITICO,
   camposDoProduto,
-  chavesDeIdProduto,
   dadosDeCadastro,
   dadosDeEdicao,
   decidirEdicao,
   fisicoDe,
-  idProdutoDe,
-  nomeDe,
   saldoDoErpPara,
   saldoNoErp,
   sistemaDe,
@@ -395,139 +392,6 @@ export async function marcarConferido(
     }),
     { label: 'marcar conferido' },
   );
-}
-
-/** Uma linha da planilha, no formato que a importação consome. */
-export interface ProdutoDaPlanilha {
-  nome: string;
-  codigoBarras: string;
-  IdProduto: string | null;
-  estoqueSistema: number;
-  temCodigoBarras: boolean;
-  CodigoInterno: string;
-  NCM: string;
-  PrecoCusto: number;
-  PrecoPJ: number;
-  PrecoVenda: number;
-  EstoqueMinimo: number;
-  Categoria: string;
-  Unidade: string;
-}
-
-export interface ResultadoImportacaoProdutos {
-  criados: number;
-  atualizados: number;
-}
-
-/** Chave de casamento do produto do banco com a linha da planilha. */
-function chavesDeCasamento(p: Produto): string[] {
-  const porId = chavesDeIdProduto(idProdutoDe(p) ?? p.idProdut);
-  // Sem IdProduto, o nome é o que resta. Sem isso, cada reimportação criaria de novo todo
-  // produto cadastrado à mão — que é justamente quem não tem id do ERP.
-  return porId.length > 0 ? porId : [`nome:${nomeDe(p).trim().toLowerCase()}`];
-}
-
-/**
- * Importa a planilha **atualizando quem já existe**, em vez de criar tudo de novo.
- *
- * É o `processImportData` do 1.x. A versão anterior do 2.0 só criava: reimportar o catálogo
- * duplicava os 1600 produtos, e a contagem em andamento ficava dividida entre a cópia velha
- * e a nova.
- *
- * ⚠️ **A contagem já feita é preservada.** Produto contado neste ciclo mantém `quantidade`
- * e `productStatus`. A planilha atualiza o cadastro; ela não tem opinião sobre a contagem.
- * Quem não foi contado vai a `quantidade: 0` — as regras exigem `quantidade is number`, e
- * produto legado sem o campo seria recusado no update.
- *
- * `estoqueSistema` só é sobrescrito quando a planilha traz coluna de saldo.
- */
-export async function importarProdutos(
-  inventoryId: string,
-  linhas: readonly ProdutoDaPlanilha[],
-  temColunaEstoque: boolean,
-  aoProgredir?: (feitos: number, total: number) => void,
-): Promise<ResultadoImportacaoProdutos> {
-  const existentes = await carregarProdutos(inventoryId);
-
-  // Primeiro a vencer fica: duplicata no banco não deve fazer a segunda roubar a linha.
-  const porChave = new Map<string, Produto>();
-  for (const p of existentes) {
-    for (const chave of chavesDeCasamento(p)) if (!porChave.has(chave)) porChave.set(chave, p);
-  }
-
-  const agora = new Date();
-  const autor = deviceId();
-  let criados = 0;
-  let atualizados = 0;
-
-  /** Campos que vêm da planilha, iguais para criação e atualização. */
-  const doCadastro = (l: ProdutoDaPlanilha): Record<string, unknown> => ({
-    nome: l.nome,
-    // A grafia legada acompanha porque o acervo tem documentos nas duas formas e a
-    // leitura precisa dos dois. Só para de ser gravada junto de uma normalização do banco
-    // — ver docs/pendencias.md §3.
-    NomeProduto: l.nome,
-    codigoBarras: l.codigoBarras,
-    CodigoBarras: l.codigoBarras,
-    temCodigoBarras: l.temCodigoBarras,
-    CodigoInterno: l.CodigoInterno,
-    NCM: l.NCM,
-    // Preço e mínimo não aparecem em tela nenhuma — vão para o payload do ERP.
-    PrecoCusto: l.PrecoCusto,
-    PrecoPJ: l.PrecoPJ,
-    PrecoVenda: l.PrecoVenda,
-    EstoqueMinimo: l.EstoqueMinimo,
-    Categoria: l.Categoria,
-    Unidade: l.Unidade,
-    lastImportDate: agora,
-    lastModified: agora,
-    modifiedBy: autor,
-    ...(l.IdProduto ? { IdProduto: l.IdProduto } : {}),
-  });
-
-  for (let i = 0; i < linhas.length; i += LIMITE_BATCH) {
-    const fatia = linhas.slice(i, i + LIMITE_BATCH);
-    const lote = writeBatch(db);
-
-    for (const l of fatia) {
-      const chaves =
-        l.IdProduto === null
-          ? [`nome:${l.nome.trim().toLowerCase()}`]
-          : chavesDeIdProduto(l.IdProduto);
-      const existente = chaves.map((c) => porChave.get(c)).find((p) => p !== undefined);
-
-      if (existente) {
-        const contado =
-          existente.productStatus === 'ATUALIZADO' ||
-          existente.productStatus === 'CONFERIDO' ||
-          fisicoDe(existente) > 0;
-
-        lote.update(doc(colecaoProdutos(inventoryId), existente.id), {
-          ...doCadastro(l),
-          quantidade: contado ? fisicoDe(existente) : 0,
-          ...(temColunaEstoque
-            ? { estoqueSistema: l.estoqueSistema, EstoqueAtual: l.estoqueSistema }
-            : {}),
-        });
-        atualizados++;
-      } else {
-        lote.set(doc(colecaoProdutos(inventoryId)), {
-          ...doCadastro(l),
-          quantidade: 0,
-          estoqueSistema: l.estoqueSistema,
-          EstoqueAtual: l.estoqueSistema,
-          inventoryId,
-          createdAt: agora,
-        });
-        criados++;
-      }
-    }
-
-    await exigirGravacao(lote.commit(), { ms: 20_000, label: 'importar planilha' });
-    aoProgredir?.(Math.min(i + fatia.length, linhas.length), linhas.length);
-  }
-
-  return { criados, atualizados };
 }
 
 export interface OpcoesSincronia {

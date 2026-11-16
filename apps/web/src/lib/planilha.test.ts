@@ -1,6 +1,6 @@
 import JSZip from 'jszip';
 import { describe, expect, it } from 'vitest';
-import { lerPlanilha } from './planilha.js';
+import { ErroDePlanilha, lerPlanilha } from './planilha.js';
 
 const NS = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
 const NS_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
@@ -126,98 +126,95 @@ const LINHA_ERP = [
 const TETO_CARGA_FRIA_MS = 30_000;
 
 describe('lerPlanilha', { timeout: TETO_CARGA_FRIA_MS }, () => {
-  /**
-   * A regressão que motivou tudo: a planilha do ERP usa prefixo de namespace e alvo
-   * absoluto nas relações. O `exceljs` estourava com "Cannot set properties of undefined
-   * (setting 'sheetNo')" — mensagem que não diz nada sobre a causa. O 1.x lia normalmente,
-   * porque usava SheetJS.
-   */
-  it('lê a planilha no dialeto do ERP (prefixo x: e alvo absoluto)', async () => {
-    const arquivo = await montarXlsx(CABECALHOS_ERP, [LINHA_ERP], {
-      prefixo: 'x',
-      alvoAbsoluto: true,
-    });
-    const { linhas, ignoradas, colunasFaltando } = await lerPlanilha(arquivo);
+  const ERP_LIDA = {
+    linha: 2, nome: 'ABRIDOR DE VINHO - GRANDE', IdProduto: '30289733', codigoBarras: '7908486122205',
+    PrecoCusto: 18.5, PrecoVenda: 29.99, EstoqueMinimo: 1, estoqueSistema: 7, Unidade: 'Unidade',
+  };
 
-    expect(colunasFaltando).toEqual([]);
-    expect(ignoradas).toBe(0);
-    expect(linhas).toHaveLength(1);
-    expect(linhas[0]).toMatchObject({
-      nome: 'ABRIDOR DE VINHO - GRANDE',
-      IdProduto: '30289733',
-      codigoBarras: '7908486122205',
-      estoqueSistema: 7,
-      temCodigoBarras: true,
-      PrecoCusto: 18.5,
-      PrecoVenda: 29.99,
-      EstoqueMinimo: 1,
-      Unidade: 'Unidade',
-    });
+  // A regressão que motivou a normalização: prefixo de namespace e alvo absoluto.
+  it('lê a planilha no dialeto do ERP (prefixo x: e alvo absoluto)', async () => {
+    const arquivo = await montarXlsx(CABECALHOS_ERP, [LINHA_ERP], { prefixo: 'x', alvoAbsoluto: true });
+    const leitura = await lerPlanilha(arquivo);
+    expect(leitura.aba).toBe('Produtos');
+    expect(leitura.cabecalhos).toEqual(CABECALHOS_ERP);
+    expect(leitura.colunasFaltando).toEqual([]);
+    expect(leitura.mapa.NomeProduto).toBe(1);
+    expect(leitura.linhas).toEqual([ERP_LIDA]);
   });
 
   it('continua lendo planilha comum, salva pelo Excel', async () => {
-    const arquivo = await montarXlsx(CABECALHOS_ERP, [LINHA_ERP]);
-    const { linhas } = await lerPlanilha(arquivo);
-    expect(linhas[0]?.nome).toBe('ABRIDOR DE VINHO - GRANDE');
+    const { linhas } = await lerPlanilha(await montarXlsx(CABECALHOS_ERP, [LINHA_ERP]));
+    expect(linhas).toEqual([ERP_LIDA]);
   });
 
-  // Preço e mínimo vão para o payload do ERP na correção de estoque. Descartá-los aqui
-  // faria toda correção mandar 0 para produto que tem preço cadastrado.
-  it('preserva preços e estoque mínimo', async () => {
-    const arquivo = await montarXlsx(CABECALHOS_ERP, [LINHA_ERP], { prefixo: 'x' });
-    const [linha] = (await lerPlanilha(arquivo)).linhas;
-    expect(linha?.PrecoCusto).toBe(18.5);
-    expect(linha?.PrecoVenda).toBe(29.99);
-    expect(linha?.EstoqueMinimo).toBe(1);
-  });
-
-  it('aceita cabeçalhos em outras grafias', async () => {
+  // O defeito D1: vazio chegava como '' e 0, e a importação apagava o cadastro.
+  it('célula vazia e coluna ausente chegam ausentes', async () => {
     const arquivo = await montarXlsx(
-      ['ID', 'Nome', 'Código de Barras', 'Quantidade'],
-      [[42, 'CERVEJA LATA', '789', 3]],
+      ['IdProduto', 'NomeProduto', 'CodigoBarras', 'PrecoVenda', 'EstoqueAtual'],
+      [[1, 'X', null, null, null]],
     );
     const [linha] = (await lerPlanilha(arquivo)).linhas;
-    expect(linha).toMatchObject({
-      nome: 'CERVEJA LATA',
-      IdProduto: '42',
-      codigoBarras: '789',
-      estoqueSistema: 3,
+    expect(linha).toEqual({ linha: 2, IdProduto: '1', nome: 'X' });
+    expect(Object.keys(linha!).sort()).toEqual(['IdProduto', 'linha', 'nome']);
+  });
+
+  it('linha sem nome chega sem nome, com o número da planilha', async () => {
+    const arquivo = await montarXlsx(CABECALHOS_ERP, [LINHA_ERP, [999, '', null, '111', null, 0, null, 0, 0, 0, null, '']]);
+    expect((await lerPlanilha(arquivo)).linhas[1]).toEqual({
+      linha: 3, IdProduto: '999', codigoBarras: '111', PrecoCusto: 0, PrecoVenda: 0, EstoqueMinimo: 0, estoqueSistema: 0,
     });
   });
 
-  it('ignora linha sem nome e conta quantas foram', async () => {
-    const arquivo = await montarXlsx(CABECALHOS_ERP, [
-      LINHA_ERP,
-      [999, '', null, '111', null, 0, null, 0, 0, 0, null, ''],
+  it('número em texto: ponto decimal, R$, e o que não é número vira null', async () => {
+    const arquivo = await montarXlsx(['Nome', 'PrecoVenda', 'Saldo'], [['A', '12.5', 'R$ 12,50'], ['B', 'abc', '1.234,56']]);
+    expect((await lerPlanilha(arquivo)).linhas).toEqual([
+      { linha: 2, nome: 'A', PrecoVenda: 12.5, estoqueSistema: 12.5 },
+      { linha: 3, nome: 'B', PrecoVenda: null, estoqueSistema: 1234.56 },
     ]);
-    const { linhas, ignoradas } = await lerPlanilha(arquivo);
-    expect(linhas).toHaveLength(1);
-    expect(ignoradas).toBe(1);
   });
 
-  it('produto sem código de barras entra, marcado', async () => {
-    const arquivo = await montarXlsx(CABECALHOS_ERP, [
-      [1, 'GRANEL', null, null, null, 0, null, 0, 0, 5, null, 'KG'],
+  // N1: o exceljs entrega a linha 1 com buraco, e a aproximação estourava.
+  it('cabeçalho com coluna em branco no meio', async () => {
+    const leitura = await lerPlanilha(await montarXlsx(['Nome', '', 'Estoque total'], [['A', null, 3]]));
+    expect(leitura.cabecalhos).toEqual(['Nome', '', 'Estoque total']);
+    expect(leitura.mapa).toEqual({ NomeProduto: 0, EstoqueAtual: 2 });
+    expect(leitura.linhas).toEqual([{ linha: 2, nome: 'A', estoqueSistema: 3 }]);
+  });
+
+  it('aceita cabeçalhos em outras grafias', async () => {
+    const arquivo = await montarXlsx(['ID', 'Nome', 'Código de Barras', 'Quantidade'], [[42, 'CERVEJA LATA', '789', 3]]);
+    expect((await lerPlanilha(arquivo)).linhas).toEqual([
+      { linha: 2, nome: 'CERVEJA LATA', IdProduto: '42', codigoBarras: '789', estoqueSistema: 3 },
     ]);
-    const [linha] = (await lerPlanilha(arquivo)).linhas;
-    expect(linha?.codigoBarras).toBe('');
-    expect(linha?.temCodigoBarras).toBe(false);
   });
 
   it('recusa planilha sem coluna de nome', async () => {
-    const arquivo = await montarXlsx(['Coisa', 'Outra'], [['a', 'b']]);
-    const { colunasFaltando, linhas } = await lerPlanilha(arquivo);
-    expect(colunasFaltando).toEqual(['nome do produto']);
-    expect(linhas).toEqual([]);
+    const leitura = await lerPlanilha(await montarXlsx(['Coisa', 'Outra'], [['a', 'b']]));
+    expect(leitura.colunasFaltando).toEqual(['nome do produto']);
+    expect(leitura.linhas).toEqual([]);
+    expect(leitura.cabecalhos).toEqual(['Coisa', 'Outra']);
   });
 
-  // Sem coluna de saldo a planilha não fala sobre estoque: sobrescrever com zero apagaria
-  // o saldo do sistema de todo o catálogo.
-  it('avisa quando a planilha não traz coluna de saldo', async () => {
-    const semSaldo = await montarXlsx(['IdProduto', 'NomeProduto'], [[1, 'X']]);
-    expect((await lerPlanilha(semSaldo)).temColunaEstoque).toBe(false);
+  it('arquivo que não é zip pede .xlsx', async () => {
+    const csv = new File(['Nome;Saldo\nA;1\n'], 'produtos.xlsx');
+    await expect(lerPlanilha(csv)).rejects.toThrow(ErroDePlanilha);
+    await expect(lerPlanilha(csv)).rejects.toThrow('Salve a planilha como .xlsx e tente de novo.');
+  });
 
-    const comSaldo = await montarXlsx(CABECALHOS_ERP, [LINHA_ERP]);
-    expect((await lerPlanilha(comSaldo)).temColunaEstoque).toBe(true);
+  it('arquivo vazio pede .xlsx', async () => {
+    await expect(lerPlanilha(new File([], 'vazio.xlsx'))).rejects.toThrow('Salve a planilha como .xlsx e tente de novo.');
+  });
+
+  it('zip que não é planilha rejeita', async () => {
+    const zip = new JSZip();
+    zip.file('leia-me.txt', 'isto não é uma planilha');
+    const arquivo = new File([await zip.generateAsync({ type: 'arraybuffer' })], 'outro.xlsx');
+    await expect(lerPlanilha(arquivo)).rejects.toThrow();
+  });
+
+  it('mais de 20.000 linhas: manda dividir', async () => {
+    const linhas = Array.from({ length: 20_001 }, (_, i) => [i + 1, `PRODUTO ${i + 1}`]);
+    const arquivo = await montarXlsx(['IdProduto', 'NomeProduto'], linhas);
+    await expect(lerPlanilha(arquivo)).rejects.toThrow('A planilha tem mais de 20.000 linhas. Divida o arquivo.');
   });
 });

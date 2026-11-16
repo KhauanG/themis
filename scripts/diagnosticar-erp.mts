@@ -30,7 +30,8 @@
  * Só leitura. Não escreve no ERP nem no Firestore.
  */
 import { readFileSync } from 'node:fs';
-import { lerPlanilha, type LinhaImportada } from '../apps/web/src/lib/planilha.js';
+import { lerPlanilha } from '../apps/web/src/lib/planilha.js';
+import type { LinhaPlanilha } from '@themis/shared';
 
 const URL_LISTAR =
   process.env['ERP_LISTAR_URL'] ??
@@ -214,19 +215,22 @@ if (caminhoPlanilha) {
     [readFileSync(caminhoPlanilha)],
     caminhoPlanilha.split(/[/\\]/).pop() ?? 'planilha.xlsx',
   );
-  const { linhas, colunasFaltando } = await lerPlanilha(arquivo);
+  const leitura = await lerPlanilha(arquivo);
+  const { colunasFaltando } = leitura;
+  // A leitura nova devolve também as linhas sem nome. O cruzamento só quer as com nome, como antes.
+  const linhas = leitura.linhas.filter((l) => l.nome !== undefined);
 
   if (colunasFaltando.length > 0) {
     console.error(`Colunas faltando na planilha: ${colunasFaltando.join(', ')}`);
     process.exit(1);
   }
 
-  const naListagem: LinhaImportada[] = [];
-  const ausentes: LinhaImportada[] = [];
-  const semIdNaPlanilha: LinhaImportada[] = [];
+  const naListagem: LinhaPlanilha[] = [];
+  const ausentes: LinhaPlanilha[] = [];
+  const semIdNaPlanilha: LinhaPlanilha[] = [];
 
   for (const l of linhas) {
-    if (l.IdProduto === null) {
+    if (l.IdProduto === undefined) {
       semIdNaPlanilha.push(l);
       continue;
     }
@@ -242,9 +246,9 @@ if (caminhoPlanilha) {
   }
 
   if (ausentes.length > 0) {
-    const zerados = ausentes.filter((l) => l.estoqueSistema === 0).length;
-    const positivos = ausentes.filter((l) => l.estoqueSistema > 0).length;
-    const negativosP = ausentes.filter((l) => l.estoqueSistema < 0).length;
+    const zerados = ausentes.filter((l) => (l.estoqueSistema ?? 0) === 0).length;
+    const positivos = ausentes.filter((l) => (l.estoqueSistema ?? 0) > 0).length;
+    const negativosP = ausentes.filter((l) => (l.estoqueSistema ?? 0) < 0).length;
 
     console.log(`\nDos ausentes, o saldo que a PLANILHA registrava:`);
     console.log(`  zero     : ${zerados}`);
