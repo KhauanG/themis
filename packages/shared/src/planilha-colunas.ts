@@ -60,6 +60,7 @@ const SINONIMOS: Record<CampoPlanilha, readonly string[]> = {
     'estoque',
     'saldo',
     'qtd',
+    'qtde',
     'stock',
   ],
   Categoria: ['categoria', 'grupo'],
@@ -80,6 +81,13 @@ export function normalizarCabecalho(bruto: unknown): string {
 /** Índice (base 0) de cada campo encontrado nos cabeçalhos. */
 export type MapaColunas = Partial<Record<CampoPlanilha, number>>;
 
+const palavras = (texto: string) => texto.split(/[^a-z0-9]+/).filter(Boolean);
+
+/** As palavras de `sinonimo` aparecem em `cabecalho`, juntas e na ordem. */
+function contemPalavras(cabecalho: string[], sinonimo: string[]): boolean {
+  return cabecalho.some((_, i) => sinonimo.every((p, j) => cabecalho[i + j] === p));
+}
+
 /**
  * Casa cabeçalhos com campos.
  *
@@ -87,15 +95,18 @@ export type MapaColunas = Partial<Record<CampoPlanilha, number>>;
  *
  * 1. **Igualdade exata** do cabeçalho normalizado com algum sinônimo. Determinística, e
  *    resolve a planilha real do ERP inteira.
- * 2. **Aproximação** (um contém o outro), como o `findColumn` do 1.x fazia, só para o que
- *    sobrou. É o que salva cabeçalho tipo `"Código de Barras (EAN)"`.
+ * 2. **Aproximação**, só para o que sobrou: sinônimo de mais de 3 letras, como palavras
+ *    inteiras, dentro do cabeçalho. É o que salva cabeçalho tipo `"Código de Barras (EAN)"`.
+ *    Pedaço de palavra não casa (`"Validade"` não tem `id`) e o sentido inverso saiu
+ *    (`"Estoque"` não vira `EstoqueMinimo`).
  *
  * Sem a primeira passada, a aproximação do 1.x rouba coluna: o sinônimo `'codigo'` casa com
  * `"CodigoInterno"` e o código de barras acaba lido da coluna errada. Uma coluna já usada
  * nunca é reaproveitada por outro campo.
  */
 export function mapearColunas(cabecalhos: readonly unknown[]): MapaColunas {
-  const limpos = cabecalhos.map(normalizarCabecalho);
+  // `Array.from` visita buraco (coluna em branco do exceljs); `map` pularia.
+  const limpos = Array.from(cabecalhos, normalizarCabecalho);
   const mapa: MapaColunas = {};
   const usados = new Set<number>();
 
@@ -115,7 +126,9 @@ export function mapearColunas(cabecalhos: readonly unknown[]): MapaColunas {
     const alvo = SINONIMOS[campo];
     const i = limpos.findIndex(
       (c, idx) =>
-        !usados.has(idx) && c !== '' && alvo.some((s) => c.includes(s) || s.includes(c)),
+        !usados.has(idx) &&
+        c !== '' &&
+        alvo.some((s) => s.length > 3 && contemPalavras(palavras(c), palavras(s))),
     );
     if (i >= 0) reservar(campo, i);
   }
@@ -148,4 +161,48 @@ export function textoDeCelula(valor: unknown): string {
     return '';
   }
   return String(valor).trim();
+}
+
+/** Nome de tela de cada campo, para a prévia. */
+export const ROTULO_CAMPO_PLANILHA: Record<CampoPlanilha, string> = {
+  IdProduto: 'Código do produto',
+  NomeProduto: 'Nome',
+  CodigoInterno: 'Código interno',
+  CodigoBarras: 'Código de barras',
+  NCM: 'NCM',
+  PrecoCusto: 'Preço de custo',
+  PrecoPJ: 'Preço PJ',
+  PrecoVenda: 'Preço de venda',
+  EstoqueMinimo: 'Estoque mínimo',
+  EstoqueAtual: 'Estoque do sistema',
+  Categoria: 'Categoria',
+  Unidade: 'Unidade',
+};
+
+export interface ColunasDescritas {
+  /** Na ordem das colunas da planilha. */
+  usadas: Array<{ coluna: string; campo: CampoPlanilha; rotulo: string }>;
+  /** Cabeçalhos com texto que não viraram campo. Cabeçalho em branco não entra. */
+  semUso: string[];
+}
+
+/** Diz, para a prévia, o que cada coluna virou e o que ficou de fora. */
+export function descreverColunas(
+  cabecalhos: readonly unknown[],
+  mapa: MapaColunas,
+): ColunasDescritas {
+  const campoDaColuna = new Map<number, CampoPlanilha>();
+  for (const campo of ORDEM) {
+    const i = mapa[campo];
+    if (i !== undefined) campoDaColuna.set(i, campo);
+  }
+  const resultado: ColunasDescritas = { usadas: [], semUso: [] };
+  Array.from(cabecalhos).forEach((cabecalho, i) => {
+    const coluna = String(cabecalho ?? '').trim();
+    if (coluna === '') return;
+    const campo = campoDaColuna.get(i);
+    if (campo) resultado.usadas.push({ coluna, campo, rotulo: ROTULO_CAMPO_PLANILHA[campo] });
+    else resultado.semUso.push(coluna);
+  });
+  return resultado;
 }

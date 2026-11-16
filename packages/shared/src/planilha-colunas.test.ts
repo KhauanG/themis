@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { mapearColunas, numeroDeCelula, textoDeCelula } from './planilha-colunas.js';
+import casos from '../../../fixtures/planilhas/casos.json';
+import {
+  ROTULO_CAMPO_PLANILHA,
+  descreverColunas,
+  mapearColunas,
+  numeroDeCelula,
+  textoDeCelula,
+} from './planilha-colunas.js';
 
 describe('mapearColunas', () => {
   it('mapeia a planilha do ERP inteira', () => {
@@ -70,6 +77,25 @@ describe('mapearColunas', () => {
   it('não casa com cabeçalho vazio', () => {
     expect(mapearColunas(['', null, undefined])).toEqual({});
   });
+
+  it.each(casos.colunas)('casos compartilhados: $cabecalhos', ({ cabecalhos, mapa }) => {
+    expect(mapearColunas(cabecalhos)).toEqual(mapa);
+  });
+
+  // O exceljs entrega a linha 1 com buraco quando há coluna em branco. Antes disto,
+  // a aproximação estourava com "Cannot read properties of undefined (reading 'includes')".
+  it('cabeçalho com buraco de verdade não derruba', () => {
+    const comBuraco: unknown[] = [];
+    comBuraco[0] = 'Nome';
+    comBuraco[2] = 'Estoque total';
+    expect(mapearColunas(comBuraco)).toEqual({ NomeProduto: 0, EstoqueAtual: 2 });
+  });
+
+  // "Validade" tem "id" dentro; "Preço Unitário" tem "un". Pedaço de palavra não casa mais.
+  it('sinônimo de até 3 letras só casa por igualdade', () => {
+    expect(mapearColunas(['Validade', 'Unidades', 'Nome'])).toEqual({ NomeProduto: 2 });
+    expect(mapearColunas(['ID', 'UN', 'Nome'])).toEqual({ IdProduto: 0, Unidade: 1, NomeProduto: 2 });
+  });
 });
 
 describe('numeroDeCelula', () => {
@@ -114,5 +140,35 @@ describe('textoDeCelula', () => {
   it('vazio e nulo viram string vazia', () => {
     expect(textoDeCelula(null)).toBe('');
     expect(textoDeCelula(undefined)).toBe('');
+  });
+});
+
+describe('descreverColunas', () => {
+  it('lista as usadas na ordem da planilha e as sem uso', () => {
+    const cabecalhos = ['Nome', '', 'Saldo', 'Excluir', null];
+    expect(descreverColunas(cabecalhos, mapearColunas(cabecalhos))).toEqual({
+      usadas: [
+        { coluna: 'Nome', campo: 'NomeProduto', rotulo: 'Nome' },
+        { coluna: 'Saldo', campo: 'EstoqueAtual', rotulo: 'Estoque do sistema' },
+      ],
+      semUso: ['Excluir'],
+    });
+  });
+
+  it('tem rótulo para os 12 campos', () => {
+    expect(ROTULO_CAMPO_PLANILHA).toEqual({
+      IdProduto: 'Código do produto',
+      NomeProduto: 'Nome',
+      CodigoInterno: 'Código interno',
+      CodigoBarras: 'Código de barras',
+      NCM: 'NCM',
+      PrecoCusto: 'Preço de custo',
+      PrecoPJ: 'Preço PJ',
+      PrecoVenda: 'Preço de venda',
+      EstoqueMinimo: 'Estoque mínimo',
+      EstoqueAtual: 'Estoque do sistema',
+      Categoria: 'Categoria',
+      Unidade: 'Unidade',
+    });
   });
 });
