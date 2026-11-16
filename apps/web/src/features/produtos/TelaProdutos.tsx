@@ -1,12 +1,15 @@
 import { useRef, useState } from 'react';
 import {
   TEXTO_FALHA,
+  avisoDeDuplicados,
+  descreverColunas,
   detalhesDaImportacao,
   deveRegistrarImportacao,
   gestaoDeCadastroBloqueada,
   linhasComNome,
   mensagemDaImportacao,
   planejarImportacao,
+  resumoDoPlano,
   rotuloDaRodada,
   travaAntesDeGravar,
   validarCadastroProduto,
@@ -29,7 +32,7 @@ import {
 import { encerrarLote } from '../../lib/estoques-repo.js';
 import { buscarEstoqueDoErp } from '../../lib/erp.js';
 import { gravarImportacao, lerProdutosDoServidor } from '../../lib/importacao-repo.js';
-import { ErroDePlanilha, lerPlanilha } from '../../lib/planilha.js';
+import { ErroDePlanilha, lerPlanilha, type LeituraPlanilha } from '../../lib/planilha.js';
 import { registrar } from '../../lib/historico.js';
 import { isWriteTimeout } from '../../lib/firestore-write.js';
 import { mensagemDeFalha } from '../../lib/gestao-escrita.js';
@@ -86,6 +89,14 @@ export function TelaProdutos() {
   // O id nasce quando o formulário abre: reenviar depois de um "Sem confirmação" não duplica o produto.
   const [novo, setNovo] = useState({ id: '', nome: '', codigoBarras: '', idErp: '' });
   const [editando, setEditando] = useState<string | null>(null);
+  // `inventoryId`: o estoque em que a prévia foi montada. `plano` é só o que a prévia mostra.
+  const [previa, setPrevia] = useState<{
+    inventoryId: string;
+    arquivo: string;
+    leitura: LeituraPlanilha;
+    plano: PlanoImportacao;
+  } | null>(null);
+  const [verTodasRecusadas, setVerTodasRecusadas] = useState(false);
 
   const bloqueado = ocupado !== null;
   const cadastroBloqueado = gestaoDeCadastroBloqueada(configuracoes);
@@ -120,7 +131,8 @@ export function TelaProdutos() {
         mostrar('Nenhuma linha válida encontrada na planilha.', 'warning');
         return;
       }
-      await gravarPlano(estoqueAtual.id, arquivo.name, plano);
+      setVerTodasRecusadas(false);
+      setPrevia({ inventoryId: estoqueAtual.id, arquivo: arquivo.name, leitura, plano });
     } catch (erro) {
       console.error('[produtos] Leitura da planilha falhou:', erro);
       mostrar(erro instanceof ErroDePlanilha ? erro.message : 'Não foi possível importar a planilha.', 'error');
@@ -147,6 +159,34 @@ export function TelaProdutos() {
     } finally {
       setOcupado(null);
     }
+  }
+
+  async function confirmarImportacao() {
+    if (!previa) return;
+    if (!navigator.onLine) {
+      mostrar('Sem internet. A importação precisa de conexão.', 'error');
+      return;
+    }
+    const { inventoryId, arquivo, leitura } = previa;
+    setPrevia(null);
+    // O estoque aberto mudou com a prévia na tela: não grava os produtos de um no outro.
+    if (inventoryId !== estoqueAtual?.id) {
+      mostrar('Não foi possível importar a planilha.', 'error');
+      return;
+    }
+    // Relê e refaz o plano. O da prévia pode ter minutos: uma contagem feita nesse meio
+    // num produto legado sem `quantidade` seria regravada pelo `estoqueFisico` velho.
+    setOcupado({ texto: 'Importando' });
+    let plano: PlanoImportacao;
+    try {
+      plano = planejarImportacao(await lerProdutosDoServidor(inventoryId), leitura.linhas);
+    } catch (erro) {
+      console.error('[produtos] Leitura do servidor falhou:', erro);
+      mostrar('Não foi possível ler os produtos do servidor. Nada foi importado.', 'error');
+      setOcupado(null);
+      return;
+    }
+    await gravarPlano(inventoryId, arquivo, plano);
   }
 
   async function cadastrar() {
@@ -342,6 +382,8 @@ export function TelaProdutos() {
       </section>
     );
   }
+
+  const colunas = previa ? descreverColunas(previa.leitura.cabecalhos, previa.leitura.mapa) : null;
 
   return (
     <section className="pilha-g">
@@ -558,6 +600,76 @@ export function TelaProdutos() {
             <span className="campo__ajuda">É o código do produto no Nuvem3. Só números.</span>
           </label>
         </div>
+      </Modal>
+
+      {/* Fora do <div hidden> do Cadastro: o `cadastroBloqueado` no botão cobre o modo contagem ligado com a prévia aberta. */}
+      <Modal
+        aberto={previa !== null}
+        titulo="Conferir a planilha"
+        onFechar={() => setPrevia(null)}
+        rodape={
+          <>
+            <button className="botao botao--secundario" type="button" onClick={() => setPrevia(null)}>
+              Cancelar
+            </button>
+            <button
+              className="botao botao--primario"
+              type="button"
+              onClick={() => void confirmarImportacao()}
+              disabled={
+                !previa ||
+                bloqueado ||
+                cadastroBloqueado ||
+                previa.plano.criar.length + previa.plano.atualizar.length === 0
+              }
+            >
+              Importar
+            </button>
+          </>
+        }
+      >
+        {previa && colunas && (
+          <div className="pilha">
+            <p className="subtitulo">
+              {previa.arquivo} · aba "{previa.leitura.aba}"
+            </p>
+            <div>
+              <p className="rotulo-secao">Colunas</p>
+              <ul className="lista-simples">
+                {colunas.usadas.map((c, i) => (
+                  <li key={`${c.coluna}-${i}`}>
+                    {c.coluna} → {c.rotulo}
+                  </li>
+                ))}
+              </ul>
+              {colunas.semUso.length > 0 && <p className="subtitulo">Sem uso: {colunas.semUso.join(', ')}</p>}
+            </div>
+            <p>{resumoDoPlano(previa.plano)}</p>
+            {avisoDeDuplicados(previa.plano) !== null && (
+              <p className="aviso">{avisoDeDuplicados(previa.plano)}</p>
+            )}
+            {previa.plano.recusadas.length > 0 && (
+              <div>
+                <p className="rotulo-secao">Recusadas</p>
+                <ul
+                  className="lista-simples"
+                  style={verTodasRecusadas ? { maxHeight: '40vh', overflowY: 'auto' } : undefined}
+                >
+                  {(verTodasRecusadas ? previa.plano.recusadas : previa.plano.recusadas.slice(0, 5)).map((r, i) => (
+                    <li key={`${r.linha}-${i}`}>
+                      linha {r.linha}: {r.motivo}
+                    </li>
+                  ))}
+                </ul>
+                {!verTodasRecusadas && previa.plano.recusadas.length > 5 && (
+                  <button className="botao botao--secundario" type="button" onClick={() => setVerTodasRecusadas(true)}>
+                    Ver todas
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </Modal>
 
       <ModalCorrigirEstoque aberto={corrigindo} onFechar={() => setCorrigindo(false)} />

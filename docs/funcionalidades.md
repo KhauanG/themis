@@ -194,6 +194,13 @@ Aceita outras grafias (`nome`/`produto`/`descrição`, `codigo de barras`/`ean`/
 `quantidade`/`saldo`/`estoque`, ...) — a detecção casa primeiro por **igualdade exata** e só
 depois por aproximação, para que `CodigoInterno` não roube a coluna de `CodigoBarras`.
 
+**Prévia.** Depois de escolher o arquivo abre "Conferir a planilha", com o arquivo e a aba lida,
+"coluna → campo", as colunas sem uso, a contagem (novos, atualizados, sem mudança, recusadas,
+linhas sem nome), os possíveis duplicados e as recusadas com linha e motivo. **Nada é gravado
+antes do "Importar".** O botão fica desligado quando não há nada a gravar ou com o modo contagem
+ligado. Ao tocar em "Importar", o site lê os produtos do servidor de novo e refaz o plano, então
+os números finais podem diferir dos da prévia. Se o estoque aberto mudou, não importa.
+
 **Só o nome é obrigatório.** Linha sem nome é contada e ignorada.
 
 **Célula vazia, ou coluna que não existe, não mexe** no produto que já existe. A leitura devolve
