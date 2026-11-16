@@ -35,7 +35,7 @@ O Histórico em "Todos" usa só o índice automático de `timestamp`. Usuário e
 A partir do 2.25.0, `firestore/firestore.rules` é a regra **nova**. `npm run deploy-rules` publica ela. Só rode com as condições da seção 7.4 do desenho da Etapa 4 e o OK do dono.
 
 - A regra publicada até a 2.24.0 está guardada, byte a byte, em `firestore/anteriores/firestore-2.24.0.rules`.
-- Qual das duas está publicada: **a da 2.24.0**. Quem publicar a nova atualiza esta linha.
+- Qual das duas está publicada: **a nova, desde 2026-11-16**. Quem voltar para a anterior atualiza esta linha.
 - Antes de publicar, compare o Console com a guardada. Se não bater, alguém editou por lá: pare.
 - `npm run testar-regras` testa a nova. `npm run testar-regras-anterior` testa a guardada. As duas têm de passar.
 - Voltar atrás: `npm run deploy-rules-anterior` publica a guardada. Também só com o OK do dono.

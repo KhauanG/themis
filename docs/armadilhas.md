@@ -251,8 +251,9 @@ avisa quem cuida do app, que copia a pasta inteira.
 **Causa.** Importação que só cria. O 1.x fazia upsert por `IdProduto`.
 
 **Evitar.** `planejarImportacao()` atualiza quem já existe e **preserva a contagem em
-andamento**: `quantidade` e `productStatus` não são escritos em produto que já existe. A
-planilha atualiza o cadastro, não a contagem.
+andamento**: `quantidade` e `productStatus` não são mudados em produto que já existe. A
+planilha atualiza o cadastro, não a contagem. Única exceção: produto antigo sem o campo
+`quantidade` ganha `quantidade: 0` quando a mesma linha já muda outro campo.
 
 ### Célula vazia apagava o cadastro
 
