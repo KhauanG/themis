@@ -1,0 +1,151 @@
+{
+  "aba": "Produtos",
+  "cabecalhos": [
+    "Nome",
+    "PrecoVenda"
+  ],
+  "mapa": {
+    "NomeProduto": 0,
+    "PrecoVenda": 1
+  },
+  "colunasFaltando": [],
+  "linhas": [
+    {
+      "linha": 2,
+      "nome": "NUM A",
+      "PrecoVenda": 12.5
+    },
+    {
+      "linha": 3,
+      "nome": "NUM B",
+      "PrecoVenda": 0.5
+    },
+    {
+      "linha": 4,
+      "nome": "NUM C",
+      "PrecoVenda": 12.5
+    },
+    {
+      "linha": 5,
+      "nome": "NUM D",
+      "PrecoVenda": 1234.56
+    },
+    {
+      "linha": 6,
+      "nome": "NUM E",
+      "PrecoVenda": 12.5
+    },
+    {
+      "linha": 7,
+      "nome": "NUM F",
+      "PrecoVenda": null
+    },
+    {
+      "linha": 8,
+      "nome": "NUM G"
+    }
+  ],
+  "plano": {
+    "criar": [
+      {
+        "linha": 2,
+        "chave": "nome:num a",
+        "campos": {
+          "nome": "NUM A",
+          "NomeProduto": "NUM A",
+          "codigoBarras": "",
+          "CodigoBarras": "",
+          "temCodigoBarras": false,
+          "quantidade": 0,
+          "estoqueSistema": 0,
+          "EstoqueAtual": 0,
+          "PrecoVenda": 12.5
+        }
+      },
+      {
+        "linha": 3,
+        "chave": "nome:num b",
+        "campos": {
+          "nome": "NUM B",
+          "NomeProduto": "NUM B",
+          "codigoBarras": "",
+          "CodigoBarras": "",
+          "temCodigoBarras": false,
+          "quantidade": 0,
+          "estoqueSistema": 0,
+          "EstoqueAtual": 0,
+          "PrecoVenda": 0.5
+        }
+      },
+      {
+        "linha": 4,
+        "chave": "nome:num c",
+        "campos": {
+          "nome": "NUM C",
+          "NomeProduto": "NUM C",
+          "codigoBarras": "",
+          "CodigoBarras": "",
+          "temCodigoBarras": false,
+          "quantidade": 0,
+          "estoqueSistema": 0,
+          "EstoqueAtual": 0,
+          "PrecoVenda": 12.5
+        }
+      },
+      {
+        "linha": 5,
+        "chave": "nome:num d",
+        "campos": {
+          "nome": "NUM D",
+          "NomeProduto": "NUM D",
+          "codigoBarras": "",
+          "CodigoBarras": "",
+          "temCodigoBarras": false,
+          "quantidade": 0,
+          "estoqueSistema": 0,
+          "EstoqueAtual": 0,
+          "PrecoVenda": 1234.56
+        }
+      },
+      {
+        "linha": 6,
+        "chave": "nome:num e",
+        "campos": {
+          "nome": "NUM E",
+          "NomeProduto": "NUM E",
+          "codigoBarras": "",
+          "CodigoBarras": "",
+          "temCodigoBarras": false,
+          "quantidade": 0,
+          "estoqueSistema": 0,
+          "EstoqueAtual": 0,
+          "PrecoVenda": 12.5
+        }
+      },
+      {
+        "linha": 8,
+        "chave": "nome:num g",
+        "campos": {
+          "nome": "NUM G",
+          "NomeProduto": "NUM G",
+          "codigoBarras": "",
+          "CodigoBarras": "",
+          "temCodigoBarras": false,
+          "quantidade": 0,
+          "estoqueSistema": 0,
+          "EstoqueAtual": 0
+        }
+      }
+    ],
+    "atualizar": [],
+    "semMudanca": 0,
+    "recusadas": [
+      {
+        "linha": 7,
+        "motivo": "número inválido em PrecoVenda"
+      }
+    ],
+    "ignoradas": 0,
+    "possiveisDuplicados": 0
+  }
+}

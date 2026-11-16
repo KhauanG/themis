@@ -1,0 +1,43 @@
+{
+  "aba": "Produtos",
+  "cabecalhos": [
+    "Nome",
+    "",
+    "Estoque"
+  ],
+  "mapa": {
+    "NomeProduto": 0,
+    "EstoqueAtual": 2
+  },
+  "colunasFaltando": [],
+  "linhas": [
+    {
+      "linha": 2,
+      "nome": "PRODUTO BURACO",
+      "estoqueSistema": 3
+    }
+  ],
+  "plano": {
+    "criar": [
+      {
+        "linha": 2,
+        "chave": "nome:produto buraco",
+        "campos": {
+          "nome": "PRODUTO BURACO",
+          "NomeProduto": "PRODUTO BURACO",
+          "codigoBarras": "",
+          "CodigoBarras": "",
+          "temCodigoBarras": false,
+          "quantidade": 0,
+          "estoqueSistema": 3,
+          "EstoqueAtual": 3
+        }
+      }
+    ],
+    "atualizar": [],
+    "semMudanca": 0,
+    "recusadas": [],
+    "ignoradas": 0,
+    "possiveisDuplicados": 0
+  }
+}

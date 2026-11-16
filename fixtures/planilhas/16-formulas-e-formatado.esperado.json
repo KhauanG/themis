@@ -1,0 +1,92 @@
+{
+  "aba": "Produtos",
+  "cabecalhos": [
+    "Nome",
+    "CodigoBarras",
+    "PrecoVenda",
+    "Unidade"
+  ],
+  "mapa": {
+    "NomeProduto": 0,
+    "CodigoBarras": 1,
+    "PrecoVenda": 2,
+    "Unidade": 3
+  },
+  "colunasFaltando": [],
+  "linhas": [
+    {
+      "linha": 2,
+      "nome": "FORMULA OK",
+      "codigoBarras": "INLINE123",
+      "Unidade": "UN",
+      "PrecoVenda": 2
+    },
+    {
+      "linha": 3,
+      "nome": "TEXTO EM PARTES",
+      "codigoBarras": "true",
+      "PrecoVenda": 1
+    },
+    {
+      "linha": 4,
+      "nome": "COM ERRO",
+      "Unidade": "UN",
+      "PrecoVenda": null
+    },
+    {
+      "linha": 5,
+      "nome": "DATA NO PRECO",
+      "Unidade": "UN",
+      "PrecoVenda": null
+    }
+  ],
+  "plano": {
+    "criar": [
+      {
+        "linha": 2,
+        "chave": "nome:formula ok",
+        "campos": {
+          "nome": "FORMULA OK",
+          "NomeProduto": "FORMULA OK",
+          "codigoBarras": "INLINE123",
+          "CodigoBarras": "INLINE123",
+          "temCodigoBarras": true,
+          "quantidade": 0,
+          "estoqueSistema": 0,
+          "EstoqueAtual": 0,
+          "Unidade": "UN",
+          "PrecoVenda": 2
+        }
+      },
+      {
+        "linha": 3,
+        "chave": "nome:texto em partes",
+        "campos": {
+          "nome": "TEXTO EM PARTES",
+          "NomeProduto": "TEXTO EM PARTES",
+          "codigoBarras": "true",
+          "CodigoBarras": "true",
+          "temCodigoBarras": true,
+          "quantidade": 0,
+          "estoqueSistema": 0,
+          "EstoqueAtual": 0,
+          "PrecoVenda": 1
+        }
+      }
+    ],
+    "atualizar": [],
+    "semMudanca": 0,
+    "recusadas": [
+      {
+        "linha": 4,
+        "motivo": "número inválido em PrecoVenda"
+      },
+      {
+        "linha": 5,
+        "motivo": "número inválido em PrecoVenda"
+      }
+    ],
+    "ignoradas": 0,
+    "possiveisDuplicados": 0
+  }
+}

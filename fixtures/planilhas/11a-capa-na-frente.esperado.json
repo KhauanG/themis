@@ -1,0 +1,19 @@
+{
+  "aba": "Capa",
+  "cabecalhos": [
+    "Relatório de produtos"
+  ],
+  "mapa": {},
+  "colunasFaltando": [
+    "nome do produto"
+  ],
+  "linhas": [],
+  "plano": {
+    "criar": [],
+    "atualizar": [],
+    "semMudanca": 0,
+    "recusadas": [],
+    "ignoradas": 0,
+    "possiveisDuplicados": 0
+  }
+}

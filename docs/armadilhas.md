@@ -239,8 +239,12 @@ npx tsx scripts/verificar-planilha.mts planilhaprodutos.xlsx
 ```
 
 ⚠️ Planilhas do ERP são o catálogo da empresa: `.xlsx`, `.xls` e `.csv` estão no
-`.gitignore`. Não versione a do cliente para usar em teste — o teste automatizado monta um
-arquivo sintético no mesmo dialeto.
+`.gitignore`. Não versione a do cliente para usar em teste. A única exceção é
+`fixtures/planilhas/`, com arquivos **sintéticos**, iguais no site e no app. Cada um tem um
+`.esperado.json` e a pasta tem um `SHA256SUMS`. O gerador não sobrescreve arquivo que já
+existe: quem muda um arquivo apaga a planilha e o `.esperado.json` dela, roda
+`node scripts/gerar-fixtures-planilhas.mjs` e depois o teste com `GRAVAR_ESPERADO=1`. Depois
+avisa quem cuida do app, que copia a pasta inteira.
 
 ### Reimportar duplica o catálogo
 

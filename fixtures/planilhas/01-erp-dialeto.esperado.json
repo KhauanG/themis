@@ -1,0 +1,100 @@
+{
+  "aba": "Produtos",
+  "cabecalhos": [
+    "IdProduto",
+    "NomeProduto",
+    "CodigoInterno",
+    "CodigoBarras",
+    "NCM",
+    "PrecoCusto",
+    "PrecoPJ",
+    "PrecoVenda",
+    "EstoqueMinimo",
+    "EstoqueAtual",
+    "Categoria",
+    "Unidade",
+    "UsaNoMenuDigital",
+    "UsaBalancaEtiquetadoraStr",
+    "Excluir"
+  ],
+  "mapa": {
+    "IdProduto": 0,
+    "NomeProduto": 1,
+    "CodigoInterno": 2,
+    "CodigoBarras": 3,
+    "NCM": 4,
+    "PrecoCusto": 5,
+    "PrecoPJ": 6,
+    "PrecoVenda": 7,
+    "EstoqueMinimo": 8,
+    "EstoqueAtual": 9,
+    "Categoria": 10,
+    "Unidade": 11
+  },
+  "colunasFaltando": [],
+  "linhas": [
+    {
+      "linha": 2,
+      "nome": "PRODUTO TESTE 1",
+      "IdProduto": "1001",
+      "codigoBarras": "7890000010016",
+      "NCM": "22030000",
+      "Categoria": "BEBIDAS",
+      "Unidade": "UN",
+      "PrecoCusto": 3.5,
+      "PrecoVenda": 6.5,
+      "EstoqueMinimo": 2,
+      "estoqueSistema": 12
+    },
+    {
+      "linha": 3,
+      "nome": "PRODUTO TESTE 9",
+      "IdProduto": "2001",
+      "Unidade": "UN",
+      "PrecoCusto": 1,
+      "PrecoVenda": 2,
+      "EstoqueMinimo": 0,
+      "estoqueSistema": 0
+    }
+  ],
+  "plano": {
+    "criar": [
+      {
+        "linha": 3,
+        "chave": "id:2001",
+        "campos": {
+          "nome": "PRODUTO TESTE 9",
+          "NomeProduto": "PRODUTO TESTE 9",
+          "codigoBarras": "",
+          "CodigoBarras": "",
+          "temCodigoBarras": false,
+          "quantidade": 0,
+          "estoqueSistema": 0,
+          "EstoqueAtual": 0,
+          "IdProduto": "2001",
+          "Unidade": "UN",
+          "PrecoCusto": 1,
+          "PrecoVenda": 2,
+          "EstoqueMinimo": 0
+        }
+      }
+    ],
+    "atualizar": [
+      {
+        "linha": 2,
+        "id": "e1",
+        "campos": {
+          "Categoria": "BEBIDAS",
+          "Unidade": "UN",
+          "PrecoVenda": 6.5,
+          "estoqueSistema": 12,
+          "EstoqueAtual": 12
+        }
+      }
+    ],
+    "semMudanca": 0,
+    "recusadas": [],
+    "ignoradas": 0,
+    "possiveisDuplicados": 0
+  }
+}

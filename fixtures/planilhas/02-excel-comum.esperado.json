@@ -1,0 +1,45 @@
+{
+  "aba": "Planilha1",
+  "cabecalhos": [
+    "IdProduto",
+    "NomeProduto",
+    "EstoqueAtual"
+  ],
+  "mapa": {
+    "IdProduto": 0,
+    "NomeProduto": 1,
+    "EstoqueAtual": 2
+  },
+  "colunasFaltando": [],
+  "linhas": [
+    {
+      "linha": 2,
+      "nome": "PRODUTO TESTE 1",
+      "IdProduto": "1001",
+      "estoqueSistema": 10
+    },
+    {
+      "linha": 3,
+      "nome": "PRODUTO TESTE 2",
+      "IdProduto": "7",
+      "estoqueSistema": 3
+    }
+  ],
+  "plano": {
+    "criar": [],
+    "atualizar": [
+      {
+        "linha": 3,
+        "id": "e2",
+        "campos": {
+          "estoqueSistema": 3,
+          "EstoqueAtual": 3
+        }
+      }
+    ],
+    "semMudanca": 1,
+    "recusadas": [],
+    "ignoradas": 0,
+    "possiveisDuplicados": 0
+  }
+}

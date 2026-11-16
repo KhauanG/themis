@@ -1,0 +1,39 @@
+{
+  "aba": "Oculta",
+  "cabecalhos": [
+    "Nome"
+  ],
+  "mapa": {
+    "NomeProduto": 0
+  },
+  "colunasFaltando": [],
+  "linhas": [
+    {
+      "linha": 2,
+      "nome": "PRODUTO DA OCULTA"
+    }
+  ],
+  "plano": {
+    "criar": [
+      {
+        "linha": 2,
+        "chave": "nome:produto da oculta",
+        "campos": {
+          "nome": "PRODUTO DA OCULTA",
+          "NomeProduto": "PRODUTO DA OCULTA",
+          "codigoBarras": "",
+          "CodigoBarras": "",
+          "temCodigoBarras": false,
+          "quantidade": 0,
+          "estoqueSistema": 0,
+          "EstoqueAtual": 0
+        }
+      }
+    ],
+    "atualizar": [],
+    "semMudanca": 0,
+    "recusadas": [],
+    "ignoradas": 0,
+    "possiveisDuplicados": 0
+  }
+}

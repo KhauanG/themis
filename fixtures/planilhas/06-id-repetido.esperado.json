@@ -1,0 +1,67 @@
+{
+  "aba": "Produtos",
+  "cabecalhos": [
+    "IdProduto",
+    "NomeProduto"
+  ],
+  "mapa": {
+    "IdProduto": 0,
+    "NomeProduto": 1
+  },
+  "colunasFaltando": [],
+  "linhas": [
+    {
+      "linha": 2,
+      "nome": "REPETIDO A",
+      "IdProduto": "2002"
+    },
+    {
+      "linha": 3,
+      "nome": "REPETIDO B",
+      "IdProduto": "2002"
+    },
+    {
+      "linha": 4,
+      "nome": "PRODUTO TESTE 2",
+      "IdProduto": "007"
+    },
+    {
+      "linha": 5,
+      "nome": "PRODUTO TESTE 2 DE NOVO",
+      "IdProduto": "7"
+    }
+  ],
+  "plano": {
+    "criar": [
+      {
+        "linha": 2,
+        "chave": "id:2002",
+        "campos": {
+          "nome": "REPETIDO A",
+          "NomeProduto": "REPETIDO A",
+          "codigoBarras": "",
+          "CodigoBarras": "",
+          "temCodigoBarras": false,
+          "quantidade": 0,
+          "estoqueSistema": 0,
+          "EstoqueAtual": 0,
+          "IdProduto": "2002"
+        }
+      }
+    ],
+    "atualizar": [],
+    "semMudanca": 1,
+    "recusadas": [
+      {
+        "linha": 3,
+        "motivo": "repetida: vale a linha 2"
+      },
+      {
+        "linha": 5,
+        "motivo": "repetida: vale a linha 4"
+      }
+    ],
+    "ignoradas": 0,
+    "possiveisDuplicados": 0
+  }
+}

@@ -1,0 +1,45 @@
+{
+  "aba": "Produtos",
+  "cabecalhos": [
+    "Código",
+    "Nome",
+    "Saldo"
+  ],
+  "mapa": {
+    "NomeProduto": 1,
+    "CodigoBarras": 0,
+    "EstoqueAtual": 2
+  },
+  "colunasFaltando": [],
+  "linhas": [
+    {
+      "linha": 2,
+      "nome": "PRODUTO NOVO C",
+      "codigoBarras": "7890000099996",
+      "estoqueSistema": 1
+    }
+  ],
+  "plano": {
+    "criar": [
+      {
+        "linha": 2,
+        "chave": "nome:produto novo c",
+        "campos": {
+          "nome": "PRODUTO NOVO C",
+          "NomeProduto": "PRODUTO NOVO C",
+          "codigoBarras": "7890000099996",
+          "CodigoBarras": "7890000099996",
+          "temCodigoBarras": true,
+          "quantidade": 0,
+          "estoqueSistema": 1,
+          "EstoqueAtual": 1
+        }
+      }
+    ],
+    "atualizar": [],
+    "semMudanca": 0,
+    "recusadas": [],
+    "ignoradas": 0,
+    "possiveisDuplicados": 0
+  }
+}

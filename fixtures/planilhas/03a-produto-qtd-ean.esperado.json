@@ -1,0 +1,30 @@
+{
+  "aba": "Produtos",
+  "cabecalhos": [
+    "Produto",
+    "Qtd",
+    "EAN"
+  ],
+  "mapa": {
+    "NomeProduto": 0,
+    "CodigoBarras": 2,
+    "EstoqueAtual": 1
+  },
+  "colunasFaltando": [],
+  "linhas": [
+    {
+      "linha": 2,
+      "nome": "PRODUTO SEM ID",
+      "codigoBarras": "7890000030014",
+      "estoqueSistema": 4
+    }
+  ],
+  "plano": {
+    "criar": [],
+    "atualizar": [],
+    "semMudanca": 1,
+    "recusadas": [],
+    "ignoradas": 0,
+    "possiveisDuplicados": 0
+  }
+}

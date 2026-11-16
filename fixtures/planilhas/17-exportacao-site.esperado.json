@@ -1,0 +1,113 @@
+{
+  "aba": "Contagem",
+  "cabecalhos": [
+    "Produto",
+    "Estoque sistema",
+    "Contado",
+    "Diferença",
+    "Status",
+    "Validade"
+  ],
+  "mapa": {
+    "NomeProduto": 0,
+    "EstoqueAtual": 1
+  },
+  "colunasFaltando": [],
+  "linhas": [
+    {
+      "linha": 2,
+      "nome": "PRODUTO TESTE 1",
+      "estoqueSistema": 10
+    },
+    {
+      "linha": 3,
+      "nome": "PRODUTO TESTE 2",
+      "estoqueSistema": 0
+    },
+    {
+      "linha": 4,
+      "nome": "PRODUTO SEM ID",
+      "estoqueSistema": null
+    },
+    {
+      "linha": 5,
+      "nome": "PRODUTO X",
+      "estoqueSistema": 5
+    },
+    {
+      "linha": 6,
+      "nome": "PRODUTO Y",
+      "estoqueSistema": 3
+    }
+  ],
+  "plano": {
+    "criar": [
+      {
+        "linha": 2,
+        "chave": "nome:produto teste 1",
+        "campos": {
+          "nome": "PRODUTO TESTE 1",
+          "NomeProduto": "PRODUTO TESTE 1",
+          "codigoBarras": "",
+          "CodigoBarras": "",
+          "temCodigoBarras": false,
+          "quantidade": 0,
+          "estoqueSistema": 10,
+          "EstoqueAtual": 10
+        }
+      },
+      {
+        "linha": 3,
+        "chave": "nome:produto teste 2",
+        "campos": {
+          "nome": "PRODUTO TESTE 2",
+          "NomeProduto": "PRODUTO TESTE 2",
+          "codigoBarras": "",
+          "CodigoBarras": "",
+          "temCodigoBarras": false,
+          "quantidade": 0,
+          "estoqueSistema": 0,
+          "EstoqueAtual": 0
+        }
+      },
+      {
+        "linha": 5,
+        "chave": "nome:produto x",
+        "campos": {
+          "nome": "PRODUTO X",
+          "NomeProduto": "PRODUTO X",
+          "codigoBarras": "",
+          "CodigoBarras": "",
+          "temCodigoBarras": false,
+          "quantidade": 0,
+          "estoqueSistema": 5,
+          "EstoqueAtual": 5
+        }
+      },
+      {
+        "linha": 6,
+        "chave": "nome:produto y",
+        "campos": {
+          "nome": "PRODUTO Y",
+          "NomeProduto": "PRODUTO Y",
+          "codigoBarras": "",
+          "CodigoBarras": "",
+          "temCodigoBarras": false,
+          "quantidade": 0,
+          "estoqueSistema": 3,
+          "EstoqueAtual": 3
+        }
+      }
+    ],
+    "atualizar": [],
+    "semMudanca": 0,
+    "recusadas": [
+      {
+        "linha": 4,
+        "motivo": "número inválido em EstoqueAtual"
+      }
+    ],
+    "ignoradas": 0,
+    "possiveisDuplicados": 2
+  }
+}

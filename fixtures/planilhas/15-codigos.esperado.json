@@ -1,0 +1,118 @@
+{
+  "aba": "Produtos",
+  "cabecalhos": [
+    "Nome",
+    "CodigoBarras"
+  ],
+  "mapa": {
+    "NomeProduto": 0,
+    "CodigoBarras": 1
+  },
+  "colunasFaltando": [],
+  "linhas": [
+    {
+      "linha": 2,
+      "nome": "EAN NUMERO",
+      "codigoBarras": "7890000150019"
+    },
+    {
+      "linha": 3,
+      "nome": "EAN TEXTO",
+      "codigoBarras": "7890000150026"
+    },
+    {
+      "linha": 4,
+      "nome": "ZERO A ESQUERDA",
+      "codigoBarras": "0789000015003"
+    },
+    {
+      "linha": 5,
+      "nome": "QUATORZE",
+      "codigoBarras": "17890000150016"
+    },
+    {
+      "linha": 6,
+      "nome": "DEZESSEIS",
+      "codigoBarras": "1234567890123456"
+    }
+  ],
+  "plano": {
+    "criar": [
+      {
+        "linha": 2,
+        "chave": "nome:ean numero",
+        "campos": {
+          "nome": "EAN NUMERO",
+          "NomeProduto": "EAN NUMERO",
+          "codigoBarras": "7890000150019",
+          "CodigoBarras": "7890000150019",
+          "temCodigoBarras": true,
+          "quantidade": 0,
+          "estoqueSistema": 0,
+          "EstoqueAtual": 0
+        }
+      },
+      {
+        "linha": 3,
+        "chave": "nome:ean texto",
+        "campos": {
+          "nome": "EAN TEXTO",
+          "NomeProduto": "EAN TEXTO",
+          "codigoBarras": "7890000150026",
+          "CodigoBarras": "7890000150026",
+          "temCodigoBarras": true,
+          "quantidade": 0,
+          "estoqueSistema": 0,
+          "EstoqueAtual": 0
+        }
+      },
+      {
+        "linha": 4,
+        "chave": "nome:zero a esquerda",
+        "campos": {
+          "nome": "ZERO A ESQUERDA",
+          "NomeProduto": "ZERO A ESQUERDA",
+          "codigoBarras": "0789000015003",
+          "CodigoBarras": "0789000015003",
+          "temCodigoBarras": true,
+          "quantidade": 0,
+          "estoqueSistema": 0,
+          "EstoqueAtual": 0
+        }
+      },
+      {
+        "linha": 5,
+        "chave": "nome:quatorze",
+        "campos": {
+          "nome": "QUATORZE",
+          "NomeProduto": "QUATORZE",
+          "codigoBarras": "17890000150016",
+          "CodigoBarras": "17890000150016",
+          "temCodigoBarras": true,
+          "quantidade": 0,
+          "estoqueSistema": 0,
+          "EstoqueAtual": 0
+        }
+      },
+      {
+        "linha": 6,
+        "chave": "nome:dezesseis",
+        "campos": {
+          "nome": "DEZESSEIS",
+          "NomeProduto": "DEZESSEIS",
+          "codigoBarras": "1234567890123456",
+          "CodigoBarras": "1234567890123456",
+          "temCodigoBarras": true,
+          "quantidade": 0,
+          "estoqueSistema": 0,
+          "EstoqueAtual": 0
+        }
+      }
+    ],
+    "atualizar": [],
+    "semMudanca": 0,
+    "recusadas": [],
+    "ignoradas": 0,
+    "possiveisDuplicados": 0
+  }
+}

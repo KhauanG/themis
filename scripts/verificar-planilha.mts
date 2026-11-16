@@ -10,7 +10,8 @@
  *   npx tsx scripts/verificar-planilha.mts planilhaprodutos.xlsx
  */
 import { readFileSync } from 'node:fs';
-import { lerPlanilha } from '../apps/web/src/lib/planilha.js';
+import { planejarImportacao, resumoDoPlano } from '@themis/shared';
+import { ErroDePlanilha, lerPlanilha, type LeituraPlanilha } from '../apps/web/src/lib/planilha.js';
 
 const caminho = process.argv[2];
 if (!caminho) {
@@ -19,30 +20,30 @@ if (!caminho) {
 }
 
 const arquivo = new File([readFileSync(caminho)], caminho.split(/[/\\]/).pop() ?? 'planilha.xlsx');
-const { linhas, ignoradas, colunasFaltando, temColunaEstoque } = await lerPlanilha(arquivo);
-
-if (colunasFaltando.length > 0) {
-  console.error('Colunas faltando:', colunasFaltando);
+let leitura: LeituraPlanilha;
+try {
+  leitura = await lerPlanilha(arquivo);
+} catch (erro) {
+  if (!(erro instanceof ErroDePlanilha)) throw erro;
+  console.error(erro.message);
   process.exit(1);
 }
 
-console.log(`Linhas aproveitadas : ${linhas.length}`);
-console.log(`Linhas ignoradas    : ${ignoradas}`);
-console.log(`Coluna de saldo     : ${temColunaEstoque ? 'sim' : 'não'}`);
+if (leitura.colunasFaltando.length > 0) {
+  console.error('Colunas faltando:', leitura.colunasFaltando);
+  process.exit(1);
+}
 
-const comId = linhas.filter((l) => l.IdProduto !== null).length;
-const comCodigo = linhas.filter((l) => l.temCodigoBarras).length;
-const comPreco = linhas.filter((l) => l.PrecoVenda > 0).length;
-console.log(`Com IdProduto       : ${comId}`);
-console.log(`Com código de barras: ${comCodigo}`);
-console.log(`Com PrecoVenda      : ${comPreco}`);
+const { linhas } = leitura;
+console.log(`Aba lida            : ${leitura.aba}`);
+console.log(`Linhas lidas        : ${linhas.length}`);
+console.log(`Com IdProduto       : ${linhas.filter((l) => l.IdProduto !== undefined).length}`);
+console.log(`Com código de barras: ${linhas.filter((l) => l.codigoBarras !== undefined).length}`);
+console.log(`Com PrecoVenda      : ${linhas.filter((l) => l.PrecoVenda !== undefined).length}`);
 
 console.log('\nPrimeiras 3 linhas:');
 for (const l of linhas.slice(0, 3)) console.log(' ', JSON.stringify(l));
 
-// IdProduto repetido faria a segunda linha sobrescrever a primeira na importação.
-const vistos = new Set<string>();
-const repetidos = linhas.filter((l) => l.IdProduto && !vistos.add(l.IdProduto) === false);
-const duplicados = linhas.length - new Set(linhas.map((l) => l.IdProduto ?? l.nome)).size;
-console.log(`\nChaves duplicadas   : ${duplicados}`);
-void repetidos;
+const plano = planejarImportacao([], linhas);
+console.log(`\nPlano (banco vazio): ${resumoDoPlano(plano)}`);
+for (const r of plano.recusadas.slice(0, 5)) console.log(`linha ${r.linha}: ${r.motivo}`);

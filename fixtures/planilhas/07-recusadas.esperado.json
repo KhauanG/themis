@@ -1,0 +1,101 @@
+{
+  "aba": "Produtos",
+  "cabecalhos": [
+    "IdProduto",
+    "NomeProduto",
+    "PrecoVenda",
+    "EstoqueAtual"
+  ],
+  "mapa": {
+    "IdProduto": 0,
+    "NomeProduto": 1,
+    "PrecoVenda": 2,
+    "EstoqueAtual": 3
+  },
+  "colunasFaltando": [],
+  "linhas": [
+    {
+      "linha": 2,
+      "nome": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+      "IdProduto": "3001",
+      "PrecoVenda": 1,
+      "estoqueSistema": 1
+    },
+    {
+      "linha": 3,
+      "nome": "ID TEXTO",
+      "IdProduto": "abc",
+      "PrecoVenda": 1,
+      "estoqueSistema": 1
+    },
+    {
+      "linha": 4,
+      "nome": "ID ZERO",
+      "IdProduto": "0",
+      "PrecoVenda": 1,
+      "estoqueSistema": 1
+    },
+    {
+      "linha": 5,
+      "nome": "PRECO NEGATIVO",
+      "IdProduto": "3002",
+      "PrecoVenda": -3,
+      "estoqueSistema": 1
+    },
+    {
+      "linha": 6,
+      "IdProduto": "3003",
+      "PrecoVenda": 1,
+      "estoqueSistema": 1
+    },
+    {
+      "linha": 7,
+      "nome": "SALDO NEGATIVO",
+      "IdProduto": "3004",
+      "PrecoVenda": 1,
+      "estoqueSistema": -3
+    }
+  ],
+  "plano": {
+    "criar": [
+      {
+        "linha": 7,
+        "chave": "id:3004",
+        "campos": {
+          "nome": "SALDO NEGATIVO",
+          "NomeProduto": "SALDO NEGATIVO",
+          "codigoBarras": "",
+          "CodigoBarras": "",
+          "temCodigoBarras": false,
+          "quantidade": 0,
+          "estoqueSistema": -3,
+          "EstoqueAtual": -3,
+          "IdProduto": "3004",
+          "PrecoVenda": 1
+        }
+      }
+    ],
+    "atualizar": [],
+    "semMudanca": 0,
+    "recusadas": [
+      {
+        "linha": 2,
+        "motivo": "nome com mais de 300 letras"
+      },
+      {
+        "linha": 3,
+        "motivo": "código do produto inválido"
+      },
+      {
+        "linha": 4,
+        "motivo": "código do produto inválido"
+      },
+      {
+        "linha": 5,
+        "motivo": "preço ou mínimo negativo em PrecoVenda"
+      }
+    ],
+    "ignoradas": 1,
+    "possiveisDuplicados": 0
+  }
+}

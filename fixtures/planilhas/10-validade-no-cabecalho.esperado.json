@@ -1,0 +1,43 @@
+{
+  "aba": "Produtos",
+  "cabecalhos": [
+    "Nome",
+    "Validade",
+    "Saldo"
+  ],
+  "mapa": {
+    "NomeProduto": 0,
+    "EstoqueAtual": 2
+  },
+  "colunasFaltando": [],
+  "linhas": [
+    {
+      "linha": 2,
+      "nome": "PRODUTO VALIDADE",
+      "estoqueSistema": 5
+    }
+  ],
+  "plano": {
+    "criar": [
+      {
+        "linha": 2,
+        "chave": "nome:produto validade",
+        "campos": {
+          "nome": "PRODUTO VALIDADE",
+          "NomeProduto": "PRODUTO VALIDADE",
+          "codigoBarras": "",
+          "CodigoBarras": "",
+          "temCodigoBarras": false,
+          "quantidade": 0,
+          "estoqueSistema": 5,
+          "EstoqueAtual": 5
+        }
+      }
+    ],
+    "atualizar": [],
+    "semMudanca": 0,
+    "recusadas": [],
+    "ignoradas": 0,
+    "possiveisDuplicados": 0
+  }
+}

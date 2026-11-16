@@ -1,4 +1,5 @@
-import { readFileSync, readdirSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { planejarImportacao } from '@themis/shared';
 import { ErroDePlanilha, idDeImportacao, lerPlanilha } from '../apps/web/src/lib/planilha.ts';
@@ -18,6 +19,9 @@ const planilhas = readdirSync(PASTA)
   .filter((n) => /\.(xlsx|xls)$/.test(n) && n !== '19-grande.xlsx')
   .sort();
 
+const GRAVAR = process.env.GRAVAR_ESPERADO === '1';
+const esperadoDe = (nome) => nome.replace(/\.(xlsx|xls)$/, '.esperado.json');
+
 /** O que o site faz com o arquivo, já no formato do `.esperado.json` (Task 7). */
 async function resultadoDe(nome) {
   try {
@@ -29,6 +33,17 @@ async function resultadoDe(nome) {
     throw erro;
   }
 }
+
+describe('fixtures/planilhas — cada arquivo contra o esperado', { timeout: 30_000 }, () => {
+  it.each(planilhas)('%s', async (nome) => {
+    const real = await resultadoDe(nome);
+    // Só cria o que falta. Nunca regrava um esperado que já existe.
+    if (GRAVAR && !existsSync(new URL(esperadoDe(nome), PASTA))) {
+      writeFileSync(new URL(esperadoDe(nome), PASTA), `${JSON.stringify(real, null, 2)}\n`);
+    }
+    expect(real).toEqual(json(esperadoDe(nome)));
+  });
+});
 
 // Conferência à mão: o esperado (Task 7) é gerado pelo código, e estes fatos não.
 describe('fixtures/planilhas — fatos-chave', { timeout: 30_000 }, () => {
@@ -142,5 +157,14 @@ describe('fixtures/planilhas — fatos-chave', { timeout: 30_000 }, () => {
 
   it.each(Object.entries(fatos))('%s', async (nome, conferir) => {
     conferir(await resultadoDe(nome));
+  });
+});
+
+describe('fixtures/planilhas — SHA256SUMS', () => {
+  it('confere cada arquivo da pasta, na ordem do nome', () => {
+    const nomes = readdirSync(PASTA).filter((n) => n !== 'SHA256SUMS' && n !== '19-grande.xlsx').sort();
+    const somas = nomes.map((n) => `${createHash('sha256').update(ler(n)).digest('hex')}  ${n}\n`).join('');
+    if (GRAVAR) writeFileSync(new URL('SHA256SUMS', PASTA), somas);
+    expect(somas).toBe(ler('SHA256SUMS').toString('utf8'));
   });
 });

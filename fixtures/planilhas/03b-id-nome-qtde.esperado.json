@@ -1,0 +1,30 @@
+{
+  "aba": "Produtos",
+  "cabecalhos": [
+    "ID",
+    "Nome do produto",
+    "Qtde"
+  ],
+  "mapa": {
+    "IdProduto": 0,
+    "EstoqueAtual": 2,
+    "NomeProduto": 1
+  },
+  "colunasFaltando": [],
+  "linhas": [
+    {
+      "linha": 2,
+      "nome": "PRODUTO TESTE 2",
+      "IdProduto": "7",
+      "estoqueSistema": 0
+    }
+  ],
+  "plano": {
+    "criar": [],
+    "atualizar": [],
+    "semMudanca": 1,
+    "recusadas": [],
+    "ignoradas": 0,
+    "possiveisDuplicados": 0
+  }
+}
